@@ -50,8 +50,7 @@ The plugin maintains inside the browser page:
 shaders:          Map<WebGLShader,  { type, source, compiled, log }>
 programs:         Map<WebGLProgram, { linked, log, uniforms, attributes }>
 textures:         Map<WebGLTexture, { width, height, format, internalFormat }>
-contexts:         Set<WebGLRenderingContext | WebGL2RenderingContext>
-canvases:         Map<WebGLRenderingContext, HTMLCanvasElement>
+contexts:         Map<WebGLRenderingContext | WebGL2RenderingContext, HTMLCanvasElement | OffscreenCanvas>
 frameAccumulator: { drawCalls: number; glErrors: string[]; primitiveCount: number }
 totalFrames:      number
 lastFrame:        { drawCalls, glErrors, primitiveCount } | null
@@ -73,15 +72,22 @@ captureBuffers?: Map<string, {
 
 `captureBuffers` is populated when the server receives `plugin.webgl.capture` events. It is used by `writeTrace` to write PNG files and by the eval socket to provide `pixel()` helpers.
 
-### Context interception
+### Context tracking
 
-`browser.setup(agent)` patches `HTMLCanvasElement.prototype.getContext`. Every call to `getContext('webgl')` or `getContext('webgl2')` returns a `Proxy`-wrapped context. The original `getContext` is preserved and called through. All created contexts are tracked.
+Rather than patching `HTMLCanvasElement.prototype.getContext` globally, the plugin uses **explicit opt-in**: the user calls `plugin.track(rawGl)` with the context they want to observe. `track()` wraps the context in a `Proxy` and returns the wrapped version. The user uses this returned reference for all rendering. No global prototype is mutated.
 
-**Known limitation:** The patch is applied once at `setup()` and remains active for the lifetime of the browser context — there is no teardown mechanism in the `IntrospectionPlugin` interface. The plugin should be set up once per page.
+```ts
+// User code — in browser page setup:
+const rawGl = canvas.getContext('webgl2')!
+const gl = plugin.track(rawGl)   // wrap and register this context
+// use gl for all rendering
+```
 
-**Known limitation:** Contexts acquired via `canvas.transferControlToOffscreen()` use `OffscreenCanvas.getContext`, which is not patched. These contexts are not tracked.
+This works identically for `WebGLRenderingContext`, `WebGL2RenderingContext`, contexts from `OffscreenCanvas`, WebXR framebuffers — any context the user has a reference to. Multiple contexts are tracked by calling `track()` once per context.
 
-Intercepted WebGL methods:
+`browser.setup(agent)` stores the agent reference. It performs no global patching — all interception is installed on the specific contexts registered via `track()`.
+
+Intercepted WebGL methods (applied to each Proxy):
 
 | Method | Action |
 |---|---|
@@ -92,7 +98,7 @@ Intercepted WebGL methods:
 | `drawArrays` / `drawElements` | Increment `frameAccumulator.drawCalls`, add primitive count; call `getError()` after — if non-zero, emit `plugin.webgl.error` immediately AND add to `frameAccumulator.glErrors` |
 | `drawArraysInstanced` / `drawElementsInstanced` (WebGL2) | Same as above |
 
-Context loss: `canvas.addEventListener('webglcontextlost', ...)` for each tracked canvas — emits `plugin.webgl.contextlost` and calls `agent.emit` to trigger a state snapshot.
+Context loss: `canvas.addEventListener('webglcontextlost', ...)` for each tracked context's canvas (where accessible) — emits `plugin.webgl.contextlost` and calls `plugin.stateSnapshot()` automatically.
 
 ### Frame boundary
 
@@ -108,20 +114,22 @@ Frame stats are **not** inferred automatically. The user calls `plugin.frame()` 
 
 Labels are slugified (`label.toLowerCase().replace(/[^a-z0-9]+/g, '-')`) before emission to produce safe sidecar filenames. If multiple canvases are tracked, each gets its own event with labels `${slugLabel}` (first), `${slugLabel}-1`, `${slugLabel}-2`, etc.
 
-On the server, the `EVENT` handler (already `async`) processes `plugin.webgl.capture` events:
-1. Decodes `pixelsBase64` → `Buffer`
-2. Stores in `session.captureBuffers` with key = label
-3. Stores a cleaned event (without `pixelsBase64`, with `captureRef`) in `session.events`
+On the server, the `EVENT` handler (already `async`) processes `plugin.webgl.capture` events before the plugin `transformEvent` loop:
+1. Detects `event.type === 'plugin.webgl.capture'`
+2. Decodes `data.pixelsBase64` → `Buffer`
+3. Stores in `session.captureBuffers` with key = label, captureRef = `capture-${session.id}-${data.label}.png`
+4. Constructs the cleaned event (same event minus `pixelsBase64`, plus `captureRef`) and pushes it directly to `session.events` — bypassing the `transformEvent` loop (no plugin transform needed for a first-party capture event)
+5. Returns early from the `EVENT` handler for this message
 
-The `transformEvent` interface method is **not used** for this — capture processing is handled directly in `server.ts`'s `EVENT` case before the plugin `transformEvent` loop, since it requires access to the `Session` object.
+The `transformEvent` interface method is **not used** for this — capture processing is handled directly in `server.ts`'s `EVENT` case with direct access to the `Session` object.
 
 At `END_SESSION`, `writeTrace` iterates `session.captureBuffers` and writes PNG files using `pngjs` before writing the trace JSON.
 
 ### WebGL state snapshots
 
-Because `browser.snapshot()` is called in the Playwright process (not the browser page), it cannot access browser-side WebGL state. Instead, the plugin exposes `plugin.stateSnapshot()` — a user-callable method that emits a `plugin.webgl.stateSnapshot` event containing the full in-memory state (shaders, programs, textures, frame summary).
+Because `browser.snapshot()` runs in the Playwright process (not the browser page), it cannot reach browser-side WebGL state. Instead, the plugin exposes `plugin.stateSnapshot()` — a method the user calls explicitly in their page code at meaningful moments (after rendering a frame, before an assertion, on context loss). It emits a `plugin.webgl.stateSnapshot` event containing the full in-memory state. The agent queries it from the eval socket:
 
-The agent can trigger this from the eval socket indirectly (by calling `handle.snapshot()` which triggers a TAKE_SNAPSHOT round-trip), or the user can call it explicitly in their code. The emitted event is queryable via:
+`WebGLPlugin.browser.snapshot()` (the `IntrospectionPlugin` interface method called at SNAPSHOT time) returns a lightweight summary only: `{ contextCount, totalFrames, lastFrame }`. The full state is not included there — it lives in `plugin.webgl.stateSnapshot` events instead.
 
 ```ts
 // via eval socket:
@@ -254,6 +262,14 @@ import { createWebGLPlugin } from '@introspection/plugin-webgl'
 
 const plugin = createWebGLPlugin()
 
+// In page setup — explicitly opt a context into tracking:
+const rawGl = canvas.getContext('webgl2')!
+const gl = plugin.track(rawGl)   // returns Proxy-wrapped context
+// use gl for all rendering (not rawGl)
+
+// For OffscreenCanvas, WebXR, or any other context — same pattern:
+const offscreenGl = plugin.track(offscreenCanvas.getContext('webgl2')!)
+
 // In render loop — explicit frame boundary:
 plugin.frame()
 
@@ -272,11 +288,14 @@ const handle = await attach(page, { plugins: [plugin] })
 
 ```ts
 export interface WebGLPlugin extends IntrospectionPlugin {
+  track<T extends WebGLRenderingContext | WebGL2RenderingContext>(gl: T): T
   frame(): void
   capture(label: string): void
   stateSnapshot(): void
 }
 ```
+
+`track()` is generic and preserves the exact context type, so TypeScript callers retain full type safety on the returned `gl`.
 
 ---
 
@@ -316,9 +335,9 @@ export interface WebGLPlugin extends IntrospectionPlugin {
 
 ## Testing
 
-**Browser plugin unit tests** (`packages/plugin-webgl/test/`) — vitest with a minimal WebGL mock (plain object with spied methods):
-- `getContext` interception registers contexts
-- `drawArrays` increments frame accumulator
+**Browser plugin unit tests** (`packages/plugin-webgl/test/`) — vitest with a minimal WebGL mock (plain object with spied methods, no real browser needed):
+- `plugin.track(mockGl)` returns a Proxy; calling methods on the returned proxy calls through to the original
+- `drawArrays` on the tracked context increments frame accumulator
 - `getError()` non-zero emits `plugin.webgl.error` and adds to accumulator
 - `compileShader` failure recorded in shader registry
 - `plugin.frame()` emits correct stats and resets accumulator
@@ -336,7 +355,6 @@ export interface WebGLPlugin extends IntrospectionPlugin {
 ## Out of Scope
 
 - GPU timing via `EXT_disjoint_timer_query_webgl2` (deferred — async query API adds significant complexity)
-- WebXR / OffscreenCanvas acquired via `OffscreenCanvas.getContext` (deferred — different context acquisition path). Note: canvases transferred via `transferControlToOffscreen()` silently bypass the `HTMLCanvasElement.prototype.getContext` patch.
 - Web Workers with WebGL (deferred — Plan 5)
 - Diff/comparison helpers between captures (the eval socket's `captures.pixel()` provides enough for the agent to compare values directly)
 - Replace `agent.emit()` with `@bigmistqke/rpc` stream module for typed browser↔server RPC (future exploration — would allow browser plugins to call server methods like `server.writeCapture(pixels)` directly, eliminating the Base64 transport hack)
