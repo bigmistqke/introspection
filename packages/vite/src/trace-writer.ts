@@ -1,9 +1,7 @@
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
-import type { TraceFile, TraceEvent, BodySummary } from '@introspection/types'
+import type { TraceFile, TraceEvent, BodySummary, TestResult } from '@introspection/types'
 import type { Session } from './server.js'
-
-interface TestResult { status: 'passed' | 'failed' | 'timedOut' | 'skipped'; error?: string }
 
 function slugify(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80)
