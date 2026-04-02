@@ -10,6 +10,7 @@ export interface AttachOptions {
   sessionId: string
   testTitle: string
   testFile: string
+  // workerIndex and outDir are reserved for future server-side trace routing
   workerIndex: number
   outDir: string
 }
@@ -29,9 +30,11 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   // Connect to Vite plugin WS
   const ws = new WebSocket(viteUrl)
   await new Promise<void>((resolve, reject) => {
-    ws.once('open', resolve)
-    ws.once('error', reject)
-    setTimeout(() => reject(new Error(`Could not connect to Vite introspection server at ${viteUrl}`)), 3000)
+    let timer: ReturnType<typeof setTimeout>
+    const cleanup = () => clearTimeout(timer)
+    ws.once('open', () => { cleanup(); resolve() })
+    ws.once('error', (err) => { cleanup(); reject(err) })
+    timer = setTimeout(() => reject(new Error(`Could not connect to Vite introspection server at ${viteUrl}`)), 3000)
   })
 
   function sendEvent(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }) {
@@ -49,6 +52,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   await cdp.send('Runtime.enable')
   await cdp.send('Debugger.enable')
   await cdp.send('DOM.enable')
+  await cdp.send('Page.enable')
 
   cdp.on('Network.requestWillBeSent', (params) => {
     sendEvent(normaliseCdpNetworkRequest(params as never, sessionId, startedAt))
@@ -75,9 +79,13 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
       ws.send(JSON.stringify({ type: 'SNAPSHOT_REQUEST', sessionId, trigger: 'manual' }))
     },
     async detach() {
+      // result is provided by the test fixture in Task 13; default to 'passed' for standalone use
       ws.send(JSON.stringify({ type: 'END_SESSION', sessionId, result: { status: 'passed' } }))
       await cdp.detach()
-      ws.close()
+      await new Promise<void>((resolve) => {
+        ws.once('close', resolve)
+        ws.close()
+      })
     },
   }
 
