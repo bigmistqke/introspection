@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto'
 import type { PlaywrightActionEvent } from '@introspection/types'
 import type { Page } from '@playwright/test'
 
