@@ -21,8 +21,8 @@ export class BrowserAgent implements IBrowserAgent {
     plugin.browser?.setup(this)
   }
 
-  emit(event: Omit<PluginEvent, 'id' | 'ts'>): void {
-    const full = { id: makeId(), ts: Date.now(), ...event }
+  emit(event: Omit<PluginEvent, 'id' | 'ts' | 'source'>): void {
+    const full = { id: makeId(), ts: Date.now(), source: 'plugin' as const, ...event }
     this.transport.send(JSON.stringify({ type: 'EVENT', event: full }))
   }
 
