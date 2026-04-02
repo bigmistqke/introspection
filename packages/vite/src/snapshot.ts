@@ -47,7 +47,7 @@ export async function takeSnapshot(options: TakeSnapshotOptions): Promise<OnErro
         }
       } catch { /* non-fatal */ }
     }
-    scopes.push({ frame: `${frame.functionName} (${frame.url}:${frame.location.lineNumber})`, vars })
+    scopes.push({ frame: `${frame.functionName} (${frame.url}:${frame.location.lineNumber + 1})`, vars })
   }
 
   // Key globals
@@ -63,15 +63,16 @@ export async function takeSnapshot(options: TakeSnapshotOptions): Promise<OnErro
     } catch { /* non-fatal */ }
   }
 
-  // Plugin extensions
+  // Plugin extensions — pass assembled snapshot (without plugins to avoid circularity)
+  const partialSnapshot = { ts: Date.now(), trigger, url, dom, scopes, globals, plugins: {} }
   const pluginData: Record<string, unknown> = {}
   for (const plugin of plugins) {
     if (plugin.server?.extendSnapshot) {
       try {
-        pluginData[plugin.name] = plugin.server.extendSnapshot({} as never)
+        pluginData[plugin.name] = await Promise.resolve(plugin.server.extendSnapshot(partialSnapshot))
       } catch { /* non-fatal */ }
     }
   }
 
-  return { ts: Date.now(), trigger, url, dom, scopes, globals, plugins: pluginData }
+  return { ...partialSnapshot, plugins: pluginData }
 }
