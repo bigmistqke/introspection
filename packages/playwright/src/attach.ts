@@ -64,6 +64,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
     sendEvent(normaliseCdpJsError(params as never, sessionId, startedAt))
   })
   cdp.on('Page.navigatedWithinDocument', (params: { url: string }) => {
+    // CDP does not provide the previous URL in this event; 'from' is always empty
     sendEvent({ type: 'browser.navigate', source: 'cdp', data: { from: '', to: params.url } })
   })
 
@@ -81,7 +82,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
     async detach() {
       // result is provided by the test fixture in Task 13; default to 'passed' for standalone use
       ws.send(JSON.stringify({ type: 'END_SESSION', sessionId, result: { status: 'passed' } }))
-      await cdp.detach()
+      try { await cdp.detach() } catch { /* non-fatal: browser context may already be closed */ }
       await new Promise<void>((resolve) => {
         ws.once('close', resolve)
         ws.close()

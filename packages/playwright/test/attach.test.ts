@@ -77,6 +77,7 @@ describe('attach()', () => {
     expect(startMsg).toBeDefined()
     const parsed = JSON.parse(startMsg![0])
     expect(parsed.testTitle).toBe('test title')
+    expect(parsed.testFile).toBe('foo.spec.ts')
     expect(parsed.sessionId).toBe('sess-abc')
   })
 
@@ -112,7 +113,9 @@ describe('attach()', () => {
       try { return JSON.parse(msg).type === 'END_SESSION' } catch { return false }
     })
     expect(endMsg).toBeDefined()
-    expect(JSON.parse(endMsg![0]).sessionId).toBe('sess-detach')
+    const endParsed = JSON.parse(endMsg![0])
+    expect(endParsed.sessionId).toBe('sess-detach')
+    expect(endParsed.result).toEqual({ status: 'passed' })
     expect(cdp.detach).toHaveBeenCalledOnce()
     expect(mockWsClose).toHaveBeenCalledOnce()
   })
