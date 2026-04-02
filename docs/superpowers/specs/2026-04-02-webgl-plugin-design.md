@@ -87,6 +87,8 @@ This works identically for `WebGLRenderingContext`, `WebGL2RenderingContext`, co
 
 `browser.setup(agent)` stores the agent reference. It performs no global patching — all interception is installed on the specific contexts registered via `track()`.
 
+Calls to `plugin.frame()`, `plugin.capture()`, and `plugin.stateSnapshot()` before `browser.setup()` has been called (i.e., before the plugin is wired into a session) are **silently dropped** — no error is thrown.
+
 Intercepted WebGL methods (applied to each Proxy):
 
 | Method | Action |
@@ -106,18 +108,18 @@ Frame stats are **not** inferred automatically. The user calls `plugin.frame()` 
 
 ### Named captures
 
-`plugin.capture(label)` calls `gl.readPixels` on each tracked canvas. For each canvas:
+`plugin.capture(label)` iterates over every entry in the `contexts` map (one per tracked context, not deduplicated by canvas — if the same canvas has two tracked contexts, both are captured). For each context:
 
-1. Reads raw RGBA pixels into a `Uint8Array`
+1. Reads raw RGBA pixels via `gl.readPixels` into a `Uint8Array`
 2. Base64-encodes the pixel data (`btoa` / `Buffer.from().toString('base64')`)
 3. Calls `agent.emit({ type: 'plugin.webgl.capture', data: { label: safeLabel, pixelsBase64, width, height, canvas: canvasId } })`
 
-Labels are slugified (`label.toLowerCase().replace(/[^a-z0-9]+/g, '-')`) before emission to produce safe sidecar filenames. If multiple canvases are tracked, each gets its own event with labels `${slugLabel}` (first), `${slugLabel}-1`, `${slugLabel}-2`, etc.
+Labels are slugified (`label.toLowerCase().replace(/[^a-z0-9]+/g, '-')`) before emission to produce safe sidecar filenames. If multiple contexts are tracked, each gets its own event with labels `${slugLabel}` (first), `${slugLabel}-1`, `${slugLabel}-2`, etc.
 
 On the server, the `EVENT` handler (already `async`) processes `plugin.webgl.capture` events before the plugin `transformEvent` loop:
 1. Detects `event.type === 'plugin.webgl.capture'`
 2. Decodes `data.pixelsBase64` → `Buffer`
-3. Stores in `session.captureBuffers` with key = label, captureRef = `capture-${session.id}-${data.label}.png`
+3. Stores in `session.captureBuffers` with key = label, captureRef = `capture-${session.id}-${data.label}.png` (where `session.id` is the UUID string already present on the `Session` object)
 4. Constructs the cleaned event (same event minus `pixelsBase64`, plus `captureRef`) and pushes it directly to `session.events` — bypassing the `transformEvent` loop (no plugin transform needed for a first-party capture event)
 5. Returns early from the `EVENT` handler for this message
 
@@ -220,7 +222,7 @@ Emitted by `plugin.stateSnapshot()` (called explicitly or on context loss).
 
 ## Eval Socket
 
-Captures are exposed as a top-level variable in the eval socket VM context alongside `events`, `snapshot`, and `test`. This is built from `session.captureBuffers` when the eval context is constructed:
+Captures are exposed as a top-level variable in the eval socket VM context alongside `events`, `snapshot`, and `test`. `captures` is **always injected** — when there are no WebGL captures it is an empty object `{}`. This is built from `session.captureBuffers` when the eval context is constructed:
 
 ```ts
 // in eval-socket.ts, ctx construction:
@@ -316,7 +318,7 @@ export interface WebGLPlugin extends IntrospectionPlugin {
 |---|---|
 | `packages/vite/src/server.ts` | Add `captureBuffers?: Map<string, CaptureBuffer>` to `Session`; handle `plugin.webgl.capture` events in the `EVENT` case |
 | `packages/vite/src/trace-writer.ts` | Write PNG sidecar files for `session.captureBuffers` using `pngjs` |
-| `packages/vite/src/eval-socket.ts` | Add `captures` to VM context built from `session.captureBuffers` |
+| `packages/vite/src/eval-socket.ts` | Add `captures` to VM context built from `session.captureBuffers` (see Eval Socket section for shape; always injected, empty `{}` when no captures) |
 | `packages/vite/package.json` | Add `pngjs` dependency |
 
 ---
@@ -331,11 +333,13 @@ export interface WebGLPlugin extends IntrospectionPlugin {
   capture-<sessionId>-<label>.png      ← new (WebGL capture, human-viewable)
 ```
 
+PNGs are written to the `.introspect/` root (not inside `bodies/`) so they are immediately discoverable as human-viewable files without reading the trace JSON.
+
 ---
 
 ## Testing
 
-**Browser plugin unit tests** (`packages/plugin-webgl/test/`) — vitest with a minimal WebGL mock (plain object with spied methods, no real browser needed):
+**Browser plugin unit tests** (`packages/plugin-webgl/test/`) — vitest with a minimal WebGL mock (plain object with spied methods, no real browser needed). Tests call `plugin.browser.setup(mockAgent)` where `mockAgent = { emit: vi.fn() }` and assert calls on `mockAgent.emit`:
 - `plugin.track(mockGl)` returns a Proxy; calling methods on the returned proxy calls through to the original
 - `drawArrays` on the tracked context increments frame accumulator
 - `getError()` non-zero emits `plugin.webgl.error` and adds to accumulator
