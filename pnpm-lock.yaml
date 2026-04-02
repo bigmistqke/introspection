@@ -41,6 +41,10 @@ importers:
       jsonpath-plus:
         specifier: ^9.0.0
         version: 9.0.0
+    devDependencies:
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.37)
 
   packages/playwright:
     dependencies:
