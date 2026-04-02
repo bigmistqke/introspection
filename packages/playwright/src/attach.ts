@@ -1,9 +1,10 @@
 import { randomUUID } from 'crypto'
 import WebSocket from 'ws'
 import type { Page } from '@playwright/test'
-import type { IntrospectHandle, TraceEvent } from '@introspection/types'
+import type { IntrospectHandle, TraceEvent, OnErrorSnapshot } from '@introspection/types'
 import { createPageProxy } from './proxy.js'
 import { normaliseCdpNetworkRequest, normaliseCdpNetworkResponse, normaliseCdpJsError } from './cdp.js'
+import { takeSnapshot } from '@introspection/vite/snapshot'
 
 export interface AttachOptions {
   viteUrl: string       // ws://localhost:<port>/__introspection
@@ -47,6 +48,23 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
 
   // Open CDP session
   const cdp = await page.context().newCDPSession(page)
+
+  // Handle incoming messages from Vite server
+  ws.on('message', async (raw) => {
+    let msg: Record<string, unknown>
+    try { msg = JSON.parse(raw.toString()) } catch { return }
+
+    if (msg.type === 'TAKE_SNAPSHOT') {
+      const snapshot = await takeSnapshot({
+        cdpSession: { send: (method: string, params?: Record<string, unknown>) => cdp.send(method as never, params as never) },
+        trigger: (msg.trigger as OnErrorSnapshot['trigger']) ?? 'manual',
+        url: await page.evaluate(() => location.href),
+        callFrames: [],
+        plugins: [],
+      })
+      ws.send(JSON.stringify({ type: 'SNAPSHOT', sessionId, snapshot }))
+    }
+  })
 
   await cdp.send('Network.enable')
   await cdp.send('Runtime.enable')

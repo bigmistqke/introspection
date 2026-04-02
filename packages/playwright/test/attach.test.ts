@@ -1,9 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Mock @introspection/vite/snapshot before importing attach
+const mockTakeSnapshot = vi.fn().mockResolvedValue({ ts: 1, trigger: 'manual', url: 'http://localhost/', dom: '', scopes: [], globals: {}, plugins: {} })
+vi.mock('@introspection/vite/snapshot', () => ({
+  takeSnapshot: (...args: unknown[]) => mockTakeSnapshot(...args),
+}))
+
 // Mock the 'ws' module before importing attach
 const mockWsSend = vi.fn()
 const mockWsClose = vi.fn()
-const mockWsOnHandlers: Record<string, (() => void)[]> = {}
+const mockWsMessageHandlers: ((data: Buffer) => void)[] = []
 
 vi.mock('ws', () => {
   return {
@@ -19,7 +25,9 @@ vi.mock('ws', () => {
           mockWsClose.mockImplementationOnce(() => cb())
         }
       }
-      on = vi.fn()
+      on(event: string, cb: (data: Buffer) => void) {
+        if (event === 'message') mockWsMessageHandlers.push(cb)
+      }
     }
   }
 })
@@ -30,6 +38,9 @@ describe('attach()', () => {
   beforeEach(() => {
     mockWsSend.mockReset()
     mockWsClose.mockReset()
+    mockTakeSnapshot.mockReset()
+    mockTakeSnapshot.mockResolvedValue({ ts: 1, trigger: 'manual', url: 'http://localhost/', dom: '', scopes: [], globals: {}, plugins: {} })
+    mockWsMessageHandlers.length = 0
   })
 
   function makeFakePage() {
@@ -44,6 +55,7 @@ describe('attach()', () => {
         click: vi.fn().mockResolvedValue(undefined),
         fill: vi.fn().mockResolvedValue(undefined),
         goto: vi.fn().mockResolvedValue(undefined),
+        evaluate: vi.fn().mockResolvedValue('http://localhost/'),
       },
       cdp: mockCdp,
     }
@@ -102,6 +114,24 @@ describe('attach()', () => {
     expect(msg.type).toBe('SNAPSHOT_REQUEST')
     expect(msg.sessionId).toBe('sess-snap')
     expect(msg.trigger).toBe('manual')
+  })
+
+  it('handles TAKE_SNAPSHOT: calls takeSnapshot and sends SNAPSHOT', async () => {
+    const { page } = makeFakePage()
+    await attach(page as never, { ...baseOpts, sessionId: 'sess-snap2' })
+    mockWsSend.mockClear()
+
+    // Simulate the Vite server sending a TAKE_SNAPSHOT message
+    expect(mockWsMessageHandlers.length).toBeGreaterThan(0)
+    const payload = Buffer.from(JSON.stringify({ type: 'TAKE_SNAPSHOT', trigger: 'manual' }))
+    await mockWsMessageHandlers[0](payload)
+
+    expect(mockTakeSnapshot).toHaveBeenCalledOnce()
+    expect(mockWsSend).toHaveBeenCalledOnce()
+    const msg = JSON.parse(mockWsSend.mock.calls[0][0])
+    expect(msg.type).toBe('SNAPSHOT')
+    expect(msg.sessionId).toBe('sess-snap2')
+    expect(msg.snapshot).toBeDefined()
   })
 
   it('detach() sends END_SESSION, calls cdp.detach(), and closes WS', async () => {
