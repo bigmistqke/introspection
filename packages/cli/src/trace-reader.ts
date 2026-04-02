@@ -26,11 +26,12 @@ export class TraceReader {
   }
 
   filterEvents(trace: TraceFile, opts: FilterOptions): TraceEvent[] {
+    const NETWORK_URL_TYPES = new Set(['network.request', 'network.response', 'network.error'])
     return trace.events.filter(evt => {
       if (opts.type && evt.type !== opts.type) return false
-      if (opts.url && evt.type === 'network.request' && !evt.data.url.includes(opts.url)) return false
-      if (opts.url && evt.type === 'network.response' && !evt.data.url.includes(opts.url)) return false
+      if (opts.url && NETWORK_URL_TYPES.has(evt.type) && !(evt.data as { url: string }).url.includes(opts.url)) return false
       if (opts.failed && evt.type === 'network.response' && evt.data.status < 400) return false
+      // network.error events are always "failed" requests
       return true
     })
   }

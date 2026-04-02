@@ -35,13 +35,22 @@ export async function connectToSocket(socketPath: string): Promise<LiveClient> {
     }
   })
 
+  socket.on('error', (err) => {
+    for (const p of pending.values()) p.reject(err)
+    pending.clear()
+  })
+
   return {
     eval(expression) {
       const id = Math.random().toString(36).slice(2)
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject })
+        let timer: ReturnType<typeof setTimeout>
+        pending.set(id, {
+          resolve: (v) => { clearTimeout(timer); resolve(v) },
+          reject: (e) => { clearTimeout(timer); reject(e) },
+        })
         socket.write(JSON.stringify({ id, type: 'eval', expression }) + '\n')
-        setTimeout(() => { pending.delete(id); reject(new Error('eval timed out')) }, 10000)
+        timer = setTimeout(() => { pending.delete(id); reject(new Error('eval timed out')) }, 10000)
       })
     },
     close: () => socket.destroy(),
