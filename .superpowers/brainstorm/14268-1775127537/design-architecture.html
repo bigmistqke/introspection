@@ -1,0 +1,80 @@
+<h2>Design: Architecture Overview</h2>
+<p class="subtitle">Section 1 of 4 — let me know if anything feels off before we continue</p>
+
+<div class="section">
+  <h3>What it is</h3>
+  <p>A runtime introspection library for web apps. AI agents (like Claude Code) get debugger-level visibility into a running browser — network, DOM, errors, events, variable state — without a human filtering console output. The primary workflow is Playwright-based web app testing, but it works in dev mode too.</p>
+</div>
+
+<div class="section">
+  <h3>Package structure</h3>
+  <div class="mockup">
+    <div class="mockup-header">npm packages</div>
+    <div class="mockup-body" style="font-family:monospace;font-size:0.82rem;line-height:2">
+      <strong>@introspection/vite</strong> &nbsp;&nbsp; Vite plugin — hub of the system<br>
+      <strong>@introspection/browser</strong> &nbsp;&nbsp; Browser agent — injected into the page<br>
+      <strong>@introspection/playwright</strong> &nbsp;&nbsp; <code>attach(page)</code> — CDP bridge for tests<br>
+      <strong>introspect</strong> &nbsp;&nbsp; CLI — AI queries the trace<br>
+      <strong>@introspection/plugin-redux</strong> &nbsp;&nbsp; Plugin — captures Redux store<br>
+      <strong>@introspection/plugin-react</strong> &nbsp;&nbsp; Plugin — captures React component tree
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Data flow</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:monospace;font-size:0.78rem;line-height:1.9">
+<pre style="margin:0;font-family:inherit">
+Browser page
+├── @introspection/browser (injected JS)
+│   ├── intercepts fetch/XHR
+│   ├── MutationObserver (DOM changes)
+│   ├── window.onerror / unhandledRejection
+│   ├── addEventListener capture (clicks, inputs, nav)
+│   └── ──── WebSocket ────► Vite plugin server
+│
+└── CDP session (via @introspection/playwright)
+    ├── Network domain  (full request/response bodies)
+    ├── Runtime domain  (heap eval, variable inspection)
+    ├── Debugger domain (real stack traces, pause-on-error)
+    ├── DOM domain      (deep snapshots)
+    └── ──── Node.js ──► Vite plugin server
+
+Vite plugin server (Node.js)
+├── merges + deduplicates both streams
+├── buffers trace per session (keyed by test name)
+├── triggers snapshots on error
+├── runs plugins (Redux, React, custom)
+└── exposes query socket for CLI
+
+introspect CLI
+├── connects to Vite plugin socket
+├── live queries  (browser still open)
+└── trace queries (browser closed, from .trace.json)
+</pre>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Two modes</h3>
+  <div class="options" style="margin-top:0.5rem">
+    <div class="option" style="pointer-events:none;opacity:1;border-color:#6ee7b7">
+      <div class="letter" style="background:#065f46;color:#6ee7b7">1</div>
+      <div class="content">
+        <h3>Dev mode (vite dev)</h3>
+        <p>Browser agent only — no CDP. Vite injects the agent automatically. Works in any browser. Useful for AI-assisted debugging during development.</p>
+      </div>
+    </div>
+    <div class="option" style="pointer-events:none;opacity:1;border-color:#818cf8">
+      <div class="letter" style="background:#1e1b4b;color:#818cf8">2</div>
+      <div class="content">
+        <h3>Test mode (Playwright + vite)</h3>
+        <p>Browser agent <strong>+</strong> CDP session. <code>attach(page)</code> opens CDP via Playwright's internal API — no flags, no ports. Full variable inspection, real stack traces, complete network bodies.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:1.5rem">Does this architecture feel right? Any packages missing or out of scope?</p>

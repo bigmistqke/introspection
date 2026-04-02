@@ -1,0 +1,42 @@
+<h2>Three Approaches to Runtime Introspection</h2>
+<p class="subtitle">Pick the architecture that fits best — or let me know what feels off</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Browser Agent (JS Injection Only)</h3>
+      <p>A JS bundle injected into the page via <code>addInitScript()</code> that monkeypatches browser APIs: intercepts <code>fetch</code>/XHR, listens to DOM mutations, captures <code>window.onerror</code>, wraps <code>console</code>, records input events. Trace stored in <code>window.__introspection__</code>, extracted with <code>page.evaluate()</code>.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Works in any browser</li><li>No Playwright dependency</li><li>Works in dev/Storybook too</li><li>Simple to understand</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>No real heap/variable inspection</li><li>Stack traces are shallow</li><li>Monkeypatching can break some apps</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>CDP-First (Chrome DevTools Protocol)</h3>
+      <p>Uses Playwright's <code>page.context().newCDPSession()</code> to tap directly into the Chrome debugger protocol — the same protocol VS Code uses. Full Network domain (request/response bodies), Runtime domain (heap inspection, variable evaluation), DOM domain, and Debugger domain (real call stacks, pause-on-error snapshots).</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>True debugger-level data</li><li>Real heap/variable inspection</li><li>Accurate stack traces</li><li>Directly maps to "VS Code debugger for AI"</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Chromium only</li><li>Requires Playwright (or Puppeteer) in test context</li><li>More complex to implement</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid: Browser Agent + Optional CDP Layer</h3>
+      <p>Browser agent handles cross-browser basics (network intercept, events, console, DOM snapshots). CDP layer activates when available (Playwright/Chromium) to add deep variable inspection and real stack traces. Plugin system sits on top for framework data (Redux, React DevTools protocol, etc.).</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Best of both worlds</li><li>Degrades gracefully to non-Chrome</li><li>Plugin system is natural extension point</li><li>Can ship browser agent first, add CDP later</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>More surface area</li><li>Two data sources to merge/deduplicate</li><li>Slightly more complex to reason about</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top: 1.5rem" class="subtitle">My recommendation: <strong>B first, C eventually</strong> — start CDP-first since your use case is Playwright/Chromium testing. Add the browser agent layer later if cross-browser or non-Playwright scenarios emerge.</p>

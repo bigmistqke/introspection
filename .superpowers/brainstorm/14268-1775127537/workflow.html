@@ -1,0 +1,80 @@
+<h2>How does the CLI connect to a running browser?</h2>
+<p class="subtitle">The core workflow question — pick the model that feels right</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Remote Debugging Port (CDP WebSocket)</h3>
+      <p>Launch Chromium with <code>--remote-debugging-port=9222</code>. The CLI connects to <code>ws://localhost:9222</code> directly — same way VS Code attaches to Chrome. Works while the browser is alive.</p>
+      <div class="mockup" style="margin-top:0.75rem">
+        <div class="mockup-header">Workflow</div>
+        <div class="mockup-body" style="font-family:monospace;font-size:0.8rem;line-height:1.8">
+          <span style="color:#6ee7b7"># playwright.config.ts</span><br>
+          launch: &#123; args: ['--remote-debugging-port=9222'] &#125;<br><br>
+          <span style="color:#6ee7b7"># terminal 1 — run tests</span><br>
+          npx playwright test --headed<br><br>
+          <span style="color:#6ee7b7"># terminal 2 — AI queries while browser is open</span><br>
+          introspect eval "window.store.getState()" --port=9222<br>
+          introspect dom --selector="#app" --port=9222<br>
+          introspect network --port=9222
+        </div>
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Standard Chrome protocol</li><li>Live arbitrary expression eval</li><li>No intermediary process</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Browser must stay open for queries</li><li>Post-mortem requires keeping browser alive manually</li><li>Port conflicts in parallel test runs</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Introspection Daemon (local proxy)</h3>
+      <p>A small background process (<code>introspect daemon</code>) connects to the browser via CDP and streams events. Tests register with the daemon. CLI talks to the daemon — even after the browser closes, the daemon holds the trace in memory.</p>
+      <div class="mockup" style="margin-top:0.75rem">
+        <div class="mockup-header">Workflow</div>
+        <div class="mockup-body" style="font-family:monospace;font-size:0.8rem;line-height:1.8">
+          <span style="color:#6ee7b7"># start daemon once</span><br>
+          introspect daemon start<br><br>
+          <span style="color:#6ee7b7"># tests auto-register via attach()</span><br>
+          npx playwright test<br><br>
+          <span style="color:#6ee7b7"># AI queries anytime (browser dead or alive)</span><br>
+          introspect eval "window.store.getState()" --test=login<br>
+          introspect query --type=error --test=login
+        </div>
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Queries work after browser closes</li><li>Central place for all test sessions</li><li>Can serve multiple parallel tests</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Extra process to manage</li><li>Live eval only while browser is up</li><li>More moving parts</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Session File + On-Demand CDP Attach</h3>
+      <p>When a test starts, <code>attach(page)</code> writes a <code>.introspect-session</code> file with the CDP WebSocket URL + test metadata. CLI reads the session file and connects directly. On test end, a <code>.trace.json</code> replaces the session file (with snapshots for post-mortem).</p>
+      <div class="mockup" style="margin-top:0.75rem">
+        <div class="mockup-header">Workflow</div>
+        <div class="mockup-body" style="font-family:monospace;font-size:0.8rem;line-height:1.8">
+          <span style="color:#6ee7b7"># test starts → session file written</span><br>
+          .introspect/login-test.session.json<br><br>
+          <span style="color:#6ee7b7"># while test runs (live)</span><br>
+          introspect eval "document.title" --session=login-test<br><br>
+          <span style="color:#6ee7b7"># test ends → trace file written</span><br>
+          .introspect/login-test.trace.json<br><br>
+          <span style="color:#6ee7b7"># post-mortem (browser closed)</span><br>
+          introspect query --type=error --trace=login-test
+        </div>
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>No daemon needed</li><li>Live + post-mortem in one model</li><li>Session file is just JSON — easy to discover</li><li>Scales naturally to parallel tests</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Post-mortem eval limited to saved snapshots</li><li>Slightly more complexity in attach()</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top: 1.5rem" class="subtitle">My recommendation: <strong>C</strong> — session file approach. Clean, no extra processes, works for both live and post-mortem. The only limitation (no arbitrary eval after browser closes) is acceptable if we take rich snapshots on errors.</p>
