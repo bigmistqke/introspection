@@ -14,7 +14,9 @@
   },
   "dependencies": {
     "@introspection/playwright": "workspace:*",
-    "@introspection/types": "workspace:*",
-    "@playwright/test": "*"
+    "@introspection/types": "workspace:*"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
   }
 }
