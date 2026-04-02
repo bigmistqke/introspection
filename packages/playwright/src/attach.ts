@@ -98,7 +98,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
       ws.send(JSON.stringify({ type: 'SNAPSHOT_REQUEST', sessionId, trigger: 'manual' }))
     },
     async detach(result?: TestResult) {
-      ws.send(JSON.stringify({ type: 'END_SESSION', sessionId, result: result ?? { status: 'passed' } }))
+      ws.send(JSON.stringify({ type: 'END_SESSION', sessionId, result: result ?? { status: 'passed', duration: 0 } }))
       try { await cdp.detach() } catch { /* non-fatal: browser context may already be closed */ }
       await new Promise<void>((resolve) => {
         ws.once('close', resolve)
