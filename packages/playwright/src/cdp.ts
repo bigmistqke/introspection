@@ -4,7 +4,7 @@ import type { NetworkRequestEvent, NetworkResponseEvent, JsErrorEvent, StackFram
 function makeId(): string { return `evt-${randomUUID().slice(0, 8)}` }
 
 export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, _sessionId: string, startedAt: number): NetworkRequestEvent {
-  const req = raw.request as Record<string, unknown>
+  const req = (raw.request ?? {}) as Record<string, unknown>
   return {
     id: makeId(),
     type: 'network.request',
@@ -20,7 +20,7 @@ export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, _sessio
 }
 
 export function normaliseCdpNetworkResponse(raw: Record<string, unknown>, _sessionId: string, startedAt: number): NetworkResponseEvent {
-  const res = raw.response as Record<string, unknown>
+  const res = (raw.response ?? {}) as Record<string, unknown>
   return {
     id: makeId(),
     type: 'network.response',
@@ -37,7 +37,7 @@ export function normaliseCdpNetworkResponse(raw: Record<string, unknown>, _sessi
 }
 
 export function normaliseCdpJsError(raw: Record<string, unknown>, _sessionId: string, startedAt: number): JsErrorEvent {
-  const details = raw.exceptionDetails as Record<string, unknown>
+  const details = (raw.exceptionDetails ?? {}) as Record<string, unknown>
   const trace = details.stackTrace as { callFrames: Array<Record<string, unknown>> } | undefined
   const stack: StackFrame[] = (trace?.callFrames ?? []).map(f => ({
     functionName: (f.functionName as string) || '(anonymous)',
