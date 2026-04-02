@@ -18,9 +18,11 @@
   },
   "dependencies": {
     "@introspection/types": "workspace:*",
+    "source-map": "^0.5.7",
     "ws": "^8.17.0"
   },
   "devDependencies": {
+    "@types/source-map": "^0.5.7",
     "@types/ws": "^8.5.0",
     "vite": "^5.0.0"
   },

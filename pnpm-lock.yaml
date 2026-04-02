@@ -58,17 +58,27 @@ importers:
         specifier: ^1.40.0
         version: 1.59.1
 
-  packages/types: {}
+  packages/types:
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.40.0
+        version: 1.59.1
 
   packages/vite:
     dependencies:
       '@introspection/types':
         specifier: workspace:*
         version: link:../types
+      source-map:
+        specifier: ^0.5.7
+        version: 0.5.7
       ws:
         specifier: ^8.17.0
         version: 8.20.0
     devDependencies:
+      '@types/source-map':
+        specifier: ^0.5.7
+        version: 0.5.7
       '@types/ws':
         specifier: ^8.5.0
         version: 8.18.1
@@ -533,6 +543,10 @@ packages:
   '@types/node@20.19.37':
     resolution: {integrity: sha512-8kzdPJ3FsNsVIurqBs7oodNnCEVbni9yUEkaHbgptDACOPW04jimGagZ51E6+lXUwJjgnBw+hyko/lkFWCldqw==}
 
+  '@types/source-map@0.5.7':
+    resolution: {integrity: sha512-LrnsgZIfJaysFkv9rRJp4/uAyqw87oVed3s1hhF83nwbo9c7MG9g5DqR0seHP+lkX4ldmMrVolPjQSe2ZfD0yA==}
+    deprecated: This is a stub types definition for source-map (https://github.com/mozilla/source-map). source-map provides its own type definitions, so you don't need @types/source-map installed!
+
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
@@ -795,6 +809,10 @@ packages:
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
+    engines: {node: '>=0.10.0'}
+
+  source-map@0.5.7:
+    resolution: {integrity: sha512-LbrmJOMUSdEVxIKvdcJzQC+nQhe8FUZQTXQy6+I75skNgn3OoQ0DZA8YnFa7gp8tqtL3KPf1kmo0R5DoApeSGQ==}
     engines: {node: '>=0.10.0'}
 
   source-map@0.7.6:
@@ -1212,6 +1230,10 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@types/source-map@0.5.7':
+    dependencies:
+      source-map: 0.5.7
+
   '@types/ws@8.18.1':
     dependencies:
       '@types/node': 20.19.37
@@ -1495,6 +1517,8 @@ snapshots:
   siginfo@2.0.0: {}
 
   source-map-js@1.2.1: {}
+
+  source-map@0.5.7: {}
 
   source-map@0.7.6: {}
 

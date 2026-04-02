@@ -1,7 +1,6 @@
 import type { Plugin, ViteDevServer } from 'vite'
 import type { IntrospectionConfig, StackFrame } from '@introspection/types'
 import { createIntrospectionServer, type IntrospectionServer } from './server.js'
-// @ts-ignore
 import { resolveStackFrame, viteSourceMapProvider } from './source-maps.js'
 
 export function introspection(config: IntrospectionConfig = {}): Plugin {
