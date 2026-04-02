@@ -9,6 +9,6 @@
     "sourceMap": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "dist"
+    "isolatedModules": true
   }
 }
