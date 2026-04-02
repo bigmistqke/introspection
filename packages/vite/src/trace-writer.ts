@@ -23,7 +23,7 @@ function summariseBody(raw: string): BodySummary {
     if (Array.isArray(v)) {
       const first = v[0] && typeof v[0] === 'object' ? Object.keys(v[0] as object) : []
       arrays[k] = { length: v.length, itemKeys: first }
-    } else if (ERROR_KEYS.has(k) && (typeof v !== 'object' || v === null)) {
+    } else if (typeof v !== 'object' || v === null) {
       scalars[k] = v as string | number | boolean | null
     }
     if (ERROR_KEYS.has(k)) errorFields[k] = v

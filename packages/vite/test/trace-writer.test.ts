@@ -50,22 +50,30 @@ describe('writeTrace', () => {
     expect(JSON.parse(body)).toEqual({ ok: true })
   })
 
-  it('does not include raw body values inside the trace file events', async () => {
+  it('replaces raw body with bodySummary including scalar values', async () => {
     const event = {
       id: 'evt-1', type: 'network.response' as const, ts: 100, source: 'cdp' as const,
       data: { requestId: 'r1', url: '/api', status: 200, headers: {}, bodyRef: 'evt-1' }
     }
+    const body = { token: 'abc123', count: 42, nested: { x: 1 }, items: [{ id: 1 }] }
     const session = {
       id: 'sess-4', testTitle: 'test', testFile: 'f', startedAt: Date.now(),
-      events: [event as never], bodyMap: new Map([['evt-1', '{"key":"SENSITIVE_VALUE_12345"}']])
+      events: [event as never], bodyMap: new Map([['evt-1', JSON.stringify(body)]])
     }
     await writeTrace(session as never, { status: 'passed' }, dir, 0)
     const files = await import('fs/promises').then(fs => fs.readdir(dir))
     const traceFile = files.find(f => f.endsWith('.trace.json'))!
     const trace = JSON.parse(await readFile(join(dir, traceFile), 'utf-8'))
-    const raw = JSON.stringify(trace)
-    // Key name appears in summary (expected), but the VALUE must not
-    expect(raw).not.toContain('SENSITIVE_VALUE_12345')
-    expect(raw).toContain('key')  // key name in bodySummary.keys is fine
+    const summary = trace.events[0].data.bodySummary
+    // All top-level keys listed
+    expect(summary.keys).toEqual(['token', 'count', 'nested', 'items'])
+    // Scalar values captured (including non-error fields)
+    expect(summary.scalars).toEqual({ token: 'abc123', count: 42 })
+    // Arrays summarised, not inlined
+    expect(summary.arrays.items).toEqual({ length: 1, itemKeys: ['id'] })
+    // Nested objects not in scalars
+    expect(summary.scalars.nested).toBeUndefined()
+    // Nested object content not inlined in trace
+    expect(JSON.stringify(trace)).not.toContain('"x":1')
   })
 })
