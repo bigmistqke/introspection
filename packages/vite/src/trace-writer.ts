@@ -11,7 +11,13 @@ function slugify(title: string): string {
 
 function summariseBody(raw: string): BodySummary {
   let parsed: Record<string, unknown>
-  try { parsed = JSON.parse(raw) } catch { return { keys: [], scalars: {}, arrays: {}, errorFields: {} } }
+  try {
+    const p = JSON.parse(raw)
+    if (typeof p !== 'object' || p === null || Array.isArray(p)) {
+      return { keys: [], scalars: {}, arrays: {}, errorFields: {} }
+    }
+    parsed = p
+  } catch { return { keys: [], scalars: {}, arrays: {}, errorFields: {} } }
 
   const keys = Object.keys(parsed)
   const scalars: Record<string, string | number | boolean | null> = {}

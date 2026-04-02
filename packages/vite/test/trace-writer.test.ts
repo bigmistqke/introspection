@@ -31,8 +31,7 @@ describe('writeTrace', () => {
     await writeTrace(session as Session, { status: 'passed' }, dir, 1)
     const files = await import('fs/promises').then(fs => fs.readdir(dir))
     const traceFile = files.find(f => f.endsWith('.trace.json'))!
-    expect(traceFile).toContain('login')
-    expect(traceFile).toContain('w1')
+    expect(traceFile).toBe('login-redirects--w1.trace.json')
   })
 
   it('writes response body to a sidecar file', async () => {
@@ -95,6 +94,22 @@ describe('writeTrace', () => {
     expect(summary.errorFields).toMatchObject({ error: 'unauthorized', message: 'Token expired', code: 401 })
     // non-error-named fields are not captured in errorFields
     expect(summary.errorFields.extra).toBeUndefined()
+  })
+
+  it('produces empty summary for JSON array body', async () => {
+    const event = {
+      id: 'evt-1', type: 'network.response' as const, ts: 100, source: 'cdp' as const,
+      data: { requestId: 'r1', url: '/api', status: 200, headers: {}, bodyRef: 'evt-1' }
+    }
+    const session = {
+      id: 'sess-7', testTitle: 'test', testFile: 'f', startedAt: Date.now(),
+      events: [event as never], bodyMap: new Map([['evt-1', '[1,2,3]']])
+    }
+    await writeTrace(session as never, { status: 'passed' }, dir, 0)
+    const files = await import('fs/promises').then(fs => fs.readdir(dir))
+    const traceFile = files.find(f => f.endsWith('.trace.json'))!
+    const trace = JSON.parse(await readFile(join(dir, traceFile), 'utf-8'))
+    expect(trace.events[0].data.bodySummary).toEqual({ keys: [], scalars: {}, arrays: {}, errorFields: {} })
   })
 
   it('produces empty summary for non-JSON body', async () => {
