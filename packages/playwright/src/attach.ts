@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import WebSocket from 'ws'
 import type { Page } from '@playwright/test'
-import type { IntrospectHandle, TraceEvent, OnErrorSnapshot } from '@introspection/types'
+import type { IntrospectHandle, TraceEvent, OnErrorSnapshot, TestResult } from '@introspection/types'
 import { createPageProxy } from './proxy.js'
 import { normaliseCdpNetworkRequest, normaliseCdpNetworkResponse, normaliseCdpJsError } from './cdp.js'
 import { takeSnapshot } from '@introspection/vite/snapshot'
@@ -97,9 +97,8 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
     async snapshot() {
       ws.send(JSON.stringify({ type: 'SNAPSHOT_REQUEST', sessionId, trigger: 'manual' }))
     },
-    async detach() {
-      // result is provided by the test fixture in Task 13; default to 'passed' for standalone use
-      ws.send(JSON.stringify({ type: 'END_SESSION', sessionId, result: { status: 'passed' } }))
+    async detach(result?: TestResult) {
+      ws.send(JSON.stringify({ type: 'END_SESSION', sessionId, result: result ?? { status: 'passed' } }))
       try { await cdp.detach() } catch { /* non-fatal: browser context may already be closed */ }
       await new Promise<void>((resolve) => {
         ws.once('close', resolve)

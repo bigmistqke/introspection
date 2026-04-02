@@ -143,6 +143,9 @@ export interface TraceTest {
   error?: string
 }
 
+/** Subset of TraceTest passed to detach() — title and file are not needed at teardown time */
+export type TestResult = Omit<TraceTest, 'title' | 'file'>
+
 export interface TraceFile {
   version: '1'
   test: TraceTest
@@ -194,5 +197,5 @@ export interface IntrospectHandle {
   page: import('@playwright/test').Page   // Proxy-wrapped page
   mark(label: string, data?: Record<string, unknown>): void
   snapshot(): Promise<void>
-  detach(): Promise<void>
+  detach(result?: TestResult): Promise<void>
 }

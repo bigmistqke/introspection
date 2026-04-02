@@ -149,4 +149,29 @@ describe('attach()', () => {
     expect(cdp.detach).toHaveBeenCalledOnce()
     expect(mockWsClose).toHaveBeenCalledOnce()
   })
+
+  it('detach() forwards result to END_SESSION', async () => {
+    const { page } = makeFakePage()
+    const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-detach-result' })
+    mockWsSend.mockClear()
+    await handle.detach({ status: 'failed', duration: 1234, error: 'AssertionError' })
+    const endMsg = mockWsSend.mock.calls.find(([msg]) => {
+      try { return JSON.parse(msg).type === 'END_SESSION' } catch { return false }
+    })
+    expect(endMsg).toBeDefined()
+    const parsed = JSON.parse(endMsg![0])
+    expect(parsed.result).toEqual({ status: 'failed', duration: 1234, error: 'AssertionError' })
+  })
+
+  it('detach() defaults result to passed when called without args', async () => {
+    const { page } = makeFakePage()
+    const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-detach-default' })
+    mockWsSend.mockClear()
+    await handle.detach()
+    const endMsg = mockWsSend.mock.calls.find(([msg]) => {
+      try { return JSON.parse(msg).type === 'END_SESSION' } catch { return false }
+    })
+    const parsed = JSON.parse(endMsg![0])
+    expect(parsed.result).toEqual({ status: 'passed' })
+  })
 })
