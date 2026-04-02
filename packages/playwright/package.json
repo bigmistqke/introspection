@@ -1,0 +1,23 @@
+{
+  "name": "@introspection/playwright",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/attach.js",
+      "types": "./dist/attach.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/attach.ts --format esm --dts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@introspection/types": "workspace:*",
+    "@introspection/vite": "workspace:*",
+    "ws": "^8.17.0"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
+  }
+}
