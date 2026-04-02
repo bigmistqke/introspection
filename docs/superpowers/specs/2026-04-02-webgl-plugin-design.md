@@ -97,7 +97,7 @@ Intercepted WebGL methods (applied to each Proxy):
 | `compileShader(shader)` | After call: read `COMPILE_STATUS`, `getShaderInfoLog` → store in `shaders` |
 | `linkProgram(program)` | After call: read `LINK_STATUS`, `getProgramInfoLog`, enumerate uniforms + attributes via `getProgramParameter` + `getActiveUniform`/`getActiveAttrib` → store in `programs` |
 | `texImage2D` / `texImage3D` | Capture `width`, `height`, `format`, `internalFormat` → store in `textures` |
-| `drawArrays` / `drawElements` | Increment `frameAccumulator.drawCalls`, add primitive count; call `getError()` after — if non-zero, emit `plugin.webgl.error` immediately AND add to `frameAccumulator.glErrors` |
+| `drawArrays` / `drawElements` | Increment `frameAccumulator.drawCalls`, add `count` to `frameAccumulator.primitiveCount` (raw vertex/index count — not adjusted by topology); call `getError()` after — if non-zero, emit `plugin.webgl.error` immediately AND add to `frameAccumulator.glErrors` |
 | `drawArraysInstanced` / `drawElementsInstanced` (WebGL2) | Same as above |
 
 Context loss: `canvas.addEventListener('webglcontextlost', ...)` for each tracked context's canvas (where accessible) — emits `plugin.webgl.contextlost` and calls `plugin.stateSnapshot()` automatically.
@@ -108,13 +108,13 @@ Frame stats are **not** inferred automatically. The user calls `plugin.frame()` 
 
 ### Named captures
 
-`plugin.capture(label)` iterates over every entry in the `contexts` map (one per tracked context, not deduplicated by canvas — if the same canvas has two tracked contexts, both are captured). For each context:
+`plugin.capture(label)` iterates over every entry in the `contexts` map (one per tracked context, not deduplicated by canvas — if the same canvas has two tracked contexts, both are captured). Before calling `gl.readPixels`, the plugin binds framebuffer `null` (the canvas back-buffer) and restores the previously-bound framebuffer afterwards. This ensures captures always read the canvas output regardless of what FBO the user may have bound. For each context:
 
 1. Reads raw RGBA pixels via `gl.readPixels` into a `Uint8Array`
 2. Base64-encodes the pixel data (`btoa` / `Buffer.from().toString('base64')`)
 3. Calls `agent.emit({ type: 'plugin.webgl.capture', data: { label: safeLabel, pixelsBase64, width, height, canvas: canvasId } })`
 
-Labels are slugified (`label.toLowerCase().replace(/[^a-z0-9]+/g, '-')`) before emission to produce safe sidecar filenames. If multiple contexts are tracked, each gets its own event with labels `${slugLabel}` (first), `${slugLabel}-1`, `${slugLabel}-2`, etc.
+Labels are slugified (`label.toLowerCase().replace(/[^a-z0-9]+/g, '-')`) before emission to produce safe sidecar filenames. If multiple contexts are tracked in a single `plugin.capture()` call, each gets its own event with labels `${slugLabel}` (first), `${slugLabel}-1`, `${slugLabel}-2`, etc. If the user calls `plugin.capture()` multiple times with the same label, the later call overwrites the earlier entry in `session.captureBuffers` (last write wins). Users should use distinct labels per checkpoint.
 
 On the server, the `EVENT` handler (already `async`) processes `plugin.webgl.capture` events before the plugin `transformEvent` loop:
 1. Detects `event.type === 'plugin.webgl.capture'`
@@ -124,6 +124,8 @@ On the server, the `EVENT` handler (already `async`) processes `plugin.webgl.cap
 5. Returns early from the `EVENT` handler for this message
 
 The `transformEvent` interface method is **not used** for this — capture processing is handled directly in `server.ts`'s `EVENT` case with direct access to the `Session` object.
+
+The WebGL plugin does **not implement a `server` side at all** — the returned object has no `server` key. All server-side handling (`plugin.webgl.capture` interception, PNG writing) is wired directly into `packages/vite/src` rather than going through the plugin `server` interface. `server.extendSnapshot` and `server.transformEvent` are therefore not provided.
 
 At `END_SESSION`, `writeTrace` iterates `session.captureBuffers` and writes PNG files using `pngjs` before writing the trace JSON.
 
@@ -169,7 +171,7 @@ Emitted immediately when `gl.getError()` returns non-zero after a draw call. Als
   type: 'plugin.webgl.error'
   data: {
     error: string            // e.g. 'INVALID_OPERATION'
-    canvas: string           // canvas id or 'canvas[0]' if no id
+    canvas: string           // canvas id attribute if present, else 'canvas[N]' where N is the 0-based index of the context in the tracked contexts map
   }
 }
 ```
@@ -197,7 +199,7 @@ Emitted by `plugin.capture(label)`. By the time it reaches `session.events`, `pi
     captureRef: string       // e.g. 'capture-<sessionId>-after-bloom.png'
     width: number
     height: number
-    canvas: string           // canvas id or index
+    canvas: string           // canvas id attribute if present, else 'canvas[N]' (same format as plugin.webgl.error)
   }
 }
 ```
