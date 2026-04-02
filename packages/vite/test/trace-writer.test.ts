@@ -50,20 +50,22 @@ describe('writeTrace', () => {
     expect(JSON.parse(body)).toEqual({ ok: true })
   })
 
-  it('does not include body content inside the trace file events', async () => {
+  it('does not include raw body values inside the trace file events', async () => {
     const event = {
       id: 'evt-1', type: 'network.response' as const, ts: 100, source: 'cdp' as const,
       data: { requestId: 'r1', url: '/api', status: 200, headers: {}, bodyRef: 'evt-1' }
     }
     const session = {
       id: 'sess-4', testTitle: 'test', testFile: 'f', startedAt: Date.now(),
-      events: [event as never], bodyMap: new Map([['evt-1', '{"secret":"value"}']])
+      events: [event as never], bodyMap: new Map([['evt-1', '{"key":"SENSITIVE_VALUE_12345"}']])
     }
     await writeTrace(session as never, { status: 'passed' }, dir, 0)
     const files = await import('fs/promises').then(fs => fs.readdir(dir))
     const traceFile = files.find(f => f.endsWith('.trace.json'))!
     const trace = JSON.parse(await readFile(join(dir, traceFile), 'utf-8'))
     const raw = JSON.stringify(trace)
-    expect(raw).not.toContain('secret')
+    // Key name appears in summary (expected), but the VALUE must not
+    expect(raw).not.toContain('SENSITIVE_VALUE_12345')
+    expect(raw).toContain('key')  // key name in bodySummary.keys is fine
   })
 })
