@@ -76,4 +76,41 @@ describe('writeTrace', () => {
     // Nested object content not inlined in trace
     expect(JSON.stringify(trace)).not.toContain('"x":1')
   })
+
+  it('captures errorFields in bodySummary', async () => {
+    const event = {
+      id: 'evt-1', type: 'network.response' as const, ts: 100, source: 'cdp' as const,
+      data: { requestId: 'r1', url: '/api', status: 401, headers: {}, bodyRef: 'evt-1' }
+    }
+    const body = { error: 'unauthorized', message: 'Token expired', code: 401, extra: [1, 2] }
+    const session = {
+      id: 'sess-5', testTitle: 'test', testFile: 'f', startedAt: Date.now(),
+      events: [event as never], bodyMap: new Map([['evt-1', JSON.stringify(body)]])
+    }
+    await writeTrace(session as never, { status: 'failed' }, dir, 0)
+    const files = await import('fs/promises').then(fs => fs.readdir(dir))
+    const traceFile = files.find(f => f.endsWith('.trace.json'))!
+    const trace = JSON.parse(await readFile(join(dir, traceFile), 'utf-8'))
+    const summary = trace.events[0].data.bodySummary
+    expect(summary.errorFields).toMatchObject({ error: 'unauthorized', message: 'Token expired', code: 401 })
+    // non-error-named fields are not captured in errorFields
+    expect(summary.errorFields.extra).toBeUndefined()
+  })
+
+  it('produces empty summary for non-JSON body', async () => {
+    const event = {
+      id: 'evt-1', type: 'network.response' as const, ts: 100, source: 'cdp' as const,
+      data: { requestId: 'r1', url: '/api', status: 200, headers: {}, bodyRef: 'evt-1' }
+    }
+    const session = {
+      id: 'sess-6', testTitle: 'test', testFile: 'f', startedAt: Date.now(),
+      events: [event as never], bodyMap: new Map([['evt-1', 'not json']])
+    }
+    await writeTrace(session as never, { status: 'passed' }, dir, 0)
+    const files = await import('fs/promises').then(fs => fs.readdir(dir))
+    const traceFile = files.find(f => f.endsWith('.trace.json'))!
+    const trace = JSON.parse(await readFile(join(dir, traceFile), 'utf-8'))
+    const summary = trace.events[0].data.bodySummary
+    expect(summary).toEqual({ keys: [], scalars: {}, arrays: {}, errorFields: {} })
+  })
 })
