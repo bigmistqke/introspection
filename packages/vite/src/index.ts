@@ -17,7 +17,7 @@ export function introspection(config: IntrospectionConfig = {}): Plugin {
       const resolveFrame = (frame: StackFrame) =>
         resolveStackFrame(frame, viteSourceMapProvider((id: string) => viteServer.moduleGraph.getModuleById(id)))
       server = createIntrospectionServer(viteServer.httpServer, config, resolveFrame)
-      evalSocket = createEvalSocket(join(outDir, '.socket'), () => server?.getSessions() ?? [])
+      evalSocket = createEvalSocket(join(outDir, '.socket'), () => server?.getSessions() ?? [], resolveFrame)
       viteServer.httpServer.once('close', async () => {
         server?.shutdown()
         await evalSocket?.shutdown()

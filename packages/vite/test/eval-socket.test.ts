@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createEvalSocket } from '../src/eval-socket.js'
 import { connectToSocket } from '../../cli/src/socket-client.js'
 import { mkdtemp, rm } from 'fs/promises'
@@ -60,5 +60,46 @@ describe('EvalSocket', () => {
     const sock = createEvalSocket(socketPath, () => [])
     await sock.shutdown()
     expect(existsSync(socketPath)).toBe(false)
+  })
+
+  it('exposes resolve() when resolveFrame is provided', async () => {
+    const resolvedFrame = { functionName: 'fn', file: 'src/app.ts', line: 10, column: 5 }
+    const resolveFrame = vi.fn().mockResolvedValue(resolvedFrame)
+
+    const sock = createEvalSocket(join(dir, '.socket'), () => [], resolveFrame)
+    const client = await connectToSocket(join(dir, '.socket'))
+
+    const typeResult = await client.eval('typeof resolve')
+    expect(typeResult).toBe('function')
+
+    const fakeFrame = { functionName: 'fn', file: 'dist/app.js', line: 1, column: 0 }
+    const resolved = await client.eval(`resolve(${JSON.stringify(fakeFrame)})`)
+    expect(resolveFrame).toHaveBeenCalledWith(fakeFrame)
+    expect(resolved).toEqual(resolvedFrame)
+
+    client.close()
+    await sock.shutdown()
+  })
+
+  it('resolve() is absent when resolveFrame is not provided', async () => {
+    const sock = createEvalSocket(join(dir, '.socket'), () => [])
+    const client = await connectToSocket(join(dir, '.socket'))
+
+    const result = await client.eval('typeof resolve')
+    expect(result).toBe('undefined')
+
+    client.close()
+    await sock.shutdown()
+  })
+
+  it('awaits Promise results from evaluated expressions', async () => {
+    const sock = createEvalSocket(join(dir, '.socket'), () => [])
+    const client = await connectToSocket(join(dir, '.socket'))
+
+    const result = await client.eval('Promise.resolve(42)')
+    expect(result).toBe(42)
+
+    client.close()
+    await sock.shutdown()
   })
 })
