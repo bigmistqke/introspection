@@ -185,6 +185,7 @@ export interface CaptureConfig {
 export interface IntrospectionConfig {
   plugins?: IntrospectionPlugin[]
   capture?: CaptureConfig
+  outDir?: string   // output directory for traces and eval socket; default '.introspect'
 }
 
 // ─── IntrospectHandle (returned by attach()) ──────────────────────────────────
