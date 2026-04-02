@@ -266,3 +266,4 @@ export interface WebGLPlugin extends IntrospectionPlugin {
 - WebXR / OffscreenCanvas (deferred — different context acquisition paths)
 - Web Workers with WebGL (deferred — Plan 5)
 - Diff/comparison helpers between captures (the eval socket provides enough flexibility for the agent to compare `pixel()` values directly)
+- Replace `agent.emit()` with `@bigmistqke/rpc` stream module for typed browser↔server RPC (would allow browser plugins to call server methods directly, e.g. `server.writeCapture(pixels)` instead of pattern-matching on event types)
