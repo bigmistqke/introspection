@@ -2,13 +2,17 @@ import { randomUUID } from 'crypto'
 import type { NetworkRequestEvent, NetworkResponseEvent, JsErrorEvent, StackFrame } from '@introspection/types'
 
 function makeId(): string { return `evt-${randomUUID().slice(0, 8)}` }
+function toTs(timestamp: unknown, startedAt: number): number {
+  return typeof timestamp === 'number' ? Math.round(timestamp * 1000 - startedAt) : 0
+}
 
+// _sessionId is reserved for future multi-tab correlation; not currently embedded in events
 export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, _sessionId: string, startedAt: number): NetworkRequestEvent {
   const req = (raw.request ?? {}) as Record<string, unknown>
   return {
     id: makeId(),
     type: 'network.request',
-    ts: Math.round(((raw.timestamp as number) * 1000) - startedAt),
+    ts: toTs(raw.timestamp, startedAt),
     source: 'cdp',
     data: {
       url: req.url as string,
@@ -24,7 +28,7 @@ export function normaliseCdpNetworkResponse(raw: Record<string, unknown>, _sessi
   return {
     id: makeId(),
     type: 'network.response',
-    ts: Math.round(((raw.timestamp as number) * 1000) - startedAt),
+    ts: toTs(raw.timestamp, startedAt),
     source: 'cdp',
     initiator: raw.requestId as string,
     data: {
@@ -48,7 +52,7 @@ export function normaliseCdpJsError(raw: Record<string, unknown>, _sessionId: st
   return {
     id: makeId(),
     type: 'js.error',
-    ts: Math.round(((raw.timestamp as number) * 1000) - startedAt),
+    ts: toTs(raw.timestamp, startedAt),
     source: 'cdp',
     data: {
       message: details.text as string,

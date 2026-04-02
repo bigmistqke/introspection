@@ -47,6 +47,7 @@ describe('CDP event normalisation', () => {
     }
     const evt = normaliseCdpNetworkResponse(raw, 'sess-1', 0)
     expect(evt.type).toBe('network.response')
+    expect(evt.source).toBe('cdp')
     expect(evt.data.status).toBe(201)
     expect(evt.data.requestId).toBe('req-1')
     expect(evt.data.url).toBe('https://api.example.com/users')
@@ -88,6 +89,23 @@ describe('CDP event normalisation', () => {
     }
     const evt = normaliseCdpJsError(raw, 'sess-1', 0)
     expect(evt.data.stack[0].functionName).toBe('(anonymous)')
+  })
+
+  it('subtracts startedAt from ts when non-zero', () => {
+    const raw = {
+      requestId: 'req-3',
+      request: { url: '/api', method: 'GET', headers: {} },
+      timestamp: 100,
+    }
+    // startedAt=5000ms, so ts = 100*1000 - 5000 = 95000
+    const evt = normaliseCdpNetworkRequest(raw, 'sess-1', 5000)
+    expect(evt.ts).toBe(95000)
+  })
+
+  it('produces ts=0 when timestamp is missing', () => {
+    const raw = { exceptionDetails: { text: 'Error' } }
+    const evt = normaliseCdpJsError(raw, 'sess-1', 0)
+    expect(evt.ts).toBe(0)
   })
 
   it('produces empty stack when stackTrace is missing', () => {
