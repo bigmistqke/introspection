@@ -11,12 +11,13 @@ export interface BaseEvent {
 
 export interface NetworkRequestEvent extends BaseEvent {
   type: 'network.request'
-  data: { url: string; method: string; headers: Record<string, string>; postData?: string }
+  data: { cdpRequestId: string; url: string; method: string; headers: Record<string, string>; postData?: string }
 }
 
 export interface NetworkResponseEvent extends BaseEvent {
   type: 'network.response'
   data: {
+    cdpRequestId: string
     requestId: string
     url: string
     status: number

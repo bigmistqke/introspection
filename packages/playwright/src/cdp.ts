@@ -15,6 +15,7 @@ export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, _sessio
     ts: toTs(raw.timestamp, startedAt),
     source: 'cdp',
     data: {
+      cdpRequestId: raw.requestId as string,
       url: req.url as string,
       method: req.method as string,
       headers: (req.headers ?? {}) as Record<string, string>,
@@ -32,6 +33,7 @@ export function normaliseCdpNetworkResponse(raw: Record<string, unknown>, _sessi
     source: 'cdp',
     initiator: raw.requestId as string,
     data: {
+      cdpRequestId: raw.requestId as string,
       requestId: raw.requestId as string,
       url: res.url as string,
       status: res.status as number,
