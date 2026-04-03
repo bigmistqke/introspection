@@ -7,7 +7,9 @@
 
 ## Goal
 
-A browser-side introspection plugin for WebGL/WebGL2 that gives an AI agent (and human developers) visibility into rendering state, draw call activity, shader programs, texture uploads, and pixel-level canvas output.
+A browser-side introspection plugin for WebGL/WebGL2 that gives an AI agent (and human developers) visibility into rendering state, draw call activity, shader programs, texture uploads, and frame-level error aggregation.
+
+Pixel-level canvas captures are out of scope here — they are handled by `plugin-canvas` (Plan 5), which uses `HTMLCanvasElement.toDataURL()` and works for any renderer.
 
 ---
 
@@ -25,21 +27,17 @@ packages/plugin-webgl/
   tsconfig.json         — extends ../../tsconfig.base.json
 ```
 
-Server-side additions (PNG writing) go into `packages/vite/src/trace-writer.ts` and the `Session` interface in `packages/vite/src/server.ts`.
+No server-side changes required — this plugin is browser-only. All WebGL events are plain `PluginEvent` objects that flow through the existing `EVENT` handler unchanged.
 
 ### System flow overview
 
 ```
-Browser page                     Vite server (Node.js)              Eval socket
-────────────────────             ────────────────────────────       ─────────────────
-WebGL proxy intercepts calls ──► server.ts EVENT handler           session.captureBuffers
-plugin.frame() ──────────────►  stores event in session.events ──► captures.pixel(x,y)
-plugin.capture(label) ────────► decodes Base64, stores buffer
-                                 in session.captureBuffers
+Browser page                     Vite server (Node.js)
+────────────────────             ────────────────────────────
+WebGL proxy intercepts calls ──► server.ts EVENT handler
+plugin.frame() ──────────────►  stores event in session.events
 plugin.stateSnapshot() ───────► stores stateSnapshot event
                                  in session.events
-                                 (at END_SESSION) ──────────────►  writeTrace writes PNGs
-                                                                    via pngjs
 ```
 
 ### In-memory state (browser-side)
@@ -56,22 +54,6 @@ totalFrames:      number
 lastFrame:        { drawCalls, glErrors, primitiveCount } | null
 ```
 
-### Server-side state (Vite process)
-
-A new field is added to the `Session` interface:
-
-```ts
-captureBuffers?: Map<string, {
-  label: string
-  captureRef: string    // filename of the PNG sidecar
-  width: number
-  height: number
-  pixels: Buffer        // raw RGBA, decoded from Base64
-}>
-```
-
-`captureBuffers` is populated when the server receives `plugin.webgl.capture` events. It is used by `writeTrace` to write PNG files and by the eval socket to provide `pixel()` helpers.
-
 ### Context tracking
 
 Rather than patching `HTMLCanvasElement.prototype.getContext` globally, the plugin uses **explicit opt-in**: the user calls `plugin.track(rawGl)` with the context they want to observe. `track()` wraps the context in a `Proxy` and returns the wrapped version. The user uses this returned reference for all rendering. No global prototype is mutated.
@@ -87,7 +69,7 @@ This works identically for `WebGLRenderingContext`, `WebGL2RenderingContext`, co
 
 `browser.setup(agent)` stores the agent reference. It performs no global patching — all interception is installed on the specific contexts registered via `track()`.
 
-Calls to `plugin.frame()`, `plugin.capture()`, and `plugin.stateSnapshot()` before `browser.setup()` has been called (i.e., before the plugin is wired into a session) are **silently dropped** — no error is thrown.
+Calls to `plugin.frame()` and `plugin.stateSnapshot()` before `browser.setup()` has been called (i.e., before the plugin is wired into a session) are **silently dropped** — no error is thrown.
 
 Intercepted WebGL methods (applied to each Proxy):
 
@@ -105,29 +87,6 @@ Context loss: `canvas.addEventListener('webglcontextlost', ...)` for each tracke
 ### Frame boundary
 
 Frame stats are **not** inferred automatically. The user calls `plugin.frame()` at the point in their render loop they consider a frame boundary. This emits `plugin.webgl.frame` with the accumulated stats and resets `frameAccumulator`. No wrapping of `requestAnimationFrame`, `flush()`, or `finish()`.
-
-### Named captures
-
-`plugin.capture(label)` iterates over every entry in the `contexts` map (one per tracked context, not deduplicated by canvas — if the same canvas has two tracked contexts, both are captured). Before calling `gl.readPixels`, the plugin binds framebuffer `null` (the canvas back-buffer) and restores the previously-bound framebuffer afterwards. This ensures captures always read the canvas output regardless of what FBO the user may have bound. For each context:
-
-1. Reads raw RGBA pixels via `gl.readPixels` into a `Uint8Array`
-2. Base64-encodes the pixel data (`btoa` / `Buffer.from().toString('base64')`)
-3. Calls `agent.emit({ type: 'plugin.webgl.capture', data: { label: safeLabel, pixelsBase64, width, height, canvas: canvasId } })`
-
-Labels are slugified (`label.toLowerCase().replace(/[^a-z0-9]+/g, '-')`) before emission to produce safe sidecar filenames. If multiple contexts are tracked in a single `plugin.capture()` call, each gets its own event with labels `${slugLabel}` (first), `${slugLabel}-1`, `${slugLabel}-2`, etc. If the user calls `plugin.capture()` multiple times with the same label, the later call overwrites the earlier entry in `session.captureBuffers` (last write wins). Users should use distinct labels per checkpoint.
-
-On the server, the `EVENT` handler (already `async`) processes `plugin.webgl.capture` events before the plugin `transformEvent` loop:
-1. Detects `event.type === 'plugin.webgl.capture'`
-2. Decodes `data.pixelsBase64` → `Buffer`
-3. Stores in `session.captureBuffers` with key = label, captureRef = `capture-${session.id}-${data.label}.png` (where `session.id` is the UUID string already present on the `Session` object)
-4. Constructs the cleaned event (same event minus `pixelsBase64`, plus `captureRef`) and pushes it directly to `session.events` — bypassing the `transformEvent` loop (no plugin transform needed for a first-party capture event)
-5. Returns early from the `EVENT` handler for this message
-
-The `transformEvent` interface method is **not used** for this — capture processing is handled directly in `server.ts`'s `EVENT` case with direct access to the `Session` object.
-
-The WebGL plugin does **not implement a `server` side at all** — the returned object has no `server` key. All server-side handling (`plugin.webgl.capture` interception, PNG writing) is wired directly into `packages/vite/src` rather than going through the plugin `server` interface. `server.extendSnapshot` and `server.transformEvent` are therefore not provided.
-
-At `END_SESSION`, `writeTrace` iterates `session.captureBuffers` and writes PNG files using `pngjs` before writing the trace JSON.
 
 ### WebGL state snapshots
 
@@ -187,23 +146,6 @@ Emitted on `webglcontextlost` DOM event. Automatically calls `plugin.stateSnapsh
 }
 ```
 
-### `plugin.webgl.capture`
-
-Emitted by `plugin.capture(label)`. By the time it reaches `session.events`, `pixelsBase64` has been stripped and replaced with `captureRef`.
-
-```ts
-{
-  type: 'plugin.webgl.capture'
-  data: {
-    label: string
-    captureRef: string       // e.g. 'capture-<sessionId>-after-bloom.png'
-    width: number
-    height: number
-    canvas: string           // canvas id attribute if present, else 'canvas[N]' (same format as plugin.webgl.error)
-  }
-}
-```
-
 ### `plugin.webgl.stateSnapshot`
 
 Emitted by `plugin.stateSnapshot()` (called explicitly or on context loss).
@@ -218,43 +160,6 @@ Emitted by `plugin.stateSnapshot()` (called explicitly or on context loss).
     frames: { total: number; last: { drawCalls: number; glErrors: string[]; primitiveCount: number } | null }
   }
 }
-```
-
----
-
-## Eval Socket
-
-Captures are exposed as a top-level variable in the eval socket VM context alongside `events`, `snapshot`, and `test`. `captures` is **always injected** — when there are no WebGL captures it is an empty object `{}`. This is built from `session.captureBuffers` when the eval context is constructed:
-
-```ts
-// in eval-socket.ts, ctx construction:
-const captures: Record<string, { captureRef: string; width: number; height: number; pixel(x: number, y: number): [number, number, number, number] }> = {}
-for (const [label, buf] of session.captureBuffers ?? []) {
-  captures[label] = {
-    captureRef: buf.captureRef,
-    width: buf.width,
-    height: buf.height,
-    pixel(x, y) {
-      const i = (y * buf.width + x) * 4
-      return [buf.pixels[i], buf.pixels[i + 1], buf.pixels[i + 2], buf.pixels[i + 3]]
-    }
-  }
-}
-ctx.captures = captures
-```
-
-Usage in eval expressions:
-
-```ts
-// compare pixels between two passes:
-captures['after-bloom'].pixel(320, 240)          // → [255, 0, 128, 255]
-captures['after-tonemapping'].pixel(320, 240)    // → [240, 10, 100, 255]
-
-// query state:
-events.findLast(e => e.type === 'plugin.webgl.stateSnapshot')?.data.shaders[0].source
-
-// find frame anomalies:
-events.filter(e => e.type === 'plugin.webgl.frame' && e.data.drawCalls === 0)
 ```
 
 ---
@@ -277,10 +182,6 @@ const offscreenGl = plugin.track(offscreenCanvas.getContext('webgl2')!)
 // In render loop — explicit frame boundary:
 plugin.frame()
 
-// At meaningful visual checkpoints (emits event + writes PNG sidecar):
-plugin.capture('after-bloom')
-plugin.capture('after-tonemapping')
-
 // Dump full WebGL state as a queryable event:
 plugin.stateSnapshot()
 
@@ -294,7 +195,6 @@ const handle = await attach(page, { plugins: [plugin] })
 export interface WebGLPlugin extends IntrospectionPlugin {
   track<T extends WebGLRenderingContext | WebGL2RenderingContext>(gl: T): T
   frame(): void
-  capture(label: string): void
   stateSnapshot(): void
 }
 ```
@@ -308,59 +208,34 @@ export interface WebGLPlugin extends IntrospectionPlugin {
 | Package | Side | Purpose |
 |---|---|---|
 | `@introspection/types` | browser | shared event/plugin types |
-| `pngjs` | server (`packages/vite`) | encode raw RGBA → PNG for human-viewable captures |
 
-`pngjs` is added to `packages/vite/package.json` dependencies. It is pure JS (~200KB), no native binaries.
+No server-side dependencies added. No changes to `packages/vite`.
 
 ---
 
 ## Changes to Existing Files
 
-| File | Change |
-|---|---|
-| `packages/vite/src/server.ts` | Add `captureBuffers?: Map<string, CaptureBuffer>` to `Session`; handle `plugin.webgl.capture` events in the `EVENT` case |
-| `packages/vite/src/trace-writer.ts` | Write PNG sidecar files for `session.captureBuffers` using `pngjs` |
-| `packages/vite/src/eval-socket.ts` | Add `captures` to VM context built from `session.captureBuffers` (see Eval Socket section for shape; always injected, empty `{}` when no captures) |
-| `packages/vite/package.json` | Add `pngjs` dependency |
-
----
-
-## Sidecar File Layout
-
-```
-.introspect/
-  <test-slug>--w0.trace.json
-  bodies/
-    <id>.json                          ← existing (response body)
-  capture-<sessionId>-<label>.png      ← new (WebGL capture, human-viewable)
-```
-
-PNGs are written to the `.introspect/` root (not inside `bodies/`) so they are immediately discoverable as human-viewable files without reading the trace JSON.
+None. This plugin is entirely self-contained in `packages/plugin-webgl/`.
 
 ---
 
 ## Testing
 
-**Browser plugin unit tests** (`packages/plugin-webgl/test/`) — vitest with a minimal WebGL mock (plain object with spied methods, no real browser needed). Tests call `plugin.browser.setup(mockAgent)` where `mockAgent = { emit: vi.fn() }` and assert calls on `mockAgent.emit`:
+**Browser plugin unit tests** (`packages/plugin-webgl/test/`) — vitest with a minimal WebGL mock (plain object with spied methods, no real browser needed). Tests call `plugin.browser!.setup(mockAgent)` where `mockAgent = { emit: vi.fn() }` and assert calls on `mockAgent.emit`:
 - `plugin.track(mockGl)` returns a Proxy; calling methods on the returned proxy calls through to the original
 - `drawArrays` on the tracked context increments frame accumulator
 - `getError()` non-zero emits `plugin.webgl.error` and adds to accumulator
 - `compileShader` failure recorded in shader registry
 - `plugin.frame()` emits correct stats and resets accumulator
-- `plugin.capture(label)` emits capture event with Base64 pixel data, slugified label
 - `plugin.stateSnapshot()` emits full state event
 - `webglcontextlost` event emits context-lost and triggers stateSnapshot
-
-**Server-side tests** (`packages/vite/test/webgl-capture.test.ts`):
-- `plugin.webgl.capture` event processing: Base64 → Buffer stored in `session.captureBuffers`, cleaned event in `session.events`
-- PNG sidecar file written by `writeTrace` using `pngjs`
-- `captures.pixel(x, y)` returns correct RGBA from buffer
+- calls before `browser.setup()` do not throw
 
 ---
 
 ## Out of Scope
 
+- Pixel-level canvas captures — handled by `plugin-canvas` (Plan 5) using `HTMLCanvasElement.toDataURL()`
 - GPU timing via `EXT_disjoint_timer_query_webgl2` (deferred — async query API adds significant complexity)
-- Web Workers with WebGL (deferred — Plan 5)
-- Diff/comparison helpers between captures (the eval socket's `captures.pixel()` provides enough for the agent to compare values directly)
-- Replace `agent.emit()` with `@bigmistqke/rpc` stream module for typed browser↔server RPC (future exploration — would allow browser plugins to call server methods like `server.writeCapture(pixels)` directly, eliminating the Base64 transport hack)
+- Web Workers with WebGL (deferred)
+- Replace `agent.emit()` with `@bigmistqke/rpc` stream module for typed browser↔server RPC (future exploration)
