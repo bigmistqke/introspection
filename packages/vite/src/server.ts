@@ -44,9 +44,11 @@ export function createIntrospectionServer(
     }
   })
 
-  // Assumption: only the Playwright process calls startSession. Browser connections
-  // also get a playwrightProxy created, but since they never call startSession,
-  // the proxy is never stored and takeSnapshot is never invoked on it.
+  /**
+   * Assumption: only the Playwright process calls startSession. Browser connections
+   * also get a playwrightProxy created, but since they never call startSession,
+   * the proxy is never stored and takeSnapshot is never invoked on it.
+   */
   wss.on('connection', (ws) => {
     const playwrightProxy = rpc<PlaywrightClientMethods>(ws)
 

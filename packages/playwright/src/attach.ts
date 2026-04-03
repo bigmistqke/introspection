@@ -35,7 +35,6 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   const workerIndex = opts?.workerIndex ?? 0
   const startedAt = Date.now()
 
-  // Connect to Vite plugin WS
   const ws = new WebSocket(viteUrl)
   await new Promise<void>((resolve, reject) => {
     let timer: ReturnType<typeof setTimeout>
@@ -50,11 +49,13 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
 
   const server = rpc<IntrospectionServerMethods>(ws)
 
-  // Open CDP session before expose so the takeSnapshot closure can use cdp
+  /** Open CDP session before expose so the takeSnapshot closure can use cdp. */
   const cdp = await page.context().newCDPSession(page)
 
-  // Expose takeSnapshot BEFORE calling startSession — the server may call takeSnapshot
-  // immediately after startSession resolves, so the callback channel must be registered first.
+  /**
+   * Expose takeSnapshot BEFORE calling startSession — the server may call takeSnapshot
+   * immediately after startSession resolves, so the callback channel must be registered first.
+   */
   expose<PlaywrightClientMethods>({
     async takeSnapshot(trigger) {
       return takeSnapshot({
@@ -70,12 +71,11 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
     },
   }, { to: ws })
 
-  // Start session
   await server.startSession({ id: sessionId, testTitle, testFile })
 
+  /** Fire-and-forget — CDP event handlers are synchronous and cannot await. */
   function sendEvent(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }) {
     if (ws.readyState !== 1 /* WebSocket.OPEN */) return
-    // fire-and-forget — CDP event handlers are synchronous and don't await
     void server.event(sessionId, { id: randomUUID(), ts: Date.now() - startedAt, ...event } as TraceEvent)
   }
 
@@ -98,7 +98,6 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
     sendEvent({ type: 'browser.navigate', source: 'cdp', data: { from: '', to: params.url } })
   })
 
-  // Proxy page for playwright.action tracking
   const proxiedPage = createPageProxy(page, (evt) => sendEvent(evt as never))
 
   const handle: IntrospectHandle = {
