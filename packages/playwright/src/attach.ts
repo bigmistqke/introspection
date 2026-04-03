@@ -49,13 +49,8 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
 
   const server = rpc<IntrospectionServerMethods>(ws)
 
-  /** Open CDP session before expose so the takeSnapshot closure can use cdp. */
   const cdp = await page.context().newCDPSession(page)
 
-  /**
-   * Expose takeSnapshot BEFORE calling startSession — the server may call takeSnapshot
-   * immediately after startSession resolves, so the callback channel must be registered first.
-   */
   expose<PlaywrightClientMethods>({
     async takeSnapshot(trigger) {
       return takeSnapshot({
