@@ -52,7 +52,7 @@ export class BrowserAgent implements IBrowserAgent {
    *   The Playwright attach() call must complete before this agent emits events.
    */
   static connect(url: string, sessionId: string): BrowserAgent {
-    const ws = new (globalThis as never as { WebSocket: typeof WebSocket }).WebSocket(url)
+    const ws = new (globalThis as unknown as { WebSocket: typeof WebSocket }).WebSocket(url)
     const server = rpc<IntrospectionServerMethods>(ws)
     return new BrowserAgent(sessionId, server)
   }
