@@ -171,6 +171,30 @@ export interface IntrospectionPlugin {
   }
 }
 
+// ─── RPC Protocol interfaces ──────────────────────────────────────────────────
+
+/** Methods the Vite server exposes — called by both Playwright and browser clients. */
+export interface IntrospectionServerMethods {
+  /** Called by Playwright to register a new test session. */
+  startSession(params: { id: string; testTitle: string; testFile: string }): void
+  /** Called by Playwright or browser to append an event to a session. */
+  event(sessionId: string, event: TraceEvent): void
+  /** Called by Playwright at test end to write the trace file and close the session. */
+  endSession(sessionId: string, result: TestResult, outDir: string, workerIndex: number): void
+  /** Called by Playwright to store an on-error snapshot for the session. */
+  snapshot(sessionId: string, data: OnErrorSnapshot): void
+  /** Called by browser (or handle.snapshot()) to trigger CDP snapshot capture on the Playwright side. */
+  requestSnapshot(sessionId: string, trigger: OnErrorSnapshot['trigger']): void
+}
+
+/** Methods Playwright exposes — the server calls these to request snapshot capture. */
+export interface PlaywrightClientMethods {
+  takeSnapshot(trigger: OnErrorSnapshot['trigger']): OnErrorSnapshot
+}
+
+/** Browser connections expose no methods the server calls back on. */
+export type BrowserClientMethods = Record<never, never>
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 export interface CaptureConfig {
