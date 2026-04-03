@@ -75,7 +75,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   function sendEvent(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }) {
     if (ws.readyState !== 1 /* WebSocket.OPEN */) return
     // fire-and-forget — CDP event handlers are synchronous and don't await
-    server.event(sessionId, { id: randomUUID(), ts: Date.now() - startedAt, ...event } as TraceEvent)
+    void server.event(sessionId, { id: randomUUID(), ts: Date.now() - startedAt, ...event } as TraceEvent)
   }
 
   await cdp.send('Network.enable')
