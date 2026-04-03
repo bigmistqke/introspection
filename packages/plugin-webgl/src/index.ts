@@ -200,7 +200,7 @@ export function createWebGLPlugin(): WebGLPlugin {
     stateSnapshot() {
       emit('plugin.webgl.stateSnapshot', {
         shaders: [...shaders.values()].map(s => ({
-          type: s.type === 0x8B31 ? 'VERTEX_SHADER' : 'FRAGMENT_SHADER',
+          type: s.type === 0x8B31 ? 'VERTEX_SHADER' : s.type === 0x8B30 ? 'FRAGMENT_SHADER' : 'UNKNOWN',
           source: s.source, compiled: s.compiled, log: s.log,
         })),
         programs: [...programs.values()],

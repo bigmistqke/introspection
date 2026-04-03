@@ -244,4 +244,28 @@ describe('createWebGLPlugin()', () => {
     const call = emitMock.mock.calls.find((c: unknown[]) => (c[0] as { type: string }).type === 'plugin.webgl.stateSnapshot')!
     expect(call[0].data.shaders[0].type).toBe('VERTEX_SHADER')
   })
+
+  it('drawArraysInstanced accumulates drawCalls and primitiveCount', () => {
+    const plugin = createWebGLPlugin()
+    plugin.browser!.setup(agent)
+    const gl = mockGl()
+    const proxied = plugin.track(gl as never)
+    proxied.drawArraysInstanced(4, 0, 6, 10)
+    plugin.frame()
+    const call = emitMock.mock.calls.find((c: unknown[]) => (c[0] as { type: string }).type === 'plugin.webgl.frame')!
+    expect(call[0].data.drawCalls).toBe(1)
+    expect(call[0].data.primitiveCount).toBe(6)
+  })
+
+  it('drawElementsInstanced accumulates drawCalls and primitiveCount', () => {
+    const plugin = createWebGLPlugin()
+    plugin.browser!.setup(agent)
+    const gl = mockGl()
+    const proxied = plugin.track(gl as never)
+    proxied.drawElementsInstanced(4, 9, 0x1405, 0, 5)
+    plugin.frame()
+    const call = emitMock.mock.calls.find((c: unknown[]) => (c[0] as { type: string }).type === 'plugin.webgl.frame')!
+    expect(call[0].data.drawCalls).toBe(1)
+    expect(call[0].data.primitiveCount).toBe(9)
+  })
 })
