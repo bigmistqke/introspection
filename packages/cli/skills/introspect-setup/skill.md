@@ -59,11 +59,16 @@ test('my test', async ({ page }) => {
 
 ```ts
 // playwright.config.ts
-import { test as base } from '@playwright/test'
 import { introspectFixture } from '@introspection/playwright-fixture'
 
-export const test = base.extend(introspectFixture)
-export { expect } from '@playwright/test'
+export const { test, expect } = introspectFixture()
+```
+
+Or for zero-boilerplate:
+
+```ts
+// playwright.config.ts
+export { test, expect } from '@introspection/playwright-fixture'
 ```
 
 Then in tests:
