@@ -9,7 +9,7 @@ import { formatNetworkTable } from './commands/network.js'
 import { queryBody } from './commands/body.js'
 import { formatDom } from './commands/dom.js'
 import { evalExpression } from './commands/eval.js'
-import { resolve, join } from 'path'
+import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
 
