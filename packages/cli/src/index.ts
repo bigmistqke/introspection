@@ -91,15 +91,13 @@ skillsCmd
   .action(async (opts: { platform?: string; dir?: string }) => {
     const cwd = process.cwd()
 
-    // Validate explicit --platform
-    if (opts.platform && opts.platform !== 'claude') {
-      console.error(`Unknown platform: ${opts.platform}. Supported platforms: claude`)
-      process.exit(1)
-    }
-
-    // Warn if --dir and --platform both given
+    // When --dir is given, --platform is ignored entirely
     if (opts.dir && opts.platform) {
       process.stderr.write('Warning: --platform is ignored when --dir is specified.\n')
+    } else if (opts.platform && opts.platform !== 'claude') {
+      // Validate explicit --platform only when --dir is not overriding it
+      console.error(`Unknown platform: ${opts.platform}. Supported platforms: claude`)
+      process.exit(1)
     }
 
     // Resolve platform
