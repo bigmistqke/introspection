@@ -1,15 +1,18 @@
+import { randomUUID } from 'crypto'
 import { WebSocketServer } from 'ws'
 import { expose, rpc, type RPC } from '@bigmistqke/rpc/websocket'
 import type { Server } from 'http'
 import type {
-  TraceEvent, IntrospectionConfig, TestResult, OnErrorSnapshot,
+  TraceEvent, IntrospectionConfig, OnErrorSnapshot,
   IntrospectionServerMethods, PlaywrightClientMethods,
 } from '@introspection/types'
+import { initSessionDir, appendEvent, writeSnapshot, finalizeSession } from './session-writer.js'
 
 export interface Session {
   id: string
-  testTitle: string
-  testFile: string
+  label?: string
+  outDir: string
+  startedAt: number
   events: TraceEvent[]
   playwrightProxy: RPC<PlaywrightClientMethods>
   bodyMap?: Map<string, string>
@@ -47,12 +50,11 @@ export function createIntrospectionServer(
     const playwrightProxy = rpc<PlaywrightClientMethods>(ws)
 
     expose<IntrospectionServerMethods>({
-      startSession({ id, testTitle, testFile }) {
-        sessions.set(id, {
-          id, testTitle, testFile,
-          events: [],
-          playwrightProxy,
-        })
+      startSession({ id, startedAt, label }) {
+        const outDir = config.outDir ?? '.introspect'
+        const session: Session = { id, label, outDir, startedAt, events: [], playwrightProxy }
+        sessions.set(id, session)
+        void initSessionDir(outDir, { id, startedAt, label })
       },
 
       event(sessionId, event) {
@@ -74,17 +76,19 @@ export function createIntrospectionServer(
             }
           }
           session.events.push(transformed)
+          void appendEvent(session.outDir, sessionId, transformed, session.bodyMap)
         }
       },
 
-      async endSession(sessionId, result, outDir, workerIndex) {
+      async endSession(sessionId, _outDir, _workerIndex) {
         const session = sessions.get(sessionId)
         if (!session) return
         try {
-          const { writeTrace } = await import('./trace-writer.js')
-          await writeTrace(session, result, outDir, workerIndex)
+          const endEvent: TraceEvent = { id: randomUUID(), type: 'session.end', ts: Date.now() - session.startedAt, source: 'agent', data: {} }
+          await appendEvent(session.outDir, sessionId, endEvent)
+          await finalizeSession(session.outDir, sessionId, Date.now())
         } catch (err) {
-          console.error('[introspection] failed to write trace:', err)
+          console.error('[introspection] failed to finalize session:', err)
         } finally {
           sessions.delete(sessionId)
         }
@@ -95,6 +99,7 @@ export function createIntrospectionServer(
         if (!session) return
         try {
           session.snapshot = await session.playwrightProxy.takeSnapshot(trigger)
+          if (session.snapshot) void writeSnapshot(session.outDir, sessionId, session.snapshot)
         } catch (err) {
           console.error('[introspection] snapshot request failed:', err)
         }

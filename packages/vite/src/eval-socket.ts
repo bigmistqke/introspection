@@ -32,8 +32,8 @@ export function createEvalSocket(
           const all = getSessions()
           const session = all[all.length - 1]
           const ctx: Record<string, unknown> = session
-            ? { events: session.events, snapshot: session.snapshot ?? null, test: { title: session.testTitle, file: session.testFile } }
-            : { events: [], snapshot: null, test: null }
+            ? { events: session.events, snapshot: session.snapshot ?? null, session: { id: session.id, label: session.label ?? null } }
+            : { events: [], snapshot: null, session: null }
           if (resolveFrame) {
             ctx.resolve = (frame: unknown) => resolveFrame(frame as StackFrame)
           }
