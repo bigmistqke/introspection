@@ -19,9 +19,8 @@ Plain-language overview: test status, Playwright actions, failed network request
 
 ### JS errors found
 ```bash
-introspect errors              # source-mapped stack traces
-introspect vars                # variable scope chain at error time
-introspect vars --at <point>   # narrow to a specific function name or event id
+introspect errors   # source-mapped stack traces
+introspect vars     # variable scope chain at error time
 ```
 
 ### Network failures found
