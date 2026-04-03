@@ -56,7 +56,7 @@ describe('IntrospectionServer', () => {
 
   it('registers a session when startSession is called', async () => {
     ;({ httpServer, introspectionServer } = await startServer())
-    const { port } = { port: (httpServer.address() as { port: number }).port }
+    const port = (httpServer.address() as { port: number }).port
     const { ws, server } = await connectClient(port)
 
     await server.startSession({ id: 'test-abc', testTitle: 'my test', testFile: 'foo.spec.ts' })

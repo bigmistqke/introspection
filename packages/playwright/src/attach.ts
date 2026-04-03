@@ -53,7 +53,8 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   // Open CDP session before expose so the takeSnapshot closure can use cdp
   const cdp = await page.context().newCDPSession(page)
 
-  // Expose takeSnapshot so the server can call back to capture CDP state
+  // Expose takeSnapshot BEFORE calling startSession — the server may call takeSnapshot
+  // immediately after startSession resolves, so the callback channel must be registered first.
   expose<PlaywrightClientMethods>({
     async takeSnapshot(trigger) {
       return takeSnapshot({

@@ -95,11 +95,6 @@ export function createIntrospectionServer(
         }
       },
 
-      snapshot(sessionId, data) {
-        const session = sessions.get(sessionId)
-        if (session) session.snapshot = data
-      },
-
       async requestSnapshot(sessionId, trigger) {
         const session = sessions.get(sessionId)
         if (!session) return

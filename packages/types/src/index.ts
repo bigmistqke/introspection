@@ -181,8 +181,6 @@ export interface IntrospectionServerMethods {
   event(sessionId: string, event: TraceEvent): void
   /** Called by Playwright at test end to write the trace file and close the session. */
   endSession(sessionId: string, result: TestResult, outDir: string, workerIndex: number): void
-  /** Called by Playwright to store an on-error snapshot for the session. */
-  snapshot(sessionId: string, data: OnErrorSnapshot): void
   /** Called by browser (or handle.snapshot()) to trigger CDP snapshot capture on the Playwright side. */
   requestSnapshot(sessionId: string, trigger: OnErrorSnapshot['trigger']): void
 }
@@ -192,7 +190,10 @@ export interface PlaywrightClientMethods {
   takeSnapshot(trigger: OnErrorSnapshot['trigger']): Promise<OnErrorSnapshot>
 }
 
-/** Browser connections expose no methods the server calls back on. */
+/**
+ * Browser connections expose no methods the server calls back on.
+ * Kept as an explicit type to document the protocol contract and for future extensibility.
+ */
 export type BrowserClientMethods = Record<never, never>
 
 // ─── Config ───────────────────────────────────────────────────────────────────
