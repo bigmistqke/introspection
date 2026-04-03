@@ -4,9 +4,15 @@ import WebSocket from 'ws'
 import { rpc, expose } from '@bigmistqke/rpc/websocket'
 import type { Page } from '@playwright/test'
 import type {
-  IntrospectHandle, TraceEvent, TestResult,
+  IntrospectHandle, TraceEvent,
   IntrospectionServerMethods, PlaywrightClientMethods,
 } from '@introspection/types'
+
+interface DetachResult {
+  status?: 'passed' | 'failed' | 'timedOut' | 'skipped'
+  duration?: number
+  error?: string
+}
 import { createPageProxy } from './proxy.js'
 import { normaliseCdpNetworkRequest, normaliseCdpNetworkResponse, normaliseCdpJsError } from './cdp.js'
 // @ts-expect-error Cannot resolve path to vite snapshot
@@ -67,7 +73,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
     },
   }, { to: ws })
 
-  await server.startSession({ id: sessionId, testTitle, testFile })
+  await server.startSession({ id: sessionId, startedAt, label: testTitle })
 
   /** Fire-and-forget — CDP event handlers are synchronous and cannot await. */
   function sendEvent(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }) {
@@ -105,13 +111,11 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
     async snapshot() {
       await server.requestSnapshot(sessionId, 'manual')
     },
-    async detach(result?: TestResult) {
-      await server.endSession(
-        sessionId,
-        result ?? { status: 'passed', duration: 0 },
-        outDir,
-        workerIndex,
-      )
+    async detach(result?: DetachResult) {
+      if (result) {
+        sendEvent({ type: 'playwright.result', source: 'playwright', data: result })
+      }
+      await server.endSession(sessionId, outDir, workerIndex)
       try { await cdp.detach() } catch { /* non-fatal: browser context may already be closed */ }
       await new Promise<void>((resolve) => {
         ws.once('close', resolve)

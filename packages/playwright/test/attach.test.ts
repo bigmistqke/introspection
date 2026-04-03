@@ -92,7 +92,7 @@ describe('attach()', () => {
     const { page } = makeFakePage()
     await attach(page as never, { ...baseOpts, sessionId: 'sess-abc', testTitle: 'test title' })
     expect(serverProxy.startSession).toHaveBeenCalledWith({
-      id: 'sess-abc', testTitle: 'test title', testFile: 'foo.spec.ts',
+      id: 'sess-abc', startedAt: expect.any(Number), label: 'test title',
     })
   })
 
@@ -126,30 +126,31 @@ describe('attach()', () => {
     const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-detach' })
     await handle.detach()
     expect(serverProxy.endSession).toHaveBeenCalledWith(
-      'sess-detach', { status: 'passed', duration: 0 }, '/tmp/introspect', 0,
+      'sess-detach', '/tmp/introspect', 0,
     )
     expect(cdp.detach).toHaveBeenCalledOnce()
     expect(mockWsClose).toHaveBeenCalledOnce()
   })
 
-  it('detach() forwards result to endSession', async () => {
+  it('detach() emits playwright.result event then calls endSession', async () => {
     const { page } = makeFakePage()
-    const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-detach-result' })
-    await handle.detach({ status: 'failed', duration: 1234, error: 'AssertionError' })
-    expect(serverProxy.endSession).toHaveBeenCalledWith(
-      'sess-detach-result',
-      { status: 'failed', duration: 1234, error: 'AssertionError' },
-      '/tmp/introspect',
-      0,
+    const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-end' })
+    await handle.detach({ status: 'failed', duration: 500, error: 'oops' })
+    const resultEvt = vi.mocked(serverProxy.event).mock.calls.find(
+      ([, evt]) => (evt as { type: string }).type === 'playwright.result'
     )
+    expect(resultEvt).toBeDefined()
+    expect((resultEvt![1] as { data: Record<string, unknown> }).data.status).toBe('failed')
+    expect(serverProxy.endSession).toHaveBeenCalled()
   })
 
-  it('detach() defaults result to passed when called without args', async () => {
+  it('detach() without result emits no playwright.result event', async () => {
     const { page } = makeFakePage()
-    const handle = await attach(page as never, baseOpts)
+    const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-noend' })
     await handle.detach()
-    expect(serverProxy.endSession).toHaveBeenCalledWith(
-      expect.any(String), { status: 'passed', duration: 0 }, '/tmp/introspect', 0,
+    const resultEvt = vi.mocked(serverProxy.event).mock.calls.find(
+      ([, evt]) => (evt as { type: string }).type === 'playwright.result'
     )
+    expect(resultEvt).toBeUndefined()
   })
 })

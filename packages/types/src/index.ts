@@ -86,6 +86,11 @@ export interface PlaywrightActionEvent extends BaseEvent {
   data: { method: string; args: unknown[] }
 }
 
+export interface PlaywrightResultEvent extends BaseEvent {
+  type: 'playwright.result'
+  data: { status?: 'passed' | 'failed' | 'timedOut' | 'skipped'; duration?: number; error?: string }
+}
+
 export interface PluginEvent extends BaseEvent {
   type: `plugin.${string}`
   data: Record<string, unknown>
@@ -109,6 +114,7 @@ export type TraceEvent =
   | BrowserNavigateEvent
   | MarkEvent
   | PlaywrightActionEvent
+  | PlaywrightResultEvent
   | SessionEndEvent
   | PluginEvent
 
