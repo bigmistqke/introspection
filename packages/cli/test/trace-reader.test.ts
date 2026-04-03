@@ -1,107 +1,112 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { TraceReader } from '../src/trace-reader.js'
-import { mkdtemp, writeFile, mkdir, rm, utimes } from 'fs/promises'
-import { tmpdir } from 'os'
+import { mkdtemp, rm, mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
-import type { TraceFile } from '@introspection/types'
+import { tmpdir } from 'os'
+import { TraceReader } from '../src/trace-reader.js'
+import type { OnErrorSnapshot } from '@introspection/types'
 
-const sampleTrace: TraceFile = {
-  version: '1',
-  test: { title: 'login test', file: 'login.spec.ts', status: 'failed', duration: 2000, error: 'expected /dashboard' },
-  events: [
-    { id: 'e1', type: 'network.request', ts: 100, source: 'cdp', data: { url: '/api/auth', method: 'POST', headers: {} } },
-    { id: 'e2', type: 'network.response', ts: 200, source: 'cdp', initiator: 'e1', data: { requestId: 'e1', url: '/api/auth', status: 401, headers: {}, bodyRef: 'e2' } },
-    { id: 'e3', type: 'network.response', ts: 210, source: 'cdp', initiator: 'e1', data: { requestId: 'e1', url: '/api/users', status: 200, headers: {} } },
-    { id: 'e4', type: 'network.error', ts: 220, source: 'cdp', data: { url: '/api/images', errorText: 'net::ERR_NAME_NOT_RESOLVED' } },
-    { id: 'e5', type: 'js.error', ts: 300, source: 'cdp', data: { message: 'Uncaught TypeError', stack: [{ functionName: 'handleAuth', file: 'auth.ts', line: 42, column: 0 }] } },
-  ],
-  snapshots: {},
+let dir: string
+beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'trace-reader-test-')) })
+afterEach(async () => { await rm(dir, { recursive: true, force: true }) })
+
+async function writeSession(id: string, opts: {
+  label?: string
+  startedAt?: number
+  endedAt?: number
+  events?: object[]
+  snapshot?: OnErrorSnapshot
+} = {}) {
+  const sessionDir = join(dir, id)
+  await mkdir(join(sessionDir, 'snapshots'), { recursive: true })
+  const meta = {
+    version: '2', id,
+    startedAt: opts.startedAt ?? 1000,
+    endedAt: opts.endedAt,
+    label: opts.label,
+  }
+  await writeFile(join(sessionDir, 'meta.json'), JSON.stringify(meta))
+  const events = opts.events ?? []
+  const ndjson = events.map(e => JSON.stringify(e)).join('\n') + (events.length ? '\n' : '')
+  await writeFile(join(sessionDir, 'events.ndjson'), ndjson)
+  if (opts.snapshot) {
+    await writeFile(join(sessionDir, 'snapshots', `${opts.snapshot.trigger}.json`), JSON.stringify(opts.snapshot))
+  }
 }
 
 describe('TraceReader', () => {
-  let dir: string
-
-  beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'introspect-cli-')) })
-  afterEach(async () => { await rm(dir, { recursive: true }) })
-
-  async function writeTestTrace(name = 'login-test--w0.trace.json') {
-    await writeFile(join(dir, name), JSON.stringify(sampleTrace))
-  }
-
-  it('loads the most recent trace file', async () => {
-    await writeTestTrace()
-    const reader = new TraceReader(dir)
-    const trace = await reader.loadLatest()
-    expect(trace.test.title).toBe('login test')
+  it('load() reads session directory and returns TraceFile', async () => {
+    await writeSession('sess-abc', { label: 'my test', events: [
+      { id: 'e1', type: 'mark', ts: 10, source: 'agent', data: { label: 'start' } },
+    ]})
+    const trace = await new TraceReader(dir).load('sess-abc')
+    expect(trace.session.id).toBe('sess-abc')
+    expect(trace.session.label).toBe('my test')
+    expect(trace.events).toHaveLength(1)
+    expect(trace.events[0].type).toBe('mark')
   })
 
-  it('loadLatest returns the file with the newest mtime', async () => {
-    const older: TraceFile = { ...sampleTrace, test: { ...sampleTrace.test, title: 'older test' } }
-    const newer: TraceFile = { ...sampleTrace, test: { ...sampleTrace.test, title: 'newer test' } }
-    const olderPath = join(dir, 'older--w0.trace.json')
-    const newerPath = join(dir, 'newer--w0.trace.json')
-    await writeFile(olderPath, JSON.stringify(older))
-    await writeFile(newerPath, JSON.stringify(newer))
-    // Set mtime: older file is 10 seconds in the past
-    const past = new Date(Date.now() - 10000)
-    await utimes(olderPath, past, past)
-    const reader = new TraceReader(dir)
-    const trace = await reader.loadLatest()
-    expect(trace.test.title).toBe('newer test')
+  it('load() returns no test field', async () => {
+    await writeSession('sess-1')
+    const trace = await new TraceReader(dir).load('sess-1')
+    expect((trace as Record<string, unknown>).test).toBeUndefined()
   })
 
-  it('loads a specific trace by name', async () => {
-    await writeTestTrace('my-test--w0.trace.json')
-    const reader = new TraceReader(dir)
-    const trace = await reader.load('my-test--w0')
-    expect(trace.test.title).toBe('login test')
+  it('load() handles empty events.ndjson', async () => {
+    await writeSession('sess-empty')
+    const trace = await new TraceReader(dir).load('sess-empty')
+    expect(trace.events).toHaveLength(0)
   })
 
-  it('filters events by type', async () => {
-    await writeTestTrace()
-    const reader = new TraceReader(dir)
-    const trace = await reader.loadLatest()
-    const errors = reader.filterEvents(trace, { type: 'js.error' })
-    expect(errors).toHaveLength(1)
-    expect(errors[0].type).toBe('js.error')
+  it('load() reads snapshot from snapshots/ dir', async () => {
+    const snap: OnErrorSnapshot = {
+      ts: 100, trigger: 'manual', url: 'http://localhost/', dom: '<html/>', scopes: [], globals: {}, plugins: {},
+    }
+    await writeSession('sess-snap', { snapshot: snap })
+    const trace = await new TraceReader(dir).load('sess-snap')
+    expect(trace.snapshots['manual']).toBeDefined()
+    expect(trace.snapshots['manual']!.trigger).toBe('manual')
   })
 
-  it('filterEvents url: removes network events not matching the URL; non-network events pass through', async () => {
-    await writeTestTrace()
-    const reader = new TraceReader(dir)
-    const trace = await reader.loadLatest()
-    const filtered = reader.filterEvents(trace, { url: '/api/auth' })
-    // e1 (request /api/auth) and e2 (response /api/auth) match; e3 (/api/users) and e4 (/api/images) do not
-    expect(filtered.some(e => e.id === 'e1')).toBe(true)
-    expect(filtered.some(e => e.id === 'e2')).toBe(true)
-    expect(filtered.some(e => e.id === 'e3')).toBe(false)
-    expect(filtered.some(e => e.id === 'e4')).toBe(false)
+  it('loadLatest() returns session with highest startedAt', async () => {
+    await writeSession('sess-old', { label: 'old', startedAt: 1000 })
+    await writeSession('sess-new', { label: 'new', startedAt: 9000 })
+    const trace = await new TraceReader(dir).loadLatest()
+    expect(trace.session.label).toBe('new')
   })
 
-  it('filterEvents failed: removes successful responses; keeps 4xx+ responses and network.error', async () => {
-    await writeTestTrace()
-    const reader = new TraceReader(dir)
-    const trace = await reader.loadLatest()
-    const failed = reader.filterEvents(trace, { failed: true })
-    // 401 response kept; 200 response removed
-    expect(failed.some(e => e.id === 'e2')).toBe(true)
-    expect(failed.some(e => e.id === 'e3')).toBe(false)
-    // network.error events are always included
-    expect(failed.some(e => e.id === 'e4')).toBe(true)
+  it('listSessions() returns session directory names', async () => {
+    await writeSession('sess-1')
+    await writeSession('sess-2')
+    const sessions = await new TraceReader(dir).listSessions()
+    expect(sessions).toContain('sess-1')
+    expect(sessions).toContain('sess-2')
   })
 
-  it('readBody returns null for a missing file', async () => {
-    const reader = new TraceReader(dir)
-    const result = await reader.readBody('nonexistent')
-    expect(result).toBeNull()
+  it('readBody() reads from session bodies directory', async () => {
+    await writeSession('sess-body')
+    const bodiesDir = join(dir, 'sess-body', 'bodies')
+    await mkdir(bodiesDir, { recursive: true })
+    await writeFile(join(bodiesDir, 'evt-123.json'), '{"ok":true}')
+    const body = await new TraceReader(dir).readBody('sess-body', 'evt-123')
+    expect(body).toBe('{"ok":true}')
   })
 
-  it('reads a sidecar body file', async () => {
-    await writeTestTrace()
-    await mkdir(join(dir, 'bodies'), { recursive: true })
-    await writeFile(join(dir, 'bodies', 'e2.json'), '{"error":"invalid_credentials"}')
-    const reader = new TraceReader(dir)
-    const body = await reader.readBody('e2')
-    expect(JSON.parse(body!)).toEqual({ error: 'invalid_credentials' })
+  it('throws if session directory does not exist', async () => {
+    await expect(new TraceReader(dir).load('nonexistent')).rejects.toThrow()
+  })
+
+  it('loadLatest() throws if no sessions', async () => {
+    await expect(new TraceReader(dir).loadLatest()).rejects.toThrow('No sessions found')
+  })
+
+  it('filterEvents() filters by type', async () => {
+    await writeSession('sess-filter', { events: [
+      { id: 'e1', type: 'mark', ts: 10, source: 'agent', data: { label: 'x' } },
+      { id: 'e2', type: 'network.request', ts: 20, source: 'cdp', data: { url: '/api', method: 'GET', headers: {} } },
+    ]})
+    const trace = await new TraceReader(dir).load('sess-filter')
+    const result = new TraceReader(dir).filterEvents(trace, { type: 'mark' })
+    expect(result).toHaveLength(1)
+    expect(result[0].type).toBe('mark')
   })
 })
