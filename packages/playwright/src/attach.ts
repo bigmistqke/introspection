@@ -1,8 +1,12 @@
 import { randomUUID } from 'crypto'
 // @ts-expect-error Missing ws type declarations
 import WebSocket from 'ws'
+import { rpc, expose } from '@bigmistqke/rpc/websocket'
 import type { Page } from '@playwright/test'
-import type { IntrospectHandle, TraceEvent, OnErrorSnapshot, TestResult } from '@introspection/types'
+import type {
+  IntrospectHandle, TraceEvent, TestResult,
+  IntrospectionServerMethods, PlaywrightClientMethods,
+} from '@introspection/types'
 import { createPageProxy } from './proxy.js'
 import { normaliseCdpNetworkRequest, normaliseCdpNetworkResponse, normaliseCdpJsError } from './cdp.js'
 // @ts-expect-error Cannot resolve path to vite snapshot
@@ -13,7 +17,6 @@ export interface AttachOptions {
   sessionId: string
   testTitle: string
   testFile: string
-  // workerIndex and outDir are reserved for future server-side trace routing
   workerIndex: number
   outDir: string
 }
@@ -28,6 +31,8 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   const viteUrl = opts?.viteUrl ?? getViteUrl()
   const testTitle = opts?.testTitle ?? 'unknown test'
   const testFile = opts?.testFile ?? 'unknown file'
+  const outDir = opts?.outDir ?? '.introspect'
+  const workerIndex = opts?.workerIndex ?? 0
   const startedAt = Date.now()
 
   // Connect to Vite plugin WS
@@ -37,36 +42,41 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
     const cleanup = () => clearTimeout(timer)
     ws.once('open', () => { cleanup(); resolve() })
     ws.once('error', (err: any) => { cleanup(); reject(err) })
-    timer = setTimeout(() => reject(new Error(`Could not connect to Vite introspection server at ${viteUrl}`)), 3000)
+    timer = setTimeout(
+      () => reject(new Error(`Could not connect to Vite introspection server at ${viteUrl}`)),
+      3000,
+    )
   })
 
-  function sendEvent(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }) {
-    if (ws.readyState !== 1 /* WebSocket.OPEN */) return
-    ws.send(JSON.stringify({ type: 'EVENT', sessionId, event: { id: randomUUID(), ts: Date.now() - startedAt, ...event } }))
-  }
+  const server = rpc<IntrospectionServerMethods>(ws)
 
-  // Start session
-  ws.send(JSON.stringify({ type: 'START_SESSION', sessionId, testTitle, testFile }))
-
-  // Open CDP session
+  // Open CDP session before expose so the takeSnapshot closure can use cdp
   const cdp = await page.context().newCDPSession(page)
 
-  // Handle incoming messages from Vite server
-  ws.on('message', async (raw: any) => {
-    let msg: Record<string, unknown>
-    try { msg = JSON.parse(raw.toString()) } catch { return }
-
-    if (msg.type === 'TAKE_SNAPSHOT') {
-      const snapshot = await takeSnapshot({
-        cdpSession: { send: (method: string, params?: Record<string, unknown>) => cdp.send(method as never, params as never) },
-        trigger: (msg.trigger as OnErrorSnapshot['trigger']) ?? 'manual',
+  // Expose takeSnapshot so the server can call back to capture CDP state
+  expose<PlaywrightClientMethods>({
+    async takeSnapshot(trigger) {
+      return takeSnapshot({
+        cdpSession: {
+          send: (method: string, params?: Record<string, unknown>) =>
+            cdp.send(method as never, params as never),
+        },
+        trigger,
         url: await page.evaluate(() => location.href),
         callFrames: [],
         plugins: [],
       })
-      ws.send(JSON.stringify({ type: 'SNAPSHOT', sessionId, snapshot }))
-    }
-  })
+    },
+  }, { to: ws })
+
+  // Start session
+  await server.startSession({ id: sessionId, testTitle, testFile })
+
+  function sendEvent(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }) {
+    if (ws.readyState !== 1 /* WebSocket.OPEN */) return
+    // fire-and-forget — CDP event handlers are synchronous and don't await
+    server.event(sessionId, { id: randomUUID(), ts: Date.now() - startedAt, ...event } as TraceEvent)
+  }
 
   await cdp.send('Network.enable')
   await cdp.send('Runtime.enable')
@@ -84,7 +94,6 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
     sendEvent(normaliseCdpJsError(params as never, sessionId, startedAt))
   })
   cdp.on('Page.navigatedWithinDocument', (params: { url: string }) => {
-    // CDP does not provide the previous URL in this event; 'from' is always empty
     sendEvent({ type: 'browser.navigate', source: 'cdp', data: { from: '', to: params.url } })
   })
 
@@ -97,10 +106,15 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
       sendEvent({ type: 'mark', source: 'agent', data: { label, extra: data } })
     },
     async snapshot() {
-      ws.send(JSON.stringify({ type: 'SNAPSHOT_REQUEST', sessionId, trigger: 'manual' }))
+      await server.requestSnapshot(sessionId, 'manual')
     },
     async detach(result?: TestResult) {
-      ws.send(JSON.stringify({ type: 'END_SESSION', sessionId, result: result ?? { status: 'passed', duration: 0 } }))
+      await server.endSession(
+        sessionId,
+        result ?? { status: 'passed', duration: 0 },
+        outDir,
+        workerIndex,
+      )
       try { await cdp.detach() } catch { /* non-fatal: browser context may already be closed */ }
       await new Promise<void>((resolve) => {
         ws.once('close', resolve)

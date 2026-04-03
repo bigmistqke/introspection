@@ -1,47 +1,55 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// Mock @introspection/vite/snapshot before importing attach
-const mockTakeSnapshot = vi.fn().mockResolvedValue({ ts: 1, trigger: 'manual', url: 'http://localhost/', dom: '', scopes: [], globals: {}, plugins: {} })
+// Mock @introspection/vite/snapshot
+const mockTakeSnapshot = vi.fn().mockResolvedValue({
+  ts: 1, trigger: 'manual', url: 'http://localhost/', dom: '', scopes: [], globals: {}, plugins: {},
+})
 vi.mock('@introspection/vite/snapshot', () => ({
   takeSnapshot: (...args: unknown[]) => mockTakeSnapshot(...args),
 }))
 
-// Mock the 'ws' module before importing attach
-const mockWsSend = vi.fn()
-const mockWsClose = vi.fn()
-const mockWsMessageHandlers: ((data: Buffer) => void)[] = []
+// Mock @bigmistqke/rpc/websocket — factory must use only vi.fn() (no module-level variable refs)
+vi.mock('@bigmistqke/rpc/websocket', () => ({
+  rpc: vi.fn(),
+  expose: vi.fn(),
+}))
 
-vi.mock('ws', () => {
-  return {
-    default: class MockWS {
-      readyState = 1 // OPEN
-      send = mockWsSend
-      close = mockWsClose
-      once(event: string, cb: () => void) {
-        if (event === 'open') {
-          Promise.resolve().then(cb)
-        } else if (event === 'close') {
-          // auto-resolve close when ws.close() is called
-          mockWsClose.mockImplementationOnce(() => cb())
-        }
-      }
-      on(event: string, cb: (data: Buffer) => void) {
-        if (event === 'message') mockWsMessageHandlers.push(cb)
-      }
+// Mock ws — add addEventListener to satisfy WebSocketLike
+const mockWsClose = vi.fn()
+vi.mock('ws', () => ({
+  default: class MockWS {
+    readyState = 1
+    close = mockWsClose
+    once(event: string, cb: () => void) {
+      if (event === 'open') Promise.resolve().then(cb)
+      else if (event === 'close') mockWsClose.mockImplementationOnce(() => cb())
     }
-  }
-})
+    on() {}
+    addEventListener() {}
+  },
+}))
 
 import { attach } from '../src/attach.js'
+import { rpc, expose } from '@bigmistqke/rpc/websocket'
 
 describe('attach()', () => {
+  let serverProxy: Record<string, ReturnType<typeof vi.fn>>
+
   beforeEach(() => {
-    mockWsSend.mockReset()
+    serverProxy = {
+      startSession: vi.fn().mockResolvedValue(undefined),
+      event: vi.fn().mockResolvedValue(undefined),
+      endSession: vi.fn().mockResolvedValue(undefined),
+      requestSnapshot: vi.fn().mockResolvedValue(undefined),
+    }
+    vi.mocked(rpc).mockReturnValue(serverProxy as any)
     mockWsClose.mockReset()
-    mockTakeSnapshot.mockReset()
-    mockTakeSnapshot.mockResolvedValue({ ts: 1, trigger: 'manual', url: 'http://localhost/', dom: '', scopes: [], globals: {}, plugins: {} })
-    mockWsMessageHandlers.length = 0
+    mockTakeSnapshot.mockResolvedValue({
+      ts: 1, trigger: 'manual', url: 'http://localhost/', dom: '', scopes: [], globals: {}, plugins: {},
+    })
   })
+
+  afterEach(() => { vi.clearAllMocks() })
 
   function makeFakePage() {
     const mockCdp = {
@@ -80,98 +88,68 @@ describe('attach()', () => {
     await handle.detach()
   })
 
-  it('sends START_SESSION on connect', async () => {
+  it('calls startSession with correct params', async () => {
     const { page } = makeFakePage()
     await attach(page as never, { ...baseOpts, sessionId: 'sess-abc', testTitle: 'test title' })
-    const startMsg = mockWsSend.mock.calls.find(([msg]) => {
-      try { return JSON.parse(msg).type === 'START_SESSION' } catch { return false }
+    expect(serverProxy.startSession).toHaveBeenCalledWith({
+      id: 'sess-abc', testTitle: 'test title', testFile: 'foo.spec.ts',
     })
-    expect(startMsg).toBeDefined()
-    const parsed = JSON.parse(startMsg![0])
-    expect(parsed.testTitle).toBe('test title')
-    expect(parsed.testFile).toBe('foo.spec.ts')
-    expect(parsed.sessionId).toBe('sess-abc')
   })
 
-  it('mark() sends a mark event', async () => {
+  it('mark() fires an event with type mark', async () => {
     const { page } = makeFakePage()
     const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-mark' })
-    mockWsSend.mockClear()
     handle.mark('step 1', { extra: true })
-    expect(mockWsSend).toHaveBeenCalledOnce()
-    const msg = JSON.parse(mockWsSend.mock.calls[0][0])
-    expect(msg.event.type).toBe('mark')
-    expect(msg.event.data.label).toBe('step 1')
+    expect(serverProxy.event).toHaveBeenCalledWith(
+      'sess-mark',
+      expect.objectContaining({ type: 'mark', data: expect.objectContaining({ label: 'step 1' }) }),
+    )
   })
 
-  it('snapshot() sends SNAPSHOT_REQUEST', async () => {
+  it('snapshot() calls requestSnapshot with manual trigger', async () => {
     const { page } = makeFakePage()
     const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-snap' })
-    mockWsSend.mockClear()
     await handle.snapshot()
-    expect(mockWsSend).toHaveBeenCalledOnce()
-    const msg = JSON.parse(mockWsSend.mock.calls[0][0])
-    expect(msg.type).toBe('SNAPSHOT_REQUEST')
-    expect(msg.sessionId).toBe('sess-snap')
-    expect(msg.trigger).toBe('manual')
+    expect(serverProxy.requestSnapshot).toHaveBeenCalledWith('sess-snap', 'manual')
   })
 
-  it('handles TAKE_SNAPSHOT: calls takeSnapshot and sends SNAPSHOT', async () => {
+  it('expose is called with a takeSnapshot function', async () => {
     const { page } = makeFakePage()
-    await attach(page as never, { ...baseOpts, sessionId: 'sess-snap2' })
-    mockWsSend.mockClear()
-
-    // Simulate the Vite server sending a TAKE_SNAPSHOT message
-    expect(mockWsMessageHandlers.length).toBeGreaterThan(0)
-    const payload = Buffer.from(JSON.stringify({ type: 'TAKE_SNAPSHOT', trigger: 'manual' }))
-    await mockWsMessageHandlers[0](payload)
-
-    expect(mockTakeSnapshot).toHaveBeenCalledOnce()
-    expect(mockWsSend).toHaveBeenCalledOnce()
-    const msg = JSON.parse(mockWsSend.mock.calls[0][0])
-    expect(msg.type).toBe('SNAPSHOT')
-    expect(msg.sessionId).toBe('sess-snap2')
-    expect(msg.snapshot).toBeDefined()
+    await attach(page as never, baseOpts)
+    expect(vi.mocked(expose)).toHaveBeenCalled()
+    const methods = vi.mocked(expose).mock.calls[0][0] as any
+    expect(typeof methods.takeSnapshot).toBe('function')
   })
 
-  it('detach() sends END_SESSION, calls cdp.detach(), and closes WS', async () => {
+  it('detach() calls endSession, cdp.detach, and closes WS', async () => {
     const { page, cdp } = makeFakePage()
     const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-detach' })
-    mockWsSend.mockClear()
     await handle.detach()
-    const endMsg = mockWsSend.mock.calls.find(([msg]) => {
-      try { return JSON.parse(msg).type === 'END_SESSION' } catch { return false }
-    })
-    expect(endMsg).toBeDefined()
-    const endParsed = JSON.parse(endMsg![0])
-    expect(endParsed.sessionId).toBe('sess-detach')
-    expect(endParsed.result).toEqual({ status: 'passed', duration: 0 })
+    expect(serverProxy.endSession).toHaveBeenCalledWith(
+      'sess-detach', { status: 'passed', duration: 0 }, '/tmp/introspect', 0,
+    )
     expect(cdp.detach).toHaveBeenCalledOnce()
     expect(mockWsClose).toHaveBeenCalledOnce()
   })
 
-  it('detach() forwards result to END_SESSION', async () => {
+  it('detach() forwards result to endSession', async () => {
     const { page } = makeFakePage()
     const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-detach-result' })
-    mockWsSend.mockClear()
     await handle.detach({ status: 'failed', duration: 1234, error: 'AssertionError' })
-    const endMsg = mockWsSend.mock.calls.find(([msg]) => {
-      try { return JSON.parse(msg).type === 'END_SESSION' } catch { return false }
-    })
-    expect(endMsg).toBeDefined()
-    const parsed = JSON.parse(endMsg![0])
-    expect(parsed.result).toEqual({ status: 'failed', duration: 1234, error: 'AssertionError' })
+    expect(serverProxy.endSession).toHaveBeenCalledWith(
+      'sess-detach-result',
+      { status: 'failed', duration: 1234, error: 'AssertionError' },
+      '/tmp/introspect',
+      0,
+    )
   })
 
   it('detach() defaults result to passed when called without args', async () => {
     const { page } = makeFakePage()
-    const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-detach-default' })
-    mockWsSend.mockClear()
+    const handle = await attach(page as never, baseOpts)
     await handle.detach()
-    const endMsg = mockWsSend.mock.calls.find(([msg]) => {
-      try { return JSON.parse(msg).type === 'END_SESSION' } catch { return false }
-    })
-    const parsed = JSON.parse(endMsg![0])
-    expect(parsed.result).toEqual({ status: 'passed', duration: 0 })
+    expect(serverProxy.endSession).toHaveBeenCalledWith(
+      expect.any(String), { status: 'passed', duration: 0 }, '/tmp/introspect', 0,
+    )
   })
 })

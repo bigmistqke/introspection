@@ -189,7 +189,7 @@ export interface IntrospectionServerMethods {
 
 /** Methods Playwright exposes — the server calls these to request snapshot capture. */
 export interface PlaywrightClientMethods {
-  takeSnapshot(trigger: OnErrorSnapshot['trigger']): OnErrorSnapshot
+  takeSnapshot(trigger: OnErrorSnapshot['trigger']): Promise<OnErrorSnapshot>
 }
 
 /** Browser connections expose no methods the server calls back on. */
