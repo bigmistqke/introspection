@@ -1,4 +1,3 @@
-import { formatTimeline } from './timeline.js'
 import type { TraceFile, TraceEvent } from '@introspection/types'
 
 const VALID_SOURCES = new Set(['cdp', 'agent', 'plugin', 'playwright'])
@@ -30,7 +29,7 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
     lowerBound = Math.max(lowerBound, mark.ts)
   }
 
-  const types = opts.type ? opts.type.split(',').map(s => s.trim()) : null
+  const types = opts.type ? opts.type.split(',').map(s => s.trim()).filter(Boolean) : null
 
   let result = trace.events.filter(e => {
     if (types && !types.includes(e.type)) return false
