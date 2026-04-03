@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@bigmistqke/rpc": "^0.1.6",
     "@introspection/types": "workspace:*"
   }
 }
