@@ -5,6 +5,7 @@
   "bin": {
     "introspect": "./dist/index.js"
   },
+  "files": ["dist", "skills"],
   "scripts": {
     "build": "tsup src/index.ts --format esm",
     "test": "vitest run"
