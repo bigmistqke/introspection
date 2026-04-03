@@ -225,4 +225,23 @@ describe('createWebGLPlugin()', () => {
     expect(lostCall).toBeDefined()
     expect(snapCall).toBeDefined()
   })
+
+  it('stateSnapshot() reports correct shader type (VERTEX vs FRAGMENT)', () => {
+    const plugin = createWebGLPlugin()
+    plugin.browser!.setup(agent)
+    const gl = mockGl()
+    // Mock SHADER_TYPE: return VERTEX_SHADER (0x8B31) for this shader
+    gl.getShaderParameter.mockImplementation((_shader: unknown, param: number) => {
+      if (param === 0x8B81 /* COMPILE_STATUS */) return true
+      if (param === 0x8B4F /* SHADER_TYPE */) return 0x8B31 /* VERTEX_SHADER */
+      return null
+    })
+    const proxied = plugin.track(gl as never)
+    const shader = {}
+    proxied.shaderSource(shader as never, 'void main() {}')
+    proxied.compileShader(shader as never)
+    plugin.stateSnapshot()
+    const call = emitMock.mock.calls.find((c: unknown[]) => (c[0] as { type: string }).type === 'plugin.webgl.stateSnapshot')!
+    expect(call[0].data.shaders[0].type).toBe('VERTEX_SHADER')
+  })
 })

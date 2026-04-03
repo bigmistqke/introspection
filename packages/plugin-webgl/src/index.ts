@@ -81,6 +81,7 @@ export function createWebGLPlugin(): WebGLPlugin {
           const info = shaders.get(shader)!
           info.compiled = !!(gl as WebGLRenderingContext).getShaderParameter(shader as WebGLShader, (gl as WebGLRenderingContext).COMPILE_STATUS)
           info.log = (gl as WebGLRenderingContext).getShaderInfoLog(shader as WebGLShader) ?? ''
+          info.type = (gl as WebGLRenderingContext).getShaderParameter(shader as WebGLShader, 0x8B4F /* SHADER_TYPE */) as number
           return r
         }
 
