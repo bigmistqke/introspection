@@ -36,7 +36,7 @@ export class TraceReader {
     })
   }
 
-  private async listTraceFiles(): Promise<string[]> {
+  async listTraceFiles(): Promise<string[]> {
     const entries = await readdir(this.dir)
     return entries.filter(f => f.endsWith('.trace.json'))
   }

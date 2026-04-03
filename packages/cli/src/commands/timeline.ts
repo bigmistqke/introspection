@@ -1,7 +1,10 @@
 import type { TraceFile } from '@introspection/types'
 
-export function formatTimeline(trace: TraceFile): string {
-  return trace.events.map(e => {
+export function formatTimeline(trace: TraceFile, opts?: { type?: string; source?: string }): string {
+  let events = trace.events
+  if (opts?.type) events = events.filter(e => e.type === opts.type)
+  if (opts?.source) events = events.filter(e => e.source === opts.source)
+  return events.map(e => {
     const ts = String(e.ts).padStart(6) + 'ms'
     const src = e.source.padEnd(10)
     let detail = e.type
