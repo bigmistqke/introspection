@@ -131,6 +131,8 @@ This task implements the core of the plugin. `track(gl)` returns a Proxy that in
 
 **GL error names** to map: `0x0500` → `'INVALID_ENUM'`, `0x0501` → `'INVALID_VALUE'`, `0x0502` → `'INVALID_OPERATION'`, `0x0505` → `'OUT_OF_MEMORY'`, `0x0506` → `'INVALID_FRAMEBUFFER_OPERATION'`. Unknown codes: `'0x' + code.toString(16)`.
 
+**Texture tracking requires `bindTexture` interception.** `texImage2D` / `texImage3D` operate on the *currently bound* texture — the texture object is never passed as an argument. The plugin maintains a `currentTexture: Map<number, object>` (GL target enum → texture object) updated by intercepting `bindTexture`. `texImage2D` / `texImage3D` then look up `currentTexture.get(target)` to find the texture to key off.
+
 - [ ] **Step 1: Write failing tests**
 
 ```ts
@@ -161,6 +163,8 @@ function mockGl() {
     getActiveUniform: vi.fn(),
     getActiveAttrib: vi.fn(),
     texImage2D: vi.fn(),
+    texImage3D: vi.fn(),
+    bindTexture: vi.fn(),
     canvas: { id: 'my-canvas', addEventListener: vi.fn() } as unknown as HTMLCanvasElement,
     COMPILE_STATUS: 0x8B81,
     LINK_STATUS: 0x8B82,
@@ -273,6 +277,30 @@ describe('createWebGLPlugin()', () => {
     expect(snap).toEqual({ contextCount: 1, totalFrames: 0, lastFrame: null })
   })
 
+  it('drawElements also accumulates drawCalls and primitiveCount', () => {
+    const plugin = createWebGLPlugin()
+    plugin.browser!.setup(agent)
+    const gl = mockGl()
+    const proxied = plugin.track(gl as never)
+    proxied.drawElements(4, 6, 0x1405, 0)
+    plugin.frame()
+    const call = emitMock.mock.calls.find((c: unknown[]) => (c[0] as { type: string }).type === 'plugin.webgl.frame')!
+    expect(call[0].data.drawCalls).toBe(1)
+    expect(call[0].data.primitiveCount).toBe(6)
+  })
+
+  it('browser.snapshot().lastFrame is populated after frame()', () => {
+    const plugin = createWebGLPlugin()
+    plugin.browser!.setup(agent)
+    const gl = mockGl()
+    const proxied = plugin.track(gl as never)
+    proxied.drawArrays(4, 0, 9)
+    plugin.frame()
+    const snap = plugin.browser!.snapshot()
+    expect(snap.lastFrame).toEqual({ drawCalls: 1, glErrors: [], primitiveCount: 9 })
+    expect(snap.totalFrames).toBe(1)
+  })
+
   it('calls before setup() are silently dropped', () => {
     const plugin = createWebGLPlugin()
     expect(() => plugin.frame()).not.toThrow()
@@ -332,12 +360,15 @@ export function createWebGLPlugin(): WebGLPlugin {
   const textures = new Map<object, TextureInfo>()
   const contexts = new Map<AnyGL, HTMLCanvasElement | OffscreenCanvas | null>()
 
+  // Maps GL target enum → currently bound texture object (updated by bindTexture interception)
+  const currentTexture = new Map<number, object>()
+
   let acc: FrameStats = { drawCalls: 0, glErrors: [], primitiveCount: 0 }
   let totalFrames = 0
   let lastFrame: FrameStats | null = null
 
-  function emit(type: string, data: Record<string, unknown>) {
-    agent?.emit({ type, data } as Parameters<BrowserAgent['emit']>[0])
+  function emit(type: `plugin.${string}`, data: Record<string, unknown>) {
+    agent?.emit({ type, data })
   }
 
   function ctxIndex(gl: AnyGL) { return [...contexts.keys()].indexOf(gl) }
@@ -398,12 +429,38 @@ export function createWebGLPlugin(): WebGLPlugin {
           return r
         }
 
+        if (prop === 'bindTexture') return (texTarget: number, texture: object | null) => {
+          if (texture) currentTexture.set(texTarget, texture)
+          else currentTexture.delete(texTarget)
+          return val.call(target, texTarget, texture)
+        }
+
         if (prop === 'texImage2D') return (...args: unknown[]) => {
-          const internalFormat = args[2] as number
-          const format = args.length >= 9 ? args[6] as number : args[3] as number
-          const width = args.length >= 9 ? args[3] as number : 0
-          const height = args.length >= 9 ? args[4] as number : 0
-          textures.set(args[0] as object, { width, height, format, internalFormat })
+          const texTarget = args[0] as number
+          const texture = currentTexture.get(texTarget)
+          if (texture) {
+            // texImage2D(target, level, internalFormat, width, height, border, format, type, pixels) — 9 args
+            // texImage2D(target, level, internalFormat, format, type, source) — 6 args
+            const internalFormat = args[2] as number
+            const format = args.length >= 9 ? args[6] as number : args[3] as number
+            const width = args.length >= 9 ? args[3] as number : 0
+            const height = args.length >= 9 ? args[4] as number : 0
+            textures.set(texture, { width, height, format, internalFormat })
+          }
+          return (val as (...a: unknown[]) => unknown).apply(target, args)
+        }
+
+        if (prop === 'texImage3D') return (...args: unknown[]) => {
+          // texImage3D(target, level, internalFormat, width, height, depth, border, format, type, pixels)
+          const texTarget = args[0] as number
+          const texture = currentTexture.get(texTarget)
+          if (texture) {
+            const internalFormat = args[2] as number
+            const format = args[7] as number
+            const width = args[3] as number
+            const height = args[4] as number
+            textures.set(texture, { width, height, format, internalFormat })
+          }
           return (val as (...a: unknown[]) => unknown).apply(target, args)
         }
 
@@ -531,6 +588,20 @@ Add to `packages/plugin-webgl/test/plugin-webgl.test.ts`:
     expect(call[0].data.frames.last.drawCalls).toBe(1)
   })
 
+  it('bindTexture + texImage2D records texture info keyed by texture object', () => {
+    const plugin = createWebGLPlugin()
+    plugin.browser!.setup(agent)
+    const gl = mockGl()
+    const proxied = plugin.track(gl as never)
+    const tex = {}
+    proxied.bindTexture(0xDE1 /* TEXTURE_2D */, tex as never)
+    proxied.texImage2D(0xDE1, 0, 0x1908 /* RGBA */, 64, 32, 0, 0x1908, 0x1401, null)
+    plugin.stateSnapshot()
+    const call = emitMock.mock.calls.find((c: unknown[]) => (c[0] as { type: string }).type === 'plugin.webgl.stateSnapshot')!
+    expect(call[0].data.textures[0].width).toBe(64)
+    expect(call[0].data.textures[0].height).toBe(32)
+  })
+
   it('webglcontextlost emits plugin.webgl.contextlost and triggers stateSnapshot', () => {
     const plugin = createWebGLPlugin()
     plugin.browser!.setup(agent)
@@ -546,23 +617,15 @@ Add to `packages/plugin-webgl/test/plugin-webgl.test.ts`:
   })
 ```
 
-- [ ] **Step 2: Run tests to verify the new tests fail**
+- [ ] **Step 2: Run all tests — most should pass immediately**
+
+The implementation from Task 2 already covers shader/program/texture tracking and context-loss. Run to confirm:
 
 ```bash
 cd packages/plugin-webgl && pnpm test
 ```
 
-Expected: new tests fail
-
-- [ ] **Step 3: Run tests after confirming the implementation from Task 2 already covers these**
-
-If the implementation in Task 2 is complete, most tests may already pass. Check the failures and fix anything missing (e.g. the `addEventListener` mock capture pattern for context-loss).
-
-```bash
-cd packages/plugin-webgl && pnpm test
-```
-
-Expected: all tests pass
+Expected: all tests pass. If any fail, fix the implementation before committing.
 
 - [ ] **Step 4: Commit**
 
@@ -586,7 +649,7 @@ Expected: all tests pass across all packages
 - [ ] **Step 2: TypeScript check**
 
 ```bash
-pnpm --filter '@introspection/*' exec tsc --noEmit 2>&1 | head -50
+pnpm --filter '@introspection/*' exec tsc --noEmit
 ```
 
 Expected: no errors
