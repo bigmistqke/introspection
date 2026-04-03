@@ -98,3 +98,24 @@ describe('applyEventFilters', () => {
       .toThrow('--last must be a positive integer')
   })
 })
+
+describe('formatEvents — default output (no expression)', () => {
+  it('returns timeline-formatted string of all events when no flags', () => {
+    const out = formatEvents(trace, {})
+    expect(out).toContain('plugin.redux.action')
+    expect(out).toContain('mark')
+    expect(out).toContain('network.request')
+  })
+
+  it('returns only matching events when --type is given', () => {
+    const out = formatEvents(trace, { type: 'plugin.redux.action' })
+    expect(out).toContain('plugin.redux.action')
+    expect(out).not.toContain('mark')
+    expect(out).not.toContain('network.request')
+  })
+
+  it('returns empty string when no events match', () => {
+    const out = formatEvents(trace, { type: 'nonexistent' })
+    expect(out).toBe('')
+  })
+})

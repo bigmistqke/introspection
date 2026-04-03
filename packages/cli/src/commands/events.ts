@@ -1,4 +1,5 @@
 import type { TraceFile, TraceEvent } from '@introspection/types'
+import { formatTimeline } from './timeline.js'
 
 const VALID_SOURCES = new Set(['cdp', 'agent', 'plugin', 'playwright'])
 
@@ -43,6 +44,13 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
   return result
 }
 
-export function formatEvents(_trace: TraceFile, _opts: EventFilterOpts, _expression?: string): string {
-  throw new Error('not yet implemented')
+export function formatEvents(trace: TraceFile, opts: EventFilterOpts, expression?: string): string {
+  const filtered = applyEventFilters(trace, opts)
+
+  if (!expression) {
+    return formatTimeline({ ...trace, events: filtered })
+  }
+
+  // expression mode — Task 3
+  throw new Error('expression mode not yet implemented')
 }
