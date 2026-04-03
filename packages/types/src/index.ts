@@ -91,6 +91,11 @@ export interface PluginEvent extends BaseEvent {
   data: Record<string, unknown>
 }
 
+export interface SessionEndEvent extends BaseEvent {
+  type: 'session.end'
+  data: Record<string, never>
+}
+
 export type TraceEvent =
   | NetworkRequestEvent
   | NetworkResponseEvent
@@ -104,6 +109,7 @@ export type TraceEvent =
   | BrowserNavigateEvent
   | MarkEvent
   | PlaywrightActionEvent
+  | SessionEndEvent
   | PluginEvent
 
 // ─── Supporting types ────────────────────────────────────────────────────────
@@ -139,24 +145,23 @@ export interface OnErrorSnapshot {
   plugins: Record<string, unknown>
 }
 
-// ─── Trace file ──────────────────────────────────────────────────────────────
+// ─── Session ──────────────────────────────────────────────────────────────────
 
-export interface TraceTest {
-  title: string
-  file: string
-  status: 'passed' | 'failed' | 'timedOut' | 'skipped'
-  duration: number
-  error?: string
+export interface SessionMeta {
+  version: '2'
+  id: string
+  startedAt: number    // unix ms
+  endedAt?: number     // unix ms, set when session ends
+  label?: string       // human-readable name
 }
 
-/** Subset of TraceTest passed to detach() — title and file are not needed at teardown time */
-export type TestResult = Omit<TraceTest, 'title' | 'file'>
+// ─── Trace file ──────────────────────────────────────────────────────────────
 
 export interface TraceFile {
-  version: '1'
-  test: TraceTest
+  version: '2'
+  session: Omit<SessionMeta, 'version'>
   events: TraceEvent[]
-  snapshots: { 'on-error'?: OnErrorSnapshot; [key: string]: OnErrorSnapshot | undefined }
+  snapshots: { [key: string]: OnErrorSnapshot | undefined }
 }
 
 // ─── Plugin interface ─────────────────────────────────────────────────────────
@@ -182,11 +187,11 @@ export interface IntrospectionPlugin {
 /** Methods the Vite server exposes — called by both Playwright and browser clients. */
 export interface IntrospectionServerMethods {
   /** Called by Playwright to register a new test session. */
-  startSession(params: { id: string; testTitle: string; testFile: string }): void
+  startSession(params: { id: string; startedAt: number; label?: string }): void
   /** Called by Playwright or browser to append an event to a session. */
   event(sessionId: string, event: TraceEvent): void
   /** Called by Playwright at test end to write the trace file and close the session. */
-  endSession(sessionId: string, result: TestResult, outDir: string, workerIndex: number): void
+  endSession(sessionId: string, outDir: string, workerIndex: number): void
   /** Called by browser (or handle.snapshot()) to trigger CDP snapshot capture on the Playwright side. */
   requestSnapshot(sessionId: string, trigger: OnErrorSnapshot['trigger']): void
 }
@@ -231,7 +236,7 @@ export interface IntrospectHandle {
   page: import('@playwright/test').Page   // Proxy-wrapped page
   mark(label: string, data?: Record<string, unknown>): void
   snapshot(): Promise<void>
-  detach(result?: TestResult): Promise<void>
+  detach(): Promise<void>
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
