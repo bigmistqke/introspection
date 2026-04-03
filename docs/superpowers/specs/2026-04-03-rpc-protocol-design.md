@@ -83,7 +83,7 @@ Methods Playwright exposes — called by the server when it needs to capture a s
 ```ts
 export interface PlaywrightClientMethods {
   /** Server calls this to request a CDP snapshot from the Playwright process. */
-  takeSnapshot(): OnErrorSnapshot
+  takeSnapshot(trigger: OnErrorSnapshot['trigger']): OnErrorSnapshot
 }
 ```
 
@@ -168,7 +168,7 @@ wss.on('connection', (ws) => {
       const session = sessions.get(sessionId)
       if (!session) return
       try {
-        session.snapshot = await session.playwrightProxy.takeSnapshot()
+        session.snapshot = await session.playwrightProxy.takeSnapshot(trigger as OnErrorSnapshot['trigger'])
       } catch (err) {
         console.error('[introspection] snapshot request failed:', err)
       }
@@ -195,15 +195,17 @@ const ws = new WS(viteUrl)
 const server = rpc<IntrospectionServerMethods>(ws)
 
 expose<PlaywrightClientMethods>({
-  async takeSnapshot() {
-    return collectSnapshot(page, cdpSession)
+  async takeSnapshot(trigger) {
+    return collectSnapshot(page, cdpSession, trigger)
   },
 }, { to: ws })
 
-// Session lifecycle:
-await server.startSession({ id, testTitle, testFile })
+// Session lifecycle — outDir and workerIndex captured from AttachOptions closure:
+const outDir = opts?.outDir ?? '.introspect'
+const workerIndex = opts?.workerIndex ?? 0
+
+await server.startSession({ id: sessionId, testTitle, testFile })
 await server.event(sessionId, event)
-await server.snapshot(sessionId, snapshotData)       // if taken on Playwright side directly
 await server.endSession(sessionId, result, outDir, workerIndex)
 ```
 
@@ -213,6 +215,8 @@ await server.endSession(sessionId, result, outDir, workerIndex)
 
 `BrowserAgent` uses the native browser `WebSocket` (satisfies `WebSocketLike`). The `sessionId` is passed explicitly to every `event()` call — fixing the routing bug where events were silently dropped.
 
+**Breaking change:** `BrowserAgent.connect()` currently sends `START_SESSION` on open (line 44-46 of current code). This is removed. Browser agents join an existing session started by the Playwright process — they never create or own sessions. The signature changes from `connect(vitePort: number, sessionId, testTitle, testFile)` to `connect(url: string, sessionId: string)`, dropping `testTitle` and `testFile`.
+
 ```ts
 import { rpc } from '@bigmistqke/rpc/websocket'
 import type { IntrospectionServerMethods } from '@introspection/types'
@@ -221,12 +225,13 @@ class BrowserAgent {
   private server: ReturnType<typeof rpc<IntrospectionServerMethods>>
 
   static connect(url: string, sessionId: string): BrowserAgent {
-    const ws = new WebSocket(url)
+    const ws = new (globalThis as any).WebSocket(url)
     const server = rpc<IntrospectionServerMethods>(ws)
     return new BrowserAgent(sessionId, server)
+    // NOTE: no START_SESSION — the Playwright process always owns session lifecycle
   }
 
-  emit(event: TraceEvent): void {
+  emit(event: PluginEvent): void {
     // sessionId is always present — no more silent routing failures
     this.server.event(this.sessionId, event)
   }
@@ -258,6 +263,9 @@ Browser connections call only `event` (and optionally `requestSnapshot`). They n
 - All `as string` / `as never` casts on incoming WS message fields
 - The `TAKE_SNAPSHOT` receive handler and `SNAPSHOT` send in `attach.ts`
 - `ws.send(JSON.stringify({ type: 'EVENT', event }))` without sessionId in `browser/src/index.ts`
+- `ws.send(JSON.stringify({ type: 'START_SESSION', ... }))` in `BrowserAgent.connect()` — **breaking change**: callers that relied on the browser creating a session must now ensure Playwright calls `startSession` first
+- `Session.ws: WebSocket` field — **breaking change to the public `Session` type**: replaced by `Session.playwrightProxy: RPC<PlaywrightClientMethods>`. Any code accessing `session.ws` directly (e.g. via `getSession()` / `getSessions()`) must be updated.
+- `BrowserAgent.connect(vitePort, sessionId, testTitle, testFile)` — **signature change**: now `connect(url, sessionId)`. Callers must pass the full WebSocket URL instead of a port number.
 
 ---
 
