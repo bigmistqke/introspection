@@ -34,7 +34,7 @@ export async function takeSnapshot(options: TakeSnapshotOptions): Promise<OnErro
   // Scope chain
   const scopes: ScopeFrame[] = []
   for (const frame of callFrames.slice(0, 5)) {
-    const vars: Record<string, unknown> = {}
+    const locals: Record<string, unknown> = {}
     for (const scope of frame.scopeChain.slice(0, 3)) {
       if (!scope.object.objectId) continue
       try {
@@ -43,11 +43,11 @@ export async function takeSnapshot(options: TakeSnapshotOptions): Promise<OnErro
           ownProperties: true,
         }) as { result: Array<{ name: string; value?: { value?: unknown; description?: string } }> }
         for (const prop of result.slice(0, 20)) {
-          vars[prop.name] = prop.value?.value ?? prop.value?.description ?? undefined
+          locals[prop.name] = prop.value?.value ?? prop.value?.description ?? undefined
         }
       } catch { /* non-fatal */ }
     }
-    scopes.push({ frame: `${frame.functionName} (${frame.url}:${frame.location.lineNumber + 1})`, vars })
+    scopes.push({ frame: `${frame.functionName} (${frame.url}:${frame.location.lineNumber + 1})`, locals })
   }
 
   // Key globals

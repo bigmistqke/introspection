@@ -4,7 +4,7 @@ import { TraceReader } from './trace-reader.js'
 import { buildSummary } from './commands/summary.js'
 import { formatTimeline } from './commands/timeline.js'
 import { formatErrors } from './commands/errors.js'
-import { formatVars } from './commands/vars.js'
+import { formatSnapshot } from './commands/snapshot.js'
 import { formatNetworkTable } from './commands/network.js'
 import { queryBody } from './commands/body.js'
 import { formatDom } from './commands/dom.js'
@@ -40,9 +40,9 @@ program.command('errors').option('--session <id>').action(async (opts) => {
   console.log(formatErrors(trace))
 })
 
-program.command('vars').option('--session <id>').action(async (opts) => {
+program.command('snapshot').option('--session <id>').action(async (opts) => {
   const trace = await loadTrace(opts)
-  console.log(formatVars(trace))
+  console.log(formatSnapshot(trace))
 })
 
 program.command('network').option('--session <id>').option('--failed').option('--url <pattern>').action(async (opts) => {

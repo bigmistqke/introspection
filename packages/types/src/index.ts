@@ -129,7 +129,7 @@ export interface StackFrame {
 
 export interface ScopeFrame {
   frame: string           // "functionName (file:line)"
-  vars: Record<string, unknown>
+  locals: Record<string, unknown>
 }
 
 export interface BodySummary {

@@ -102,7 +102,7 @@ describe('takeSnapshot', () => {
     expect(snapshot.scopes).toHaveLength(1)
     // CDP lineNumber is 0-based → displayed as 1-based
     expect(snapshot.scopes[0].frame).toBe('handleSubmit (auth.ts:42)')
-    expect(snapshot.scopes[0].vars).toEqual({ x: 42 })
+    expect(snapshot.scopes[0].locals).toEqual({ x: 42 })
   })
 
   it('populates globals with distinct evaluated values', async () => {

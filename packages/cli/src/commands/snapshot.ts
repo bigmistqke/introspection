@@ -1,12 +1,12 @@
 import type { TraceFile } from '@introspection/types'
 
-export function formatVars(trace: TraceFile): string {
+export function formatSnapshot(trace: TraceFile): string {
   const snapshot = trace.snapshots?.['on-error']
-  if (!snapshot) return '(no error snapshot — test may have passed, or snapshot was not captured)'
+  if (!snapshot) return '(no snapshot — session may have ended cleanly, or snapshot was not captured)'
   const lines: string[] = [`Scope chain at ${snapshot.trigger} (${snapshot.url}):\n`]
   for (const scope of snapshot.scopes) {
     lines.push(`  ${scope.frame}`)
-    for (const [k, v] of Object.entries(scope.vars)) {
+    for (const [k, v] of Object.entries(scope.locals)) {
       lines.push(`    ${k} = ${JSON.stringify(v)}`)
     }
   }
