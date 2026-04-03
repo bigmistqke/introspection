@@ -34,15 +34,15 @@ async function exists(p: string): Promise<boolean> {
 // ─── Exported logic ───────────────────────────────────────────────────────────
 
 export async function listSkills(skillsDir: string): Promise<SkillMeta[]> {
-  let entries: string[]
+  let dirents: import('fs').Dirent[]
   try {
-    entries = await readdir(skillsDir)
+    dirents = await readdir(skillsDir, { withFileTypes: true })
   } catch {
     return []
   }
 
   const skills: SkillMeta[] = []
-  for (const entry of entries.sort()) {
+  for (const entry of dirents.filter(d => d.isDirectory()).map(d => d.name).sort()) {
     const skillFile = join(skillsDir, entry, 'skill.md')
     let content: string
     try { content = await readFile(skillFile, 'utf8') } catch { continue }
@@ -79,15 +79,15 @@ export function getInstallRoot(opts: { platform: 'claude'; cwd: string; dir?: st
 }
 
 export async function installSkills(skillsDir: string, installRoot: string): Promise<InstallResult[]> {
-  let entries: string[]
+  let dirents: import('fs').Dirent[]
   try {
-    entries = await readdir(skillsDir)
+    dirents = await readdir(skillsDir, { withFileTypes: true })
   } catch {
     throw new Error(`Could not find bundled skills directory. Try reinstalling the introspect package.`)
   }
 
   const results: InstallResult[] = []
-  for (const entry of entries.sort()) {
+  for (const entry of dirents.filter(d => d.isDirectory()).map(d => d.name).sort()) {
     const srcFile = join(skillsDir, entry, 'skill.md')
     let content: string
     try { content = await readFile(srcFile, 'utf8') } catch { continue }
