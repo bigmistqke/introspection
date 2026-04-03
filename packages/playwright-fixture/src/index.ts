@@ -20,8 +20,8 @@ export function introspectFixture(opts: IntrospectFixtureOptions = {}) {
       await use(handle)
       const knownStatuses = ['passed', 'failed', 'timedOut', 'skipped'] as const
       type KnownStatus = typeof knownStatuses[number]
-      const status: TestResult['status'] = (knownStatuses as readonly string[]).includes(testInfo.status)
-        ? testInfo.status as KnownStatus
+      const status: TestResult['status'] = (knownStatuses as readonly string[]).includes(testInfo.status ?? '')
+        ? (testInfo.status as KnownStatus)
         : 'failed'
       const result: TestResult = {
         status,

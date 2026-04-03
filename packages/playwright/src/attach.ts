@@ -1,9 +1,11 @@
 import { randomUUID } from 'crypto'
+// @ts-expect-error Missing ws type declarations
 import WebSocket from 'ws'
 import type { Page } from '@playwright/test'
 import type { IntrospectHandle, TraceEvent, OnErrorSnapshot, TestResult } from '@introspection/types'
 import { createPageProxy } from './proxy.js'
 import { normaliseCdpNetworkRequest, normaliseCdpNetworkResponse, normaliseCdpJsError } from './cdp.js'
+// @ts-expect-error Cannot resolve path to vite snapshot
 import { takeSnapshot } from '@introspection/vite/snapshot'
 
 export interface AttachOptions {
@@ -34,7 +36,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
     let timer: ReturnType<typeof setTimeout>
     const cleanup = () => clearTimeout(timer)
     ws.once('open', () => { cleanup(); resolve() })
-    ws.once('error', (err) => { cleanup(); reject(err) })
+    ws.once('error', (err: any) => { cleanup(); reject(err) })
     timer = setTimeout(() => reject(new Error(`Could not connect to Vite introspection server at ${viteUrl}`)), 3000)
   })
 
@@ -50,7 +52,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   const cdp = await page.context().newCDPSession(page)
 
   // Handle incoming messages from Vite server
-  ws.on('message', async (raw) => {
+  ws.on('message', async (raw: any) => {
     let msg: Record<string, unknown>
     try { msg = JSON.parse(raw.toString()) } catch { return }
 

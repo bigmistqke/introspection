@@ -1,3 +1,4 @@
+// @ts-expect-error Missing type declarations for source-map
 import { SourceMapConsumer } from 'source-map'
 import type { StackFrame } from '@introspection/types'
 
@@ -29,7 +30,7 @@ export function resolveStackFrame(
 
 /** Builds a SourceMapProvider from Vite's module graph */
 export function viteSourceMapProvider(
-  getModuleById: (id: string) => { transformResult?: { map?: RawSourceMap } } | undefined
+  getModuleById: (id: string) => any
 ): SourceMapProvider {
   return (file: string) => {
     const mod = getModuleById(file)
