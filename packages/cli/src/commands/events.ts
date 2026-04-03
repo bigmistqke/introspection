@@ -1,3 +1,4 @@
+import { runInNewContext } from 'vm'
 import type { TraceFile, TraceEvent } from '@introspection/types'
 import { formatTimeline } from './timeline.js'
 
@@ -51,6 +52,13 @@ export function formatEvents(trace: TraceFile, opts: EventFilterOpts, expression
     return formatTimeline({ ...trace, events: filtered })
   }
 
-  // expression mode — Task 3
-  throw new Error('expression mode not yet implemented')
+  const results = filtered.map(ev => {
+    try {
+      const raw = runInNewContext(expression, { event: ev })
+      return raw === undefined ? null : raw
+    } catch (err) {
+      return { error: String(err), event: ev }
+    }
+  })
+  return JSON.stringify(results, null, 2)
 }

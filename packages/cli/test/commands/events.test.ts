@@ -119,3 +119,48 @@ describe('formatEvents — default output (no expression)', () => {
     expect(out).toBe('')
   })
 })
+
+describe('formatEvents — expression mode', () => {
+  it('maps each event with the expression using `event` as the variable', () => {
+    const out = formatEvents(trace, { type: 'plugin.redux.action' }, 'event.data.action.type')
+    const parsed = JSON.parse(out)
+    expect(parsed).toEqual(['CART/ADD', 'CART/REMOVE'])
+  })
+
+  it('expression returning an object produces array of objects', () => {
+    const out = formatEvents(trace, { type: 'plugin.redux.action' }, '({ ts: event.ts, action: event.data.action.type })')
+    const parsed = JSON.parse(out)
+    expect(parsed).toEqual([
+      { ts: 100, action: 'CART/ADD' },
+      { ts: 300, action: 'CART/REMOVE' },
+    ])
+  })
+
+  it('expression returning undefined maps to null', () => {
+    const out = formatEvents(trace, { type: 'plugin.redux.action' }, 'undefined')
+    const parsed = JSON.parse(out)
+    expect(parsed).toEqual([null, null])
+  })
+
+  it('expression that throws for one event produces error slot, rest unaffected', () => {
+    // mark event has no .data.action — will throw; redux events work fine
+    const out = formatEvents(trace, {}, 'event.data.action.type')
+    const parsed = JSON.parse(out)
+    // e2 and e4 are redux events — those should return the action type
+    expect(parsed[1]).toBe('CART/ADD')
+    expect(parsed[3]).toBe('CART/REMOVE')
+    // e1 (mark), e3 (network.request), e5 (playwright) have no action — error slots
+    expect(parsed[0]).toHaveProperty('error')
+    expect(parsed[0]).toHaveProperty('event')
+  })
+
+  it('returns [] when no events match filters', () => {
+    const out = formatEvents(trace, { type: 'nonexistent' }, 'event.id')
+    expect(JSON.parse(out)).toEqual([])
+  })
+
+  it('only `event` is in scope — `events`, `snapshot`, `test` are undefined', () => {
+    const out = formatEvents(trace, { type: 'mark' }, 'typeof events')
+    expect(JSON.parse(out)).toEqual(['undefined'])
+  })
+})
