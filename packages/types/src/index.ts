@@ -37,11 +37,13 @@ export interface JsErrorEvent extends BaseEvent {
   data: { message: string; stack: StackFrame[] }
 }
 
+/** @unimplemented - not yet emitted by any package */
 export interface JsConsoleEvent extends BaseEvent {
   type: 'js.console'
   data: { level: 'log' | 'warn' | 'error' | 'info'; args: unknown[] }
 }
 
+/** @unimplemented - not yet emitted by any package */
 export interface DomSnapshotEvent extends BaseEvent {
   type: 'dom.snapshot'
   data: {
@@ -51,16 +53,19 @@ export interface DomSnapshotEvent extends BaseEvent {
   }
 }
 
+/** @unimplemented - not yet emitted by any package */
 export interface VariableSnapshotEvent extends BaseEvent {
   type: 'variable.snapshot'
   data: { scopes: ScopeFrame[]; trigger: string }
 }
 
+/** @unimplemented - not yet emitted by any package */
 export interface BrowserClickEvent extends BaseEvent {
   type: 'browser.click'
   data: { selector: string; text: string; x: number; y: number }
 }
 
+/** @unimplemented - not yet emitted by any package */
 export interface BrowserInputEvent extends BaseEvent {
   type: 'browser.input'
   data: { selector: string; value: string }
@@ -202,9 +207,12 @@ export type BrowserClientMethods = Record<never, never>
 export interface CaptureConfig {
   ignore?: string[]
   network?: {
+    /** @unimplemented */
     ignoreUrls?: RegExp[]
+    /** @unimplemented */
     ignoreHeaders?: string[]
   }
+  /** @unimplemented */
   responseBody?: {
     maxSize?: string    // e.g. '50kb'
     ignore?: RegExp[]   // matched against Content-Type first, then URL
@@ -224,4 +232,14 @@ export interface IntrospectHandle {
   mark(label: string, data?: Record<string, unknown>): void
   snapshot(): Promise<void>
   detach(result?: TestResult): Promise<void>
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+export function shallowChangedKeys(before: unknown, after: unknown): string[] {
+  if (typeof before !== 'object' || before === null || typeof after !== 'object' || after === null) return []
+  const b = before as Record<string, unknown>
+  const a = after as Record<string, unknown>
+  const keys = new Set([...Object.keys(b), ...Object.keys(a)])
+  return [...keys].filter(k => b[k] !== a[k])
 }
