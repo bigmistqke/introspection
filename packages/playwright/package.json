@@ -4,8 +4,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/attach.js",
-      "types": "./dist/attach.d.ts"
+      "types": "./src/attach.ts",
+      "import": "./dist/attach.js"
     }
   },
   "scripts": {
