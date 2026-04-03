@@ -10,7 +10,6 @@ export interface Session {
   id: string
   testTitle: string
   testFile: string
-  startedAt: number
   events: TraceEvent[]
   playwrightProxy: RPC<PlaywrightClientMethods>
   bodyMap?: Map<string, string>
@@ -51,7 +50,6 @@ export function createIntrospectionServer(
       startSession({ id, testTitle, testFile }) {
         sessions.set(id, {
           id, testTitle, testFile,
-          startedAt: Date.now(),
           events: [],
           playwrightProxy,
         })

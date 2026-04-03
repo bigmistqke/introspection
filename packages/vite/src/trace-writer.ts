@@ -68,7 +68,7 @@ export async function writeTrace(
       title: session.testTitle,
       file: session.testFile,
       status: result.status,
-      duration: Date.now() - session.startedAt,
+      duration: result.duration,
       error: result.error,
     },
     events,

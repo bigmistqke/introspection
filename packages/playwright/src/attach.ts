@@ -34,6 +34,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   const outDir = opts?.outDir ?? '.introspect'
   const workerIndex = opts?.workerIndex ?? 0
   const startedAt = Date.now()
+  let currentUrl = ''
 
   const ws = new WebSocket(viteUrl)
   await new Promise<void>((resolve, reject) => {
@@ -90,7 +91,8 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
     sendEvent(normaliseCdpJsError(params as never, sessionId, startedAt))
   })
   cdp.on('Page.navigatedWithinDocument', (params: { url: string }) => {
-    sendEvent({ type: 'browser.navigate', source: 'cdp', data: { from: '', to: params.url } })
+    sendEvent({ type: 'browser.navigate', source: 'cdp', data: { from: currentUrl, to: params.url } })
+    currentUrl = params.url
   })
 
   const proxiedPage = createPageProxy(page, (evt) => sendEvent(evt as never))
