@@ -71,8 +71,8 @@ export interface IntrospectionServerMethods {
   /** Called by Playwright to store an on-error snapshot for the session. */
   snapshot(sessionId: string, data: OnErrorSnapshot): void
 
-  /** Called by browser to trigger a CDP snapshot on the Playwright side. */
-  requestSnapshot(sessionId: string, trigger: string): void
+  /** Called by browser (or Playwright's handle.snapshot()) to trigger a CDP snapshot on the Playwright side. */
+  requestSnapshot(sessionId: string, trigger: OnErrorSnapshot['trigger']): void
 }
 ```
 
@@ -116,6 +116,9 @@ export interface Session {
   snapshot?: OnErrorSnapshot
 }
 
+// Assumption: only the Playwright process calls startSession. A browser connection
+// will also have a playwrightProxy created for it, but since it never calls startSession,
+// the proxy is never stored in any session and takeSnapshot is never invoked on it.
 wss.on('connection', (ws) => {
   const playwrightProxy = rpc<PlaywrightClientMethods>(ws)
 
@@ -168,7 +171,7 @@ wss.on('connection', (ws) => {
       const session = sessions.get(sessionId)
       if (!session) return
       try {
-        session.snapshot = await session.playwrightProxy.takeSnapshot(trigger as OnErrorSnapshot['trigger'])
+        session.snapshot = await session.playwrightProxy.takeSnapshot(trigger)
       } catch (err) {
         console.error('[introspection] snapshot request failed:', err)
       }
@@ -200,13 +203,30 @@ expose<PlaywrightClientMethods>({
   },
 }, { to: ws })
 
-// Session lifecycle — outDir and workerIndex captured from AttachOptions closure:
+// outDir and workerIndex captured from AttachOptions closure:
 const outDir = opts?.outDir ?? '.introspect'
 const workerIndex = opts?.workerIndex ?? 0
 
 await server.startSession({ id: sessionId, testTitle, testFile })
-await server.event(sessionId, event)
-await server.endSession(sessionId, result, outDir, workerIndex)
+
+// sendEvent becomes:
+function sendEvent(event: ...) {
+  server.event(sessionId, { id: randomUUID(), ts: Date.now() - startedAt, ...event })
+}
+
+// IntrospectHandle methods become:
+const handle: IntrospectHandle = {
+  async snapshot() {
+    // was: ws.send(JSON.stringify({ type: 'SNAPSHOT_REQUEST', sessionId, trigger: 'manual' }))
+    await server.requestSnapshot(sessionId, 'manual')
+  },
+  async detach(result?: TestResult) {
+    // was: ws.send(JSON.stringify({ type: 'END_SESSION', sessionId, result: ... }))
+    await server.endSession(sessionId, result ?? { status: 'passed', duration: 0 }, outDir, workerIndex)
+    try { await cdp.detach() } catch { /* non-fatal */ }
+    await new Promise<void>((resolve) => { ws.once('close', resolve); ws.close() })
+  },
+}
 ```
 
 ---
@@ -223,6 +243,13 @@ import type { IntrospectionServerMethods } from '@introspection/types'
 
 class BrowserAgent {
   private server: ReturnType<typeof rpc<IntrospectionServerMethods>>
+
+  constructor(
+    private sessionId: string,
+    server: ReturnType<typeof rpc<IntrospectionServerMethods>>,
+  ) {
+    this.server = server
+  }
 
   static connect(url: string, sessionId: string): BrowserAgent {
     const ws = new (globalThis as any).WebSocket(url)
