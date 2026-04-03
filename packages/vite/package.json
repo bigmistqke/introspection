@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@bigmistqke/rpc": "^0.1.6",
     "@introspection/types": "workspace:*",
     "source-map": "^0.5.7",
     "ws": "^8.17.0"
