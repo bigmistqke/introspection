@@ -10,9 +10,8 @@ import { queryBody } from './commands/body.js'
 import { formatDom } from './commands/dom.js'
 import { evalExpression } from './commands/eval.js'
 import { formatEvents } from './commands/events.js'
-import { resolve, join } from 'path'
+import { resolve } from 'path'
 import { fileURLToPath } from 'url'
-import { stat } from 'fs/promises'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
 
 const BUNDLED_SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url))
@@ -21,66 +20,83 @@ const program = new Command()
 program.name('introspect').description('Query Playwright test introspection traces').version('0.1.0')
   .option('--dir <path>', 'Trace output directory', resolve('.introspect'))
 
-async function loadTrace(opts: { trace?: string }) {
+async function loadTrace(opts: { session?: string }) {
   const r = new TraceReader(program.opts().dir as string)
-  return opts.trace ? r.load(opts.trace) : r.loadLatest()
+  return opts.session ? r.load(opts.session) : r.loadLatest()
 }
 
-program.command('summary').option('--trace <name>').action(async (opts) => {
+program.command('summary').option('--session <id>').action(async (opts) => {
   const trace = await loadTrace(opts)
   console.log(buildSummary(trace))
 })
 
-program.command('timeline').option('--trace <name>').option('--type <eventType>').option('--source <source>').action(async (opts) => {
+program.command('timeline').option('--session <id>').option('--type <eventType>').option('--source <source>').action(async (opts) => {
   const trace = await loadTrace(opts)
   console.log(formatTimeline(trace, opts))
 })
 
-program.command('errors').option('--trace <name>').action(async (opts) => {
+program.command('errors').option('--session <id>').action(async (opts) => {
   const trace = await loadTrace(opts)
   console.log(formatErrors(trace))
 })
 
-program.command('vars').option('--trace <name>').action(async (opts) => {
+program.command('vars').option('--session <id>').action(async (opts) => {
   const trace = await loadTrace(opts)
   console.log(formatVars(trace))
 })
 
-program.command('network').option('--trace <name>').option('--failed').option('--url <pattern>').action(async (opts) => {
+program.command('network').option('--session <id>').option('--failed').option('--url <pattern>').action(async (opts) => {
   const trace = await loadTrace(opts)
   console.log(formatNetworkTable(trace.events, opts))
 })
 
-program.command('dom').option('--trace <name>').action(async (opts) => {
+program.command('dom').option('--session <id>').action(async (opts) => {
   const trace = await loadTrace(opts)
   console.log(formatDom(trace))
 })
 
-program.command('body <eventId>').option('--path <jsonpath>').option('--jq <expr>').action(async (eventId, opts) => {
-  const r = new TraceReader(program.opts().dir as string)
-  const raw = await r.readBody(eventId)
-  if (!raw) { console.error(`No body found for event ${eventId}`); process.exit(1) }
-  console.log(queryBody(raw, { path: opts.path }))
+program.command('body <eventId>')
+  .option('--session <id>')
+  .option('--path <jsonpath>')
+  .option('--jq <expr>')
+  .action(async (eventId, opts) => {
+    const r = new TraceReader(program.opts().dir as string)
+    let sessionId = opts.session
+    if (!sessionId) {
+      const trace = await r.loadLatest()
+      sessionId = trace.session.id
+    }
+    const raw = await r.readBody(sessionId, eventId)
+    if (!raw) { console.error(`No body found for event ${eventId}`); process.exit(1) }
+    console.log(queryBody(raw, { path: opts.path }))
+  })
+
+program.command('eval <expression>').option('--session <id>').action(async (expression, opts) => {
+  const trace = await loadTrace(opts)
+  try {
+    console.log(evalExpression(trace, expression))
+  } catch (err) {
+    console.error(`Error: ${(err as Error).message}`)
+    process.exit(1)
+  }
 })
 
-program.command('eval <expression>').action(async (expression) => {
-  const result = await evalExpression(expression, program.opts().dir as string)
-  console.log(result)
-})
-
-program.command('list').description('List available trace files').action(async () => {
+program.command('list').description('List available sessions').action(async () => {
   const dir = program.opts().dir as string
   const r = new TraceReader(dir)
-  const files = await r.listTraceFiles()
-  if (files.length === 0) { console.error(`No trace files found in ${dir}`); process.exit(1) }
-  const items = await Promise.all(files.map(async f => {
-    const trace = await r.load(f.replace('.trace.json', ''))
-    const mtime = (await stat(join(dir, f))).mtime
-    return { f, mtime, trace }
+  const sessions = await r.listSessions()
+  if (sessions.length === 0) { console.error(`No sessions found in ${dir}`); process.exit(1) }
+  const items = await Promise.all(sessions.map(async id => {
+    const trace = await r.load(id)
+    return { id, trace }
   }))
-  items.sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
-  for (const { f, trace: { test } } of items) {
-    console.log(`${f.replace('.trace.json', '').padEnd(40)}  ${test.status.padEnd(8)}  ${test.duration}ms  ${test.title}`)
+  items.sort((a, b) => b.trace.session.startedAt - a.trace.session.startedAt)
+  for (const { id, trace } of items) {
+    const label = trace.session.label ?? id
+    const duration = trace.session.endedAt != null
+      ? `${trace.session.endedAt - trace.session.startedAt}ms`
+      : 'ongoing'
+    console.log(`${id.padEnd(40)}  ${duration.padEnd(10)}  ${label}`)
   }
 })
 
@@ -144,7 +160,7 @@ skillsCmd
 program
   .command('events [expression]')
   .description('Filter and transform trace events')
-  .option('--trace <name>')
+  .option('--session <id>')
   .option('--type <types>', 'Comma-separated event types to include')
   .option('--source <source>', 'Filter by source: cdp, agent, plugin, playwright')
   .option('--after <ms>', 'Keep events after this timestamp (ms)', (v) => parseFloat(v))

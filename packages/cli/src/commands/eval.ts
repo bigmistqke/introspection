@@ -1,13 +1,8 @@
-import { connectToSocket } from '../socket-client.js'
-import { join } from 'path'
+import { runInNewContext } from 'vm'
+import type { TraceFile } from '@introspection/types'
 
-export async function evalExpression(expression: string, outDir: string): Promise<string> {
-  const socketPath = join(outDir, '.socket')
-  const client = await connectToSocket(socketPath)
-  try {
-    const result = await client.eval(expression)
-    return JSON.stringify(result, null, 2)
-  } finally {
-    client.close()
-  }
+export function evalExpression(trace: TraceFile, expression: string): string {
+  const ctx = { events: trace.events, snapshots: trace.snapshots, session: trace.session }
+  const raw = runInNewContext(expression, ctx)
+  return JSON.stringify(raw ?? null, null, 2)
 }

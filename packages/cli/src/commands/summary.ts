@@ -2,10 +2,11 @@ import type { TraceFile, TraceEvent } from '@introspection/types'
 
 export function buildSummary(trace: TraceFile): string {
   const lines: string[] = []
-  const { test, events } = trace
+  const { session, events } = trace
 
-  lines.push(`Test: "${test.title}" — ${test.status.toUpperCase()} [${test.status}] (${test.duration}ms)`)
-  if (test.error) lines.push(`Error: ${test.error}`)
+  const label = session.label ?? session.id
+  const duration = session.endedAt != null ? `${session.endedAt - session.startedAt}ms` : 'ongoing'
+  lines.push(`Session: "${label}" (${duration})`)
   lines.push('')
 
   const actions = events.filter(e => e.type === 'playwright.action') as Array<{ data: { method: string; args: unknown[] } } & TraceEvent>
