@@ -9,6 +9,7 @@ import { formatNetworkTable } from './commands/network.js'
 import { queryBody } from './commands/body.js'
 import { formatDom } from './commands/dom.js'
 import { evalExpression } from './commands/eval.js'
+import { formatEvents } from './commands/events.js'
 import { resolve, join } from 'path'
 import { fileURLToPath } from 'url'
 import { stat } from 'fs/promises'
@@ -137,6 +138,33 @@ skillsCmd
     for (const r of results) {
       if (r.overwritten) process.stderr.write(`Overwriting existing skill: ${r.path}\n`)
       console.log(`Installed ${r.name} → ${r.path}`)
+    }
+  })
+
+program
+  .command('events [expression]')
+  .description('Filter and transform trace events')
+  .option('--trace <name>')
+  .option('--type <types>', 'Comma-separated event types to include')
+  .option('--source <source>', 'Filter by source: cdp, agent, plugin, playwright')
+  .option('--after <ms>', 'Keep events after this timestamp (ms)', (v) => parseFloat(v))
+  .option('--before <ms>', 'Keep events before this timestamp (ms)', (v) => parseFloat(v))
+  .option('--since <label>', 'Keep events after the named mark event')
+  .option('--last <n>', 'Keep only the last N events', (v) => parseInt(v, 10))
+  .action(async (expression: string | undefined, opts) => {
+    let trace
+    try {
+      trace = await loadTrace(opts)
+    } catch (err) {
+      console.error(String(err))
+      process.exit(1)
+    }
+    try {
+      const out = formatEvents(trace, opts, expression)
+      if (out) console.log(out)
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`)
+      process.exit(1)
     }
   })
 
