@@ -102,29 +102,29 @@ describe('IntrospectionServer', () => {
     ws.close()
   })
 
-  it('endSession writes a trace file and removes the session', async () => {
-    ;({ httpServer, introspectionServer } = await startServer())
+  it('endSession writes a session directory and removes the session', async () => {
+    ;({ httpServer, introspectionServer } = await startServer({ outDir: tmpDir }))
     const port = (httpServer.address() as { port: number }).port
     const { ws, server } = await connectClient(port)
 
-    await server.startSession({ id: 'end-sess', testTitle: 'my test', testFile: 'foo.spec.ts' })
-    // endSession awaits writeTrace before responding — no setTimeout needed
+    await server.startSession({ id: 'end-sess', startedAt: Date.now(), label: 'my test' })
     await server.endSession('end-sess', { status: 'passed', duration: 100 }, tmpDir, 0)
 
     expect(introspectionServer.getSession('end-sess')).toBeUndefined()
     const { readdir } = await import('fs/promises')
     const files = await readdir(tmpDir)
-    expect(files.some(f => f.endsWith('.trace.json'))).toBe(true)
+    // session directory 'end-sess' created inside outDir
+    expect(files).toContain('end-sess')
     ws.close()
   })
 
-  it('endSession deletes the session even when writeTrace fails', async () => {
+  it('endSession deletes the session even when finalizeSession fails', async () => {
     ;({ httpServer, introspectionServer } = await startServer())
     const port = (httpServer.address() as { port: number }).port
     const { ws, server } = await connectClient(port)
 
-    await server.startSession({ id: 'err-sess', testTitle: 't', testFile: 'f' })
-    // Pass an unwritable path to force a failure in writeTrace
+    await server.startSession({ id: 'err-sess', startedAt: Date.now(), label: 't' })
+    // Pass an unwritable path to force a failure in finalizeSession
     await server.endSession('err-sess', { status: 'passed', duration: 0 }, '/dev/null/invalid-path', 0)
 
     // Session must be deleted despite the error (finally block)
