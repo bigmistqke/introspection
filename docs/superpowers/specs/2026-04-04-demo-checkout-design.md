@@ -10,7 +10,7 @@ Verify that the core introspect CLI workflow is discoverable and sufficient to d
 
 ## Location
 
-`demo/` at the monorepo root, added to `pnpm-workspace.yaml`. Depends on `@introspection/vite`, `@introspection/playwright`, and `@introspection/plugin-redux` via `workspace:*`. Agent is given `demo/` as its working directory.
+`demo/` at the monorepo root, added to `pnpm-workspace.yaml`. Depends on `@introspection/vite`, `@introspection/playwright-fixture`, and `@introspection/plugin-redux` via `workspace:*`. Agent is given `demo/` as its working directory.
 
 ---
 
@@ -27,16 +27,16 @@ A minimal checkout form. The user enters a card number and submits. If the card 
 | File | Purpose |
 |------|---------|
 | `demo/package.json` | Workspace package; scripts: `dev`, `test`, `build` |
-| `demo/vite.config.ts` | Vite config with `introspection()` plugin and `plugin-redux` |
-| `demo/playwright.config.ts` | Playwright config; baseURL `http://localhost:5173`; uses `@introspection/playwright` fixture |
+| `demo/vite.config.ts` | Vite config with `introspection()` plugin only |
+| `demo/playwright.config.ts` | Playwright config; `baseURL: http://localhost:5173`; `webServer` block to auto-start Vite |
 | `demo/src/main.tsx` | React entry point |
 | `demo/src/App.tsx` | Router: `/checkout` → `CheckoutPage`, `/success` → `SuccessPage` |
-| `demo/src/store/index.ts` | Redux store with `@introspection/plugin-redux` middleware |
+| `demo/src/store/index.ts` | Redux store; `createReduxPlugin(store)` from `@introspection/plugin-redux` wired as middleware |
 | `demo/src/store/checkoutSlice.ts` | `validationErrors: string[] \| null`, `setValidationErrors` action |
 | `demo/src/api/client.ts` | Fetch wrapper — **the bug lives here** |
 | `demo/src/pages/CheckoutPage.tsx` | Card number field, submit button, error display `[data-testid=card-error]` |
 | `demo/src/pages/SuccessPage.tsx` | Shown on successful payment |
-| `demo/e2e/checkout.spec.ts` | The failing Playwright test |
+| `demo/e2e/checkout.spec.ts` | The failing Playwright test — imports `test`/`expect` from `@introspection/playwright-fixture` |
 | `demo/README.md` | Minimal — no hints about the bug or CLI workflow |
 
 ---
@@ -72,10 +72,10 @@ async function handleSubmit() {
 
 ## The Failing Test
 
-`e2e/checkout.spec.ts`:
+`e2e/checkout.spec.ts` imports `test`/`expect` from `@introspection/playwright-fixture` — this is what wires in the introspection fixture automatically (the fixture runs with `auto: true` inside the package):
 
 ```ts
-import { test, expect } from '@playwright/test'
+import { test, expect } from '@introspection/playwright-fixture'
 
 test('shows validation error on invalid card number', async ({ page }) => {
   await page.route('/api/payment/validate', route =>
@@ -94,7 +94,22 @@ test('shows validation error on invalid card number', async ({ page }) => {
 
 The test fails because `[data-testid=card-error]` never becomes visible — the validation error is never dispatched to the store.
 
-The `introspect` fixture runs automatically via `playwright.config.ts` — no per-test setup needed.
+---
+
+## Playwright Config
+
+`playwright.config.ts` must include a `webServer` block so the agent can run `pnpm test` without manually starting the dev server first:
+
+```ts
+export default defineConfig({
+  use: { baseURL: 'http://localhost:5173' },
+  webServer: {
+    command: 'pnpm dev',
+    url: 'http://localhost:5173',
+    reuseExistingServer: !process.env.CI,
+  },
+})
+```
 
 ---
 
@@ -102,11 +117,11 @@ The `introspect` fixture runs automatically via `playwright.config.ts` — no pe
 
 A well-functioning CLI workflow leads the agent through these steps:
 
-1. `pnpm exec introspect summary` — sees 422 on POST /api/payment/validate, nothing else in the UI
-2. `pnpm exec introspect network` — confirms the 422 request
-3. `pnpm exec introspect body <eventId> --path ".errors"` — reads the structured error from the response
-4. `pnpm exec introspect eval 'events.filter(e => e.type === "plugin.redux.action" && e.ts > 430)'` — returns empty array; no Redux actions after the 422
-5. `pnpm exec introspect errors` — `TypeError: Cannot read properties of undefined (reading 'errors')` at `handleSubmit`
+1. `pnpm exec introspect summary` — sees a 422 on POST /api/payment/validate listed under failed requests; nothing else happened in the UI
+2. `pnpm exec introspect network` — table view shows the 422; **the event ID visible here is needed for step 3**
+3. `pnpm exec introspect body <eventId> --path ".errors"` — reads the structured error body from the server response
+4. `pnpm exec introspect eval 'events.filter(e => e.type === "plugin.redux.action").slice(-5)'` — returns empty (or only pre-submit actions); no Redux actions fired after the 422
+5. `pnpm exec introspect errors` — `TypeError: Cannot read properties of undefined (reading 'errors')` at `handleSubmit` in `CheckoutPage.tsx`
 6. `pnpm exec introspect snapshot` — `response = { status: 422, data: undefined }` at the throw site
 
 Root cause surfaces at step 5–6: the fetch wrapper doesn't parse the body on 4xx, so `response.data` is `undefined`.
@@ -146,8 +161,8 @@ No hints about the bug or the investigation workflow — the agent discovers bot
 
 ---
 
-## Introspection Setup
+## Notes for implementer
 
-The introspection fixture runs automatically for every test via `use: { introspect: true }` in `playwright.config.ts`. After `pnpm test`, session data is in `.introspect/`. The `introspect` CLI reads from there by default.
-
-The vite config includes both `introspection()` (the server plugin) and `reduxPlugin()` (so Redux actions appear in the trace).
+- `@introspection/playwright-fixture` currently imports `TestResult` from `@introspection/types`, which was removed in the session-directory refactor. Update the fixture to use the local `DetachResult` pattern (same as `attach.ts`) before wiring it into the demo.
+- `createReduxPlugin(store)` is registered as Redux middleware in `src/store/index.ts`, not as a Vite plugin. The Vite config only needs `introspection()`.
+- Session data lands in `demo/.introspect/` after `pnpm test`. The CLI reads from there by default.
