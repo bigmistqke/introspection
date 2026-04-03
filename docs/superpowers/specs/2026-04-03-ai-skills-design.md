@@ -17,7 +17,13 @@ Ship Claude Code skills alongside the `introspect` CLI so AI agents automaticall
 
 Skills live in `packages/cli/skills/<skill-name>/skill.md`. They are included in the npm publish via the `files` field in `packages/cli/package.json`. When a user installs the `introspect` package, the skills come with it inside `node_modules`.
 
-`introspect skills install` reads skills from the CLI's own installed location (`__dirname/../skills/`) and copies them to the target directory.
+`introspect skills install` reads skills from the CLI's own installed location. The tsup entry point produces `dist/index.js`; the skills directory is a sibling of `dist/`, so the correct ESM-compatible resolution is:
+
+```ts
+fileURLToPath(new URL('../skills/', import.meta.url))
+```
+
+This resolves to `packages/cli/skills/` when running from `dist/index.js`. Note: `__dirname` is not available in ESM — `import.meta.url` must be used.
 
 ## CLI Commands
 
@@ -29,13 +35,30 @@ introspect skills install --platform claude # explicit platform
 introspect skills install --dir <path>      # override target install directory
 ```
 
+`--platform` accepts `claude` only in v1. Any unrecognised value exits with a non-zero error: `Unknown platform: <value>. Supported platforms: claude`. Update this list as platforms are added.
+
+`--dir <path>` replaces the platform root entirely. Skills are installed at `<path>/introspect-<name>/skill.md`, resolved relative to cwd. When `--dir` is specified, `--platform` has no effect on path resolution and is ignored with a warning: `--platform is ignored when --dir is specified.`
+
+### `skills list` Output Format
+
+Tab-aligned two-column table, one skill per line:
+
+```
+introspect-debug    Use when a Playwright test fails — guides querying the trace to identify root cause
+introspect-setup    Use when adding introspection to a project for the first time
+introspect-plugin   Use when writing a custom introspection plugin
+```
+
+Output is always read from the CLI's bundled skills directory (not from the install target). If the skills directory is missing, exit with a non-zero error. If a skill file is present but has missing or malformed YAML frontmatter, skip it and print a warning to stderr: `Warning: could not parse skill at <path>, skipping.`
+
 ### Platform Auto-Detection
 
-`introspect skills install` (no flags) inspects the current working directory:
+`introspect skills install` (no `--platform` flag) inspects the current working directory:
 
-- `.claude/` directory found → Claude Code
-- `GEMINI.md` found → Gemini CLI
-- Both or neither → error with prompt to specify `--platform`
+- `.claude/` directory found (no `GEMINI.md`) → Claude Code
+- `GEMINI.md` found (no `.claude/`) → exit non-zero: `Gemini platform detected but not yet implemented. Use --platform claude.` (Note: heuristic only; `GEMINI.md` could exist for unrelated reasons; false positives hit this error, which is recoverable via `--platform claude`.)
+- Both found → exit non-zero: `Multiple platforms detected. Use --platform claude to specify one. (Gemini support is not yet implemented.)`
+- Neither found → default to Claude Code with a warning: `No platform detected; defaulting to claude. Use --platform to be explicit.`
 
 ### Install Targets
 
@@ -48,19 +71,38 @@ introspect skills install --dir <path>      # override target install directory
 
 ## Skills
 
-Three skills are included:
+Three skills are included. All skill content must use the actual CLI flag forms (no positional `<trace>` argument — all commands take `--trace <name>` except `body` and `eval`).
 
 ### `introspect-debug`
 
 **Trigger:** A Playwright test fails and the AI needs to understand why.
 
-**Content:** A decision tree starting from `introspect summary <trace>`:
-- JS errors found → `introspect errors <trace>` then `introspect vars <trace>`
-- Network failures → `introspect network --failed <trace>` then `introspect body <id> <trace>`
-- Nothing obvious → `introspect timeline <trace>` to scan chronologically
-- DOM issue suspected → `introspect dom <trace>`
+**Content:** A decision tree. All commands default to the latest trace; add `--trace <name>` to target a specific one. The `eval` command connects to a live socket and never takes `--trace`.
 
-Includes inline reference for common event types (`network.request`, `network.response`, `js.error`, `js.console`, `playwright.action`, `mark`, `plugin.*`) and what each indicates.
+```
+introspect summary
+  → JS errors found:
+      introspect errors
+      introspect vars                    # add --at <point> to narrow to a specific moment
+  → Network failures:
+      introspect network --failed
+      introspect body <eventId>          # reads body from .introspect/bodies/
+  → Nothing obvious:
+      introspect timeline
+  → DOM issue suspected:
+      introspect dom
+```
+
+Includes inline reference for common event types and what they indicate:
+
+| Type | Source | Meaning |
+|------|--------|---------|
+| `network.request` / `network.response` | CDP | HTTP traffic with full bodies |
+| `js.error` | CDP | Uncaught exception with source-mapped stack |
+| `js.console` | CDP | Console output |
+| `playwright.action` | Playwright | click, fill, navigate, etc. |
+| `mark` | browser agent | Semantic marker placed by test code |
+| `plugin.*` | plugin | Framework-specific data (Redux action, React commit, etc.) |
 
 ### `introspect-setup`
 
@@ -69,10 +111,9 @@ Includes inline reference for common event types (`network.request`, `network.re
 **Content:** Step-by-step setup:
 1. Install packages (`@introspection/vite`, `@introspection/playwright`, optional plugins)
 2. Add `introspection()` to `vite.config.ts`
-3. Call `attach(page)` in Playwright tests
-4. Optionally add `@introspection/playwright-fixture` for zero-boilerplate usage
-5. Optionally register plugins (React, Redux, Zustand, WebGL) in the vite config
-6. Verify: run a test, check that `.introspect/*.trace.json` files appear, run `introspect summary`
+3. Call `attach(page)` in Playwright tests (or use `@introspection/playwright-fixture` for zero-boilerplate)
+4. Optionally register plugins (React, Redux, Zustand, WebGL) in the vite config
+5. Verify: run a test, confirm `.introspect/*.trace.json` files appear, run `introspect summary`
 
 ### `introspect-plugin`
 
@@ -83,7 +124,7 @@ Includes inline reference for common event types (`network.request`, `network.re
 - How to emit events: `agent.emit({ type: 'plugin.<name>.<event>', data: {...} })`
 - How to add data to error snapshots: `onSnapshot()` hook
 - How to filter or transform events: `transformEvent()` returning null drops the event
-- Minimal working example (a plugin that tracks a custom global counter)
+- Minimal working example (a plugin that captures a custom global counter)
 - Pointer to existing plugins as reference: `packages/plugin-react`, `packages/plugin-redux`
 
 ## File Layout
@@ -100,12 +141,20 @@ packages/cli/
   src/
     commands/
       skills.ts          # skills list + skills install commands
-  package.json           # add skills/ to "files"
+  package.json           # "files": ["dist", "skills"]
+```
+
+## package.json `files` Field
+
+Ensure the `files` field includes both `"dist"` and `"skills"`:
+
+```json
+"files": ["dist", "skills"]
 ```
 
 ## Skill File Format
 
-Standard superpowers skill frontmatter:
+Each skill file uses YAML frontmatter with `name` and `description` fields:
 
 ```markdown
 ---
@@ -118,9 +167,9 @@ description: Use when a Playwright test fails — guides querying the trace to i
 
 ## Error Handling
 
-- If target directory does not exist, create it (mkdir -p)
+- If target directory does not exist, create it (mkdir -p equivalent via `fs.mkdir` with `recursive: true`)
 - If a skill file already exists at target, overwrite with a warning: `Overwriting existing skill: <path>`
-- If the CLI cannot locate its own `skills/` directory (e.g. bundled incorrectly), exit with a clear error message
+- If the CLI cannot locate its own `skills/` directory, exit with a clear error: `Could not find bundled skills directory. Try reinstalling the introspect package.`
 
 ## Out of Scope
 
