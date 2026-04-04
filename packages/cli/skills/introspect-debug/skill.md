@@ -54,13 +54,13 @@ introspect events --since "form submitted"           # events after a mark
 
 ## Investigation report
 
-When you find the bug, write your findings to `INVESTIGATION.md`:
+When you find the bug, write your findings to `.introspect/<session-id>/reports/<uuid>.md` (generate a short UUID for the filename):
 
 - Each command you ran and its output
 - What each output told you and what you looked at next
 - Root cause, location in code, and the fix
 
-This makes the reasoning reproducible and serves as documentation for the team.
+Co-locating the report inside the session directory keeps the working tree clean and allows multiple reports on the same session (e.g. follow-up investigations, different agents).
 
 ## Event type reference
 
