@@ -37,6 +37,11 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   const startedAt = Date.now()
   let currentUrl = ''
 
+  // Inject session context so browser-side plugins (e.g. plugin-redux) can connect
+  await page.addInitScript({
+    content: `window.__INTROSPECT_SESSION_ID__="${sessionId}";window.__INTROSPECT_URL__="${viteUrl}";`,
+  })
+
   const ws = new WebSocket(viteUrl)
   await new Promise<void>((resolve, reject) => {
     let timer: ReturnType<typeof setTimeout>
@@ -90,6 +95,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   })
   cdp.on('Runtime.exceptionThrown', (params) => {
     sendEvent(normaliseCdpJsError(params as never, sessionId, startedAt))
+    void server.requestSnapshot(sessionId, 'js.error')
   })
   cdp.on('Page.navigatedWithinDocument', (params: { url: string }) => {
     sendEvent({ type: 'browser.navigate', source: 'cdp', data: { from: currentUrl, to: params.url } })

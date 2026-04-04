@@ -52,9 +52,11 @@ describe('attach()', () => {
   afterEach(() => { vi.clearAllMocks() })
 
   function makeFakePage() {
+    const cdpListeners: Record<string, (params: unknown) => void> = {}
+    const addInitScriptCalls: Array<{ content?: string }> = []
     const mockCdp = {
       send: vi.fn().mockResolvedValue({}),
-      on: vi.fn(),
+      on: vi.fn((event: string, cb: (params: unknown) => void) => { cdpListeners[event] = cb }),
       detach: vi.fn().mockResolvedValue(undefined),
     }
     return {
@@ -64,8 +66,11 @@ describe('attach()', () => {
         fill: vi.fn().mockResolvedValue(undefined),
         goto: vi.fn().mockResolvedValue(undefined),
         evaluate: vi.fn().mockResolvedValue('http://localhost/'),
+        addInitScript: vi.fn((script: { content?: string }) => { addInitScriptCalls.push(script); return Promise.resolve() }),
       },
       cdp: mockCdp,
+      addInitScriptCalls,
+      triggerCdpEvent(event: string, params: unknown) { cdpListeners[event]?.(params) },
     }
   }
 
@@ -152,5 +157,28 @@ describe('attach()', () => {
       ([, evt]) => (evt as { type: string }).type === 'playwright.result'
     )
     expect(resultEvt).toBeUndefined()
+  })
+
+  it('injects __INTROSPECT_SESSION_ID__ and __INTROSPECT_URL__ into the page', async () => {
+    const { page, addInitScriptCalls } = makeFakePage()
+    await attach(page as never, { ...baseOpts, sessionId: 'sess-inject' })
+    expect(addInitScriptCalls.length).toBeGreaterThan(0)
+    const injected = addInitScriptCalls.map((c: { content?: string }) => c.content ?? '').join('')
+    expect(injected).toContain('sess-inject')
+    expect(injected).toContain('__INTROSPECT_SESSION_ID__')
+  })
+
+  it('calls requestSnapshot when Runtime.exceptionThrown fires', async () => {
+    const { page, triggerCdpEvent } = makeFakePage()
+    await attach(page as never, { ...baseOpts, sessionId: 'sess-snap' })
+    triggerCdpEvent('Runtime.exceptionThrown', {
+      timestamp: 1000,
+      exceptionDetails: {
+        text: 'Uncaught TypeError',
+        exception: { description: 'TypeError: Cannot read properties of undefined' },
+        stackTrace: { callFrames: [] },
+      },
+    })
+    expect(serverProxy.requestSnapshot).toHaveBeenCalledWith('sess-snap', 'js.error')
   })
 })
