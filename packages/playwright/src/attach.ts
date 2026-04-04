@@ -6,13 +6,8 @@ import type { Page } from '@playwright/test'
 import type {
   IntrospectHandle, TraceEvent,
   IntrospectionServerMethods, PlaywrightClientMethods,
+  DetachResult,
 } from '@introspection/types'
-
-interface DetachResult {
-  status?: 'passed' | 'failed' | 'timedOut' | 'skipped'
-  duration?: number
-  error?: string
-}
 import { createPageProxy } from './proxy.js'
 import { normaliseCdpNetworkRequest, normaliseCdpNetworkResponse, normaliseCdpJsError } from './cdp.js'
 // @ts-expect-error Cannot resolve path to vite snapshot
