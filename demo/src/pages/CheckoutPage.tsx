@@ -16,7 +16,6 @@ export default function CheckoutPage() {
       '/api/payment/validate',
       { card },
     )
-    // bug: response.data is undefined when server returns 4xx — throws TypeError
     dispatch(setValidationErrors(response.data!.errors.map(err => err.message)))
   }
 
