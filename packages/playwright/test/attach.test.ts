@@ -166,6 +166,7 @@ describe('attach()', () => {
     const injected = addInitScriptCalls.map((c: { content?: string }) => c.content ?? '').join('')
     expect(injected).toContain('sess-inject')
     expect(injected).toContain('__INTROSPECT_SESSION_ID__')
+    expect(injected).toContain('__INTROSPECT_URL__')
   })
 
   it('calls requestSnapshot when Runtime.exceptionThrown fires', async () => {
