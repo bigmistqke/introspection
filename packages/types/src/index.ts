@@ -238,11 +238,17 @@ export interface IntrospectionConfig {
 
 // ─── IntrospectHandle (returned by attach()) ──────────────────────────────────
 
+export interface DetachResult {
+  status?: 'passed' | 'failed' | 'timedOut' | 'skipped'
+  duration?: number
+  error?: string
+}
+
 export interface IntrospectHandle {
   page: import('@playwright/test').Page   // Proxy-wrapped page
   mark(label: string, data?: Record<string, unknown>): void
   snapshot(): Promise<void>
-  detach(): Promise<void>
+  detach(result?: DetachResult): Promise<void>
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────

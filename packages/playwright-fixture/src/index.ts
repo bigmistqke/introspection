@@ -1,6 +1,6 @@
 import { test as base, expect } from '@playwright/test'
 import { attach } from '@introspection/playwright'
-import type { IntrospectHandle, TestResult } from '@introspection/types'
+import type { IntrospectHandle } from '@introspection/types'
 
 export interface IntrospectFixtureOptions {
   viteUrl?: string
@@ -19,22 +19,14 @@ export function introspectFixture(opts: IntrospectFixtureOptions = {}) {
       })
       await use(handle)
       const knownStatuses = ['passed', 'failed', 'timedOut', 'skipped'] as const
-      type KnownStatus = typeof knownStatuses[number]
-      const status: TestResult['status'] = (knownStatuses as readonly string[]).includes(testInfo.status ?? '')
-        ? (testInfo.status as KnownStatus)
-        : 'failed'
-      const result: TestResult = {
-        status,
-        duration: testInfo.duration,
-        error: testInfo.error?.message,
-      }
-      await handle.detach(result)
+      const status = (knownStatuses as readonly string[]).includes(testInfo.status ?? '')
+        ? testInfo.status as typeof knownStatuses[number]
+        : 'failed' as const
+      await handle.detach({ status, duration: testInfo.duration, error: testInfo.error?.message })
     }, { auto: true }],
   })
-
   return { test, expect }
 }
 
-// Default export for drop-in replacement: import { test, expect } from '@introspection/playwright-fixture'
 export const { test, expect: _expect } = introspectFixture()
 export { _expect as expect }
