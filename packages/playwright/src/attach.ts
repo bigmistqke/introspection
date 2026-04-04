@@ -39,7 +39,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
 
   // Inject session context so browser-side plugins (e.g. plugin-redux) can connect
   await page.addInitScript({
-    content: `window.__INTROSPECT_SESSION_ID__="${sessionId}";window.__INTROSPECT_URL__="${viteUrl}";`,
+    content: `window.__INTROSPECT_SESSION_ID__="${sessionId}";window.__INTROSPECT_WS_URL__="${viteUrl}";`,
   })
 
   const ws = new WebSocket(viteUrl)

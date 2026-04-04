@@ -159,14 +159,14 @@ describe('attach()', () => {
     expect(resultEvt).toBeUndefined()
   })
 
-  it('injects __INTROSPECT_SESSION_ID__ and __INTROSPECT_URL__ into the page', async () => {
+  it('injects __INTROSPECT_SESSION_ID__ and __INTROSPECT_WS_URL__ into the page', async () => {
     const { page, addInitScriptCalls } = makeFakePage()
     await attach(page as never, { ...baseOpts, sessionId: 'sess-inject' })
     expect(addInitScriptCalls.length).toBeGreaterThan(0)
     const injected = addInitScriptCalls.map((c: { content?: string }) => c.content ?? '').join('')
     expect(injected).toContain('sess-inject')
     expect(injected).toContain('__INTROSPECT_SESSION_ID__')
-    expect(injected).toContain('__INTROSPECT_URL__')
+    expect(injected).toContain('__INTROSPECT_WS_URL__')
   })
 
   it('calls requestSnapshot when Runtime.exceptionThrown fires', async () => {
