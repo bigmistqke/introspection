@@ -44,7 +44,10 @@ export function normaliseCdpNetworkResponse(raw: Record<string, unknown>, _sessi
 
 export function normaliseCdpJsError(raw: Record<string, unknown>, _sessionId: string, startedAt: number): JsErrorEvent {
   const details = (raw.exceptionDetails ?? {}) as Record<string, unknown>
+  const exception = (details.exception ?? {}) as Record<string, unknown>
   const trace = details.stackTrace as { callFrames: Array<Record<string, unknown>> } | undefined
+  // Prefer exception.description (full "TypeError: ...") over details.text ("Uncaught (in promise)")
+  const message = (exception.description as string | undefined) ?? (details.text as string)
   const stack: StackFrame[] = (trace?.callFrames ?? []).map(f => ({
     functionName: (f.functionName as string) || '(anonymous)',
     file: f.url as string,
@@ -57,7 +60,7 @@ export function normaliseCdpJsError(raw: Record<string, unknown>, _sessionId: st
     ts: toTs(raw.timestamp, startedAt),
     source: 'cdp',
     data: {
-      message: details.text as string,
+      message,
       stack,
     },
   }

@@ -15,7 +15,7 @@ export function formatNetworkTable(events: TraceEvent[], opts: NetworkOpts): str
 
   const rows = filtered.map(res => {
     const req = requests.get(res.data.cdpRequestId)
-    return `${String(res.data.status).padEnd(5)} ${(req?.data.method ?? '?').padEnd(7)} ${res.data.url}`
+    return `${String(res.data.status).padEnd(5)} ${(req?.data.method ?? '?').padEnd(7)} ${res.data.url.padEnd(60)} ${res.id}`
   })
 
   // Collect network.error events
@@ -31,11 +31,11 @@ export function formatNetworkTable(events: TraceEvent[], opts: NetworkOpts): str
     const req = e.data.cdpRequestId ? requests.get(e.data.cdpRequestId) : undefined
     const method = req?.data.method ?? '?'
     const url = req?.data.url ?? e.data.url ?? '?'
-    return `${'ERR'.padEnd(5)} ${method.padEnd(7)} ${url}`
+    return `${'ERR'.padEnd(5)} ${method.padEnd(7)} ${url.padEnd(60)} ${e.id}`
   })
 
   const allRows = [...rows, ...errorRows]
   if (!allRows.length) return '(no matching network events)'
 
-  return ['STATUS METHOD  URL', ...allRows].join('\n')
+  return ['STATUS METHOD  URL' + ' '.repeat(43) + 'EVENT_ID', ...allRows].join('\n')
 }

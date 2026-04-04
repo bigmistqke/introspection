@@ -200,6 +200,8 @@ export interface IntrospectionServerMethods {
   endSession(sessionId: string, outDir: string, workerIndex: number): void
   /** Called by browser (or handle.snapshot()) to trigger CDP snapshot capture on the Playwright side. */
   requestSnapshot(sessionId: string, trigger: OnErrorSnapshot['trigger']): void
+  /** Called by Playwright to store a response body before the corresponding network.response event. */
+  storeBody(sessionId: string, eventId: string, body: string): void
 }
 
 /** Methods Playwright exposes — the server calls these to request snapshot capture. */

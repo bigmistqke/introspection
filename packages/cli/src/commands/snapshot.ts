@@ -1,7 +1,8 @@
 import type { TraceFile } from '@introspection/types'
 
 export function formatSnapshot(trace: TraceFile): string {
-  const snapshot = trace.snapshots?.['on-error']
+  // Prefer 'js.error' snapshot (from Runtime.exceptionThrown), fall back to others
+  const snapshot = trace.snapshots?.['js.error'] ?? trace.snapshots?.['manual'] ?? trace.snapshots?.['playwright.assertion']
   if (!snapshot) return '(no snapshot — session may have ended cleanly, or snapshot was not captured)'
   const lines: string[] = [`Scope chain at ${snapshot.trigger} (${snapshot.url}):\n`]
   for (const scope of snapshot.scopes) {

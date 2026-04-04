@@ -31,7 +31,6 @@ export function createIntrospectionServer(
   resolveFrame?: (frame: import('@introspection/types').StackFrame) => import('@introspection/types').StackFrame
 ): IntrospectionServer {
   const wss = new WebSocketServer({ noServer: true })
-  const rejectWss = new WebSocketServer({ noServer: true })
   const sessions = new Map<string, Session>()
 
   httpServer.on('upgrade', (req, socket, head) => {
@@ -39,11 +38,8 @@ export function createIntrospectionServer(
       wss.handleUpgrade(req, socket as never, head, (ws) => {
         wss.emit('connection', ws, req)
       })
-    } else {
-      rejectWss.handleUpgrade(req, socket as never, head, (ws) => {
-        ws.close(1008, 'Path not found')
-      })
     }
+    // Non-introspection paths (e.g. Vite HMR) are left for Vite's own upgrade handler
   })
 
   wss.on('connection', (ws) => {
@@ -94,6 +90,13 @@ export function createIntrospectionServer(
         }
       },
 
+      storeBody(sessionId, eventId, body) {
+        const session = sessions.get(sessionId)
+        if (!session) return
+        if (!session.bodyMap) session.bodyMap = new Map()
+        session.bodyMap.set(eventId, body)
+      },
+
       async requestSnapshot(sessionId, trigger) {
         const session = sessions.get(sessionId)
         if (!session) return
@@ -110,6 +113,6 @@ export function createIntrospectionServer(
   return {
     getSession: (id) => sessions.get(id),
     getSessions: () => [...sessions.values()],
-    shutdown: () => { wss.close(); rejectWss.close() },
+    shutdown: () => { wss.close() },
   }
 }
