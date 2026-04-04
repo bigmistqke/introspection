@@ -52,11 +52,12 @@ introspect events --type js.error,network.response   # filter by type
 introspect events --since "form submitted"           # events after a mark
 ```
 
-## Investigation report
+## Investigation report (required)
 
-When you find the bug, write your findings to `.introspect/<session-id>/reports/<uuid>.md` (generate a short UUID for the filename):
+**Always write your findings to `.introspect/<session-id>/reports/<uuid>.md`** before reporting back. Generate a short UUID for the filename. Use the session ID from `introspect list` output.
 
-- Each command you ran and its output
+Include:
+- Each command you ran and its exact output
 - What each output told you and what you looked at next
 - Root cause, location in code, and the fix
 
