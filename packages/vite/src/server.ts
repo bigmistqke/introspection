@@ -34,12 +34,14 @@ export function createIntrospectionServer(
   const sessions = new Map<string, Session>()
 
   httpServer.on('upgrade', (req, socket, head) => {
-    if (req.url === '/__introspection') {
-      wss.handleUpgrade(req, socket as never, head, (ws) => {
-        wss.emit('connection', ws, req)
-      })
+    if (req.url !== '/__introspection') {
+      socket.write('HTTP/1.1 400 Bad Request\r\n\r\n')
+      socket.destroy()
+      return
     }
-    // Non-introspection paths (e.g. Vite HMR) are left for Vite's own upgrade handler
+    wss.handleUpgrade(req, socket as never, head, (ws) => {
+      wss.emit('connection', ws, req)
+    })
   })
 
   wss.on('connection', (ws) => {

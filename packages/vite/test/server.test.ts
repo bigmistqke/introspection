@@ -50,7 +50,10 @@ describe('IntrospectionServer', () => {
     ;({ httpServer, introspectionServer } = await startServer())
     const port = (httpServer.address() as { port: number }).port
     const ws = new WebSocket(`ws://localhost:${port}/other`)
-    await new Promise<void>(resolve => ws.once('close', resolve))
+    await new Promise<void>(resolve => {
+      ws.once('close', resolve)
+      ws.once('error', () => { /* swallow — close follows */ })
+    })
     expect(ws.readyState).toBe(WebSocket.CLOSED)
   })
 
@@ -115,6 +118,19 @@ describe('IntrospectionServer', () => {
     const files = await readdir(tmpDir)
     // session directory 'end-sess' created inside outDir
     expect(files).toContain('end-sess')
+    ws.close()
+  })
+
+  it('storeBody stores body data on the session bodyMap', async () => {
+    ;({ httpServer, introspectionServer } = await startServer())
+    const port = (httpServer.address() as { port: number }).port
+    const { ws, server } = await connectClient(port)
+
+    await server.startSession({ id: 'body-sess', testTitle: 't', testFile: 'f' })
+    await server.storeBody('body-sess', 'evt-1', '{"foo":"bar"}')
+
+    const session = introspectionServer.getSession('body-sess')
+    expect(session?.bodyMap?.get('evt-1')).toBe('{"foo":"bar"}')
     ws.close()
   })
 

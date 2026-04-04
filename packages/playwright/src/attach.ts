@@ -35,6 +35,7 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   const workerIndex = opts?.workerIndex ?? 0
   const startedAt = Date.now()
   let currentUrl = ''
+  let pendingSnapshot: { scopes: import('@introspection/types').ScopeFrame[] } | null = null
 
   // Inject session context so browser-side plugins (e.g. plugin-redux) can connect
   await page.addInitScript({
@@ -94,11 +95,9 @@ export async function attach(page: Page, opts?: Partial<AttachOptions>): Promise
   // We capture scope variables while paused, then resume immediately.
   await cdp.send('Debugger.setPauseOnExceptions', { state: 'uncaught' })
 
-  let pendingSnapshot: { scopes: import('@introspection/types').ScopeFrame[] } | null = null
-
   cdp.on('Debugger.paused', (params: { callFrames: Array<{ functionName: string; url: string; location: { lineNumber: number }; scopeChain: Array<{ type: string; object: { objectId?: string } }> }>; reason: string }) => {
     // Capture scope for all pause reasons that look like exceptions; resume for others
-    if (!['exception', 'other', 'promiseRejection', 'uncaught'].includes(params.reason)) {
+    if (!['exception', 'promiseRejection'].includes(params.reason)) {
       void cdp.send('Debugger.resume')
       return
     }

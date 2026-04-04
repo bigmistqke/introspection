@@ -116,4 +116,20 @@ describe('CDP event normalisation', () => {
     const evt = normaliseCdpJsError(raw, 'sess-1', 0)
     expect(evt.data.stack).toEqual([])
   })
+
+  it('prefers exception.description over details.text as the error message', () => {
+    const raw = {
+      timestamp: 500,
+      exceptionDetails: {
+        text: 'Uncaught (in promise)',
+        exception: {
+          description: 'TypeError: Cannot read properties of undefined (reading "foo")',
+        },
+        stackTrace: { callFrames: [] },
+      },
+    }
+    const evt = normaliseCdpJsError(raw, 'sess-1', 0)
+    expect(evt.data.message).toBe('TypeError: Cannot read properties of undefined (reading "foo")')
+    expect(evt.data.message).not.toBe('Uncaught (in promise)')
+  })
 })
