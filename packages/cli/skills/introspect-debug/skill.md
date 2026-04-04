@@ -1,61 +1,83 @@
 ---
 name: introspect-debug
-description: Use when a Playwright test fails — guides querying the trace to identify root cause
+description: Use when a Playwright test fails or an app behaves unexpectedly and introspection is set up — guides querying the session trace to identify root cause
 ---
 
-# Debugging a failing test with introspect
+# Debugging with introspect
 
-When a Playwright test fails, use the `introspect` CLI to query the trace.
+When a test fails or something behaves unexpectedly, use the `introspect` CLI to query the session trace before reading source files. The trace captures what actually happened at runtime: network requests and response bodies, JS errors with source-mapped stacks, the variable scope at crash time, and plugin data like Redux actions.
 
-## Start here
+## Always start here
 
 ```bash
 introspect summary
 ```
 
-Plain-language overview: test status, Playwright actions, failed network requests, JS errors. Add `--trace <name>` to target a specific trace (default: most recent).
+Plain-language overview: session label, failed network requests, JS errors. This usually points directly at the problem. Use `--session <id>` to target a specific session (default: most recent). Run `introspect list` to see all sessions.
 
 ## Decision tree
 
-### JS errors found
+### JS error found → get the stack and scope
+
 ```bash
-introspect errors   # source-mapped stack traces
-introspect vars     # variable scope chain at error time
+introspect errors     # source-mapped stack traces
+introspect snapshot   # variable scope chain at crash time
 ```
 
-### Network failures found
+`snapshot` shows locals at the error site. If `response.data` was `undefined`, you'll see it here.
+
+### Network failure found → inspect the response body
+
 ```bash
-introspect network --failed          # table of 4xx/5xx responses
-introspect network --url <pattern>   # filter by URL
-introspect body <eventId>            # full response body (eventId from network output)
+introspect network                        # table of all requests + event IDs
+introspect body <eventId>                 # full response body
+introspect body <eventId> --path ".errors" # extract a field with JSONPath
 ```
 
-### Nothing obvious
+Get the event ID from the last column of `introspect network` output.
+
+### State looks wrong → query events programmatically
+
 ```bash
-introspect timeline   # chronological list of all events
+introspect eval 'events.filter(e => e.type === "plugin.redux.action").map(e => e.data.action.type)'
 ```
 
-### DOM issue suspected
+`eval` runs a JS expression against the trace. `events` is the full event array. Useful for: Redux action sequences, checking which marks fired, counting requests.
+
+### Nothing obvious → browse the timeline
+
 ```bash
-introspect dom   # DOM snapshot captured at error time
+introspect timeline                        # all events in order
+introspect events --type js.error,network.response   # filter by type
+introspect events --since "form submitted"           # events after a mark
 ```
+
+## Investigation report
+
+When you find the bug, write your findings to `INVESTIGATION.md`:
+
+- Each command you ran and its output
+- What each output told you and what you looked at next
+- Root cause, location in code, and the fix
+
+This makes the reasoning reproducible and serves as documentation for the team.
 
 ## Event type reference
 
-| Type | Source | What it means |
-|------|--------|---------------|
-| `network.request` | CDP | HTTP request — url, method, headers, postData |
-| `network.response` | CDP | HTTP response — status, headers, bodyRef |
-| `network.error` | CDP | Request failed at network level (DNS, timeout, etc.) |
-| `js.error` | CDP | Uncaught exception with source-mapped stack |
-| `js.console` | CDP | console.log/warn/error output |
-| `dom.snapshot` | CDP | DOM state at a point in time |
-| `variable.snapshot` | CDP | Scope chain captured at a debugger pause |
-| `playwright.action` | Playwright | click, fill, navigate, waitFor, etc. |
-| `mark` | browser agent | Semantic label placed by test code via `handle.mark('...')` |
-| `plugin.*` | plugin | Framework data: `plugin.redux.action`, `plugin.react.commit`, etc. |
+| Type | What it means |
+|------|---------------|
+| `network.request` | HTTP request — url, method, headers, postData |
+| `network.response` | HTTP response — status, headers |
+| `network.error` | Request failed at network level |
+| `js.error` | Uncaught exception with source-mapped stack |
+| `js.console` | console.log/warn/error output |
+| `dom.snapshot` | DOM state at a point in time |
+| `playwright.action` | click, fill, navigate, waitFor, etc. |
+| `mark` | Semantic label placed by test code via `handle.mark('...')` |
+| `plugin.*` | Framework data: `plugin.redux.action`, `plugin.react.commit`, etc. |
 
 ## Notes
-- All commands default to the most recent trace. Use `--trace <name>` to target a specific one.
-- `introspect body <eventId>` reads sidecar files from `.introspect/bodies/`.
-- `introspect eval <expression>` evaluates JS in the live browser session — does not take `--trace`.
+
+- All commands default to the most recent session. Use `--session <id>` to target a specific one.
+- `introspect body <eventId>` reads from `.introspect/<session-id>/bodies/`.
+- `introspect snapshot` shows the `js.error` snapshot — captured automatically when an uncaught exception fires in the browser.
