@@ -47,7 +47,7 @@ Playwright test
   snapshots/<trigger>.json
 
 core/eval-socket.ts
-  .introspect/.socket      ← Unix domain socket, reads events.ndjson on each query
+  .introspect/<session-id>/.socket   ← Unix domain socket, reads events.ndjson on each query
 ```
 
 No in-memory event accumulation. `attach()` writes directly to disk. The eval socket reads the ndjson file fresh on each query.
@@ -58,8 +58,11 @@ No in-memory event accumulation. `attach()` writes directly to disk. The eval so
 Manages the session directory on disk.
 
 - `initSessionDir(outDir, { id, startedAt, label })` — creates directory, writes `meta.json`, creates empty `events.ndjson`
-- `appendEvent(outDir, sessionId, event)` — appends one JSON line to `events.ndjson`; if `network.response` with a body, writes sidecar to `bodies/<id>.json`
+- `appendEvent(outDir, sessionId, event)` — appends one JSON line to `events.ndjson`
+- `writeBody(outDir, sessionId, eventId, body)` — writes raw body text to `bodies/<eventId>.json`; called separately by `attach()` when `Network.getResponseBody` resolves, before `appendEvent` for that response event
 - `finalizeSession(outDir, sessionId, endedAt)` — writes `endedAt` to `meta.json`
+
+**Body-fetching flow:** When `Network.loadingFinished` fires, `attach()` calls `Network.getResponseBody` and holds the result in a local variable for one async tick — this is not in-memory accumulation, it is a single transient value. `writeBody` is called first and awaited, then `appendEvent` for the response event. The body text is never retained beyond that call. This await-before-append ordering is required so that a reader streaming `events.ndjson` and immediately reading `bodies/<id>.json` will always find the file present. Multiple concurrent `loadingFinished` handlers each manage their own local variables independently — no cross-request coordination is needed.
 
 ### `cdp.ts`
 Pure normalizer functions — no I/O, no state.
@@ -71,13 +74,13 @@ Pure normalizer functions — no I/O, no state.
 ### `snapshot.ts`
 Takes a DOM + scope chain snapshot via any object with a `send(method, params)` interface — not Playwright-specific.
 
-- `takeSnapshot({ cdpSession, trigger, url, callFrames })` → `OnErrorSnapshot`
+- `takeSnapshot({ cdpSession, trigger, url, callFrames? })` → `OnErrorSnapshot`
   - Captures full DOM via `DOM.getDocument` + `DOM.getOuterHTML`
-  - Captures local variable scope from call frames via `Runtime.getProperties`
+  - Captures local variable scope from call frames via `Runtime.getProperties` — `callFrames` is optional; when absent or empty (e.g. `trigger: 'manual'` called from Node.js with no paused context), scope capture is skipped and `scopes` is `[]`
   - Captures key globals (`location.pathname`, `localStorage`, `sessionStorage`)
 
 ### `eval-socket.ts`
-Unix domain socket server for live CLI queries against a session.
+Unix domain socket server for live CLI queries against a session. Uses Node's built-in `vm` module (`vm.runInNewContext`) — this is a Node.js-only dependency by design; Bun/Deno are not supported targets.
 
 - `createEvalSocket(socketPath, sessionNdjsonPath)` → `{ shutdown() }`
 - Listens for newline-delimited JSON messages: `{ id, type: 'eval', expression }`
@@ -111,13 +114,17 @@ const handle = await attach(page, { testTitle: 'checkout flow' })
 1. Generates a `sessionId` (UUID)
 2. Calls `initSessionDir`
 3. Opens a CDP session via `page.context().newCDPSession(page)`
-4. Enables CDP domains: `Network`, `Runtime`, `Debugger`, `DOM`, `Page`
+4. Enables CDP domains: `Network`, `Runtime`, `Debugger`, `DOM` (`Page` is not required and is not enabled)
 5. Sets `Debugger.setPauseOnExceptions` to `uncaught`
-6. Wires CDP event listeners → normalizers → `appendEvent`
-7. On `Debugger.paused` (exception): captures scope, stores as `pendingSnapshot`, resumes
-8. On `Runtime.exceptionThrown`: calls `takeSnapshot`, writes to `snapshots/js.error.json`
-9. Creates eval socket at `<outDir>/.socket`
+6. Wires CDP event listeners → normalizers → `appendEvent`; `proxy.ts` receives a pre-bound `emit` callback (closing over `outDir` and `sessionId`) so it never references session state directly
+7. On `Debugger.paused` (exception/promiseRejection): captures scope chain via `Runtime.getProperties`, stores as `pendingSnapshot`, then resumes. Scope capture happens here — while the debugger is paused and `objectId`s are still valid — not in the `exceptionThrown` handler.
+8. On `Runtime.exceptionThrown`: calls `takeSnapshot` (which merges `pendingSnapshot` scopes if present), clears `pendingSnapshot`, writes result to `snapshots/js.error.<timestamp>.json`
+9. Creates eval socket at `<outDir>/<sessionId>/.socket`
 10. Returns `IntrospectHandle` with proxy-wrapped page
+
+**Scope capture ordering:** `Debugger.paused` and `Runtime.exceptionThrown` may fire in either order. Scope is captured exclusively inside `Debugger.paused` (while the engine is paused and `objectId`s are valid) and stored in `pendingSnapshot`. The `exceptionThrown` handler merges it in regardless of which event fires first — if `exceptionThrown` fires before `Debugger.paused` has resolved, the snapshot is written with empty scopes and `pendingSnapshot` is cleared when `Debugger.paused` resolves (no second snapshot is written).
+
+**Known limitation — rapid successive exceptions:** If two uncaught exceptions fire in rapid succession and their `Debugger.paused` events interleave before the corresponding `exceptionThrown` events, the second `Debugger.paused` may overwrite `pendingSnapshot` before the first `exceptionThrown` merges it. The first exception's snapshot would then contain the second exception's scope. This is an accepted limitation in 2.0 — it affects only the scope chain of rapid multi-exception scenarios, not the event stream itself.
 
 `detach()`:
 1. Optionally emits a `playwright.result` event
@@ -133,7 +140,9 @@ Wraps a Playwright `Page` in a `Proxy` that intercepts tracked methods and emits
 Trimmed to remove all plugin-related interfaces:
 
 - Remove: `IntrospectionPlugin`, `BrowserAgent`-related types, `IntrospectionConfig.plugins`, `IntrospectionServerMethods`, `PlaywrightClientMethods`
-- Keep: all event types (`TraceEvent`, `NetworkRequestEvent`, etc.), `OnErrorSnapshot`, `SessionMeta`, `StackFrame`, `ScopeFrame`, `IntrospectHandle`, `DetachResult`, `BodySummary`
+- Remove: `'playwright.assertion'` from `OnErrorSnapshot['trigger']` union — this trigger was driven by the old browser-side RPC flow which no longer exists. Valid triggers in 2.0: `'js.error' | 'manual'`.
+- Keep: all event types (`TraceEvent`, `NetworkRequestEvent`, etc.), `OnErrorSnapshot`, `SessionMeta`, `StackFrame`, `ScopeFrame`, `IntrospectHandle`, `BodySummary`, `DetachResult`
+- `DetachResult` — simplified to `{ status: 'passed' | 'failed' | 'timedOut'; error?: string }`. Emitted as a `playwright.result` event when passed to `detach()`.
 
 ## Session Directory Layout
 
@@ -145,10 +154,12 @@ Trimmed to remove all plugin-related interfaces:
     bodies/
       <event-id>.json      ← full response body for network.response events
     snapshots/
-      js.error.json        ← on-error snapshot
-      manual.json          ← on-demand snapshot (handle.snapshot())
-  .socket                  ← Unix domain socket (deleted on detach)
+      js.error.<ts>.json   ← on-error snapshot (ts = ms since session start; multiple allowed)
+      manual.<ts>.json     ← on-demand snapshot (handle.snapshot())
+    .socket                ← Unix domain socket (deleted on detach)
 ```
+
+Snapshot filenames include a millisecond-since-session-start timestamp (`Date.now() - startedAt`, computed in `attach.ts` before calling `takeSnapshot`) to avoid collisions when the same trigger fires multiple times in one session (e.g. two uncaught exceptions).
 
 ## What Is Deleted
 
