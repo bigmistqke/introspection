@@ -32,7 +32,7 @@ async function writeSession(id: string, opts: {
     await writeFile(join(sessionDir, 'assets', `${uuid}.snapshot.json`), JSON.stringify(opts.snapshot))
     events.push({
       id: `asset-${uuid}`, type: 'asset', timestamp: opts.snapshot.timestamp, source: 'agent',
-      data: { path: `${uuid}.snapshot.json`, kind: 'snapshot' },
+      data: { path: `assets/${uuid}.snapshot.json`, kind: 'snapshot' },
     })
   }
   const ndjson = events.map(e => JSON.stringify(e)).join('\n') + (events.length ? '\n' : '')
@@ -69,8 +69,9 @@ describe('TraceReader', () => {
     }
     await writeSession('sess-snap', { snapshot: snap })
     const trace = await new TraceReader(dir).load('sess-snap')
-    expect(trace.snapshots['manual']).toBeDefined()
-    expect(trace.snapshots['manual']!.trigger).toBe('manual')
+    const found = trace.snapshots.find(s => s.trigger === 'manual')
+    expect(found).toBeDefined()
+    expect(found!.trigger).toBe('manual')
   })
 
   it('loadLatest() returns session with highest startedAt', async () => {

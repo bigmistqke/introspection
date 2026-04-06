@@ -44,6 +44,7 @@ Things the browser exposes that aren't tied to any framework. All can be capture
 - **WebSocket frames** — CDP `Network.webSocketFrameSent` / `webSocketFrameReceived`. Emit as `ws.send` / `ws.receive` events with the payload (truncated by same `maxSize` config). Let the AI inspect the realtime protocol alongside HTTP traffic.
 - **EventSource / SSE** — CDP can intercept SSE streams. Emit individual server-sent events as `sse.message`.
 - **BroadcastChannel** — intercept `.postMessage()` calls between tabs (useful for auth token sync, shared workers).
+- **Web Workers** — intercept `worker.postMessage()` and `onmessage` on both ends. Emit `worker.post` / `worker.message` events with the transferred data. Useful for offloaded computation bugs where the main thread sends the wrong payload or mishandles the response.
 - **WebTransport** — HTTP/3 streams, when relevant.
 
 ### Storage
