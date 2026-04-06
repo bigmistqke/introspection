@@ -1,0 +1,27 @@
+{
+  "name": "@introspection/plugin-webgl",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.browser.config.ts && tsup --config tsup.node.config.ts",
+    "test:unit": "vitest run",
+    "test:integration": "playwright test",
+    "test": "pnpm run test:unit && pnpm run test:integration"
+  },
+  "dependencies": {
+    "@introspection/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@introspection/playwright": "workspace:*",
+    "@playwright/test": "^1.40.0",
+    "tsup": "^8.0.0",
+    "vitest": "^1.0.0",
+    "typescript": "^5.0.0"
+  }
+}
