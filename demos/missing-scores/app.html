@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Leaderboard</title>
+  <style>
+    body { font-family: sans-serif; max-width: 400px; margin: 40px auto; }
+    .score-entry { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+    #empty { color: #999; }
+  </style>
+</head>
+<body>
+  <h1>Leaderboard</h1>
+  <div id="board"></div>
+  <script>
+    async function load() {
+      const resp = await fetch('/api/scores')
+      const data = await resp.json()
+      const { scores = [] } = data
+      const board = document.getElementById('board')
+      if (scores.length === 0) {
+        board.innerHTML = '<p id="empty">No scores yet.</p>'
+        return
+      }
+      board.innerHTML = scores
+        .map(s => `<div class="score-entry"><span class="name">${s.name}</span><span class="points">${s.points}</span></div>`)
+        .join('')
+    }
+    load()
+  </script>
+</body>
+</html>

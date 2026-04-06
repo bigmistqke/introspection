@@ -39,6 +39,21 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
+  demos/missing-scores:
+    devDependencies:
+      '@introspection/playwright':
+        specifier: workspace:*
+        version: link:../../packages/playwright
+      '@playwright/test':
+        specifier: ^1.40.0
+        version: 1.59.1
+      introspect:
+        specifier: workspace:*
+        version: link:../../packages/cli
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
   demos/silent-form-error:
     devDependencies:
       '@introspection/playwright':
