@@ -1,4 +1,12 @@
 import chalk from 'chalk'
+import type { Snapshot } from '@introspection/types'
+
+export function selectSnapshot(snapshots: Snapshot[], filter?: string): Snapshot | undefined {
+  if (!snapshots.length) return undefined
+  if (!filter) return snapshots.at(-1)
+  const fn = new Function('s', `return (${filter})`) as (s: Snapshot) => boolean
+  return snapshots.filter(fn).at(-1)
+}
 
 export function statusColor(status: number): string {
   if (status < 300) return chalk.green(String(status))

@@ -40,20 +40,26 @@ program.command('errors').option('--session <id>').action(async (opts) => {
   console.log(formatErrors(trace))
 })
 
-program.command('snapshot').option('--session <id>').action(async (opts) => {
-  const trace = await loadTrace(opts)
-  console.log(formatSnapshot(trace))
-})
+program.command('snapshot')
+  .option('--session <id>')
+  .option('--filter <expr>', 'JS expression to filter snapshots, e.g. \'s.trigger === "js.error"\'')
+  .action(async (opts) => {
+    const trace = await loadTrace(opts)
+    console.log(formatSnapshot(trace, opts.filter))
+  })
 
 program.command('network').option('--session <id>').option('--failed').option('--url <pattern>').action(async (opts) => {
   const trace = await loadTrace(opts)
   console.log(formatNetworkTable(trace.events, opts))
 })
 
-program.command('dom').option('--session <id>').action(async (opts) => {
-  const trace = await loadTrace(opts)
-  console.log(formatDom(trace))
-})
+program.command('dom')
+  .option('--session <id>')
+  .option('--filter <expr>', 'JS expression to filter snapshots, e.g. \'s.trigger === "js.error"\'')
+  .action(async (opts) => {
+    const trace = await loadTrace(opts)
+    console.log(formatDom(trace, opts.filter))
+  })
 
 program.command('body <eventId>')
   .option('--session <id>')

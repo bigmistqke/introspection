@@ -1,7 +1,8 @@
 import type { TraceFile } from '@introspection/types'
+import { selectSnapshot } from '../format.js'
 
-export function formatSnapshot(trace: TraceFile): string {
-  const snapshot = trace.snapshots.find(s => s.trigger === 'js.error') ?? trace.snapshots[0]
+export function formatSnapshot(trace: TraceFile, filter?: string): string {
+  const snapshot = selectSnapshot(trace.snapshots, filter)
   if (!snapshot) return '(no snapshot — session may have ended cleanly, or snapshot was not captured)'
   const lines: string[] = [`Scope chain at ${snapshot.trigger} (${snapshot.url}):\n`]
   for (const scope of snapshot.scopes) {
