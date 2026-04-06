@@ -59,10 +59,12 @@ Manages the session directory on disk.
 
 - `initSessionDir(outDir, { id, startedAt, label })` — creates directory, writes `meta.json`, creates empty `events.ndjson`
 - `appendEvent(outDir, sessionId, event)` — appends one JSON line to `events.ndjson`
-- `writeBody(outDir, sessionId, eventId, body)` — writes raw body text to `bodies/<eventId>.json`; called separately by `attach()` when `Network.getResponseBody` resolves, before `appendEvent` for that response event
+- `writeAsset({ directory, name, kind, content, ext?, metadata: { timestamp, ...rest } })` → `Promise<string>` — writes content to `assets/<uuid>.<kind>.<ext>`, appends an `asset` event to `events.ndjson` (with `metadata` merged into `data`), and returns the relative path (e.g. `assets/3f8a2c1d.snapshot.json`). `directory` is the `outDir` root, `name` is the session ID. `ext` defaults to `'json'` — pass `'png'` for screenshots, etc. `content` accepts `string | Buffer` to support both text and binary assets. `timestamp` is required (milliseconds since session start) — making it required ensures asset events are correctly aligned with the rest of the event stream. `kind` becomes the semantic label in the filename and in the `asset` event's `kind` field.
 - `finalizeSession(outDir, sessionId, endedAt)` — writes `endedAt` to `meta.json`
 
-**Body-fetching flow:** When `Network.loadingFinished` fires, `attach()` calls `Network.getResponseBody` and holds the result in a local variable for one async tick — this is not in-memory accumulation, it is a single transient value. `writeBody` is called first and awaited, then `appendEvent` for the response event. The body text is never retained beyond that call. This await-before-append ordering is required so that a reader streaming `events.ndjson` and immediately reading `bodies/<id>.json` will always find the file present. Multiple concurrent `loadingFinished` handlers each manage their own local variables independently — no cross-request coordination is needed.
+**Asset model:** All sidecar files (response bodies, snapshots, future screenshots, WebGL states) are written to `assets/` via `writeAsset`. `writeAsset` atomically writes the file and appends the `asset` event — callers never append asset events manually. The `asset` event carries an inline summary so the AI can reason about the asset without opening the file.
+
+**Body-fetching flow:** When `Network.loadingFinished` fires, `attach()` calls `Network.getResponseBody`, awaits `writeAsset` (which writes the file and appends the `asset` event), then appends the `network.response` event (with `bodySummary` inline). The await-before-append ordering guarantees the asset file exists before any event referencing it lands in `events.ndjson`. Multiple concurrent `loadingFinished` handlers each manage their own local variables independently.
 
 ### `cdp.ts`
 Pure normalizer functions — no I/O, no state.
@@ -118,7 +120,7 @@ const handle = await attach(page, { testTitle: 'checkout flow' })
 5. Sets `Debugger.setPauseOnExceptions` to `uncaught`
 6. Wires CDP event listeners → normalizers → `appendEvent`; `proxy.ts` receives a pre-bound `emit` callback (closing over `outDir` and `sessionId`) so it never references session state directly
 7. On `Debugger.paused` (exception/promiseRejection): captures scope chain via `Runtime.getProperties`, stores as `pendingSnapshot`, then resumes. Scope capture happens here — while the debugger is paused and `objectId`s are still valid — not in the `exceptionThrown` handler.
-8. On `Runtime.exceptionThrown`: calls `takeSnapshot` (which merges `pendingSnapshot` scopes if present), clears `pendingSnapshot`, writes result to `snapshots/js.error.<timestamp>.json`
+8. On `Runtime.exceptionThrown`: captures `pendingSnapshot`, clears it, calls `takeSnapshot`, merges scopes, calls `writeAsset` with `kind: 'snapshot'` (which atomically writes the file and appends the `asset` event), then appends the `js.error` event. This ordering guarantees the `asset` event precedes its corresponding `js.error` event in `events.ndjson`.
 9. Creates eval socket at `<outDir>/<sessionId>/.socket`
 10. Returns `IntrospectHandle` with proxy-wrapped page
 
@@ -142,6 +144,21 @@ Trimmed to remove all plugin-related interfaces:
 - Remove: `IntrospectionPlugin`, `BrowserAgent`-related types, `IntrospectionConfig.plugins`, `IntrospectionServerMethods`, `PlaywrightClientMethods`
 - Remove: `'playwright.assertion'` from `OnErrorSnapshot['trigger']` union — this trigger was driven by the old browser-side RPC flow which no longer exists. Valid triggers in 2.0: `'js.error' | 'manual'`.
 - Keep: all event types (`TraceEvent`, `NetworkRequestEvent`, etc.), `OnErrorSnapshot`, `SessionMeta`, `StackFrame`, `ScopeFrame`, `IntrospectHandle`, `BodySummary`, `DetachResult`
+- Add: `AssetEvent` — new event type for all sidecar files:
+  ```ts
+  interface AssetEvent extends BaseEvent {
+    type: 'asset'
+    data: {
+      path: string           // relative to session dir: 'assets/<uuid>.<kind>.json'
+      kind: string           // 'body' | 'snapshot' | 'screenshot' | 'webgl-state' | ...
+      // kind-specific inline summary fields (all optional):
+      summary?: BodySummary  // for kind='body'
+      trigger?: string       // for kind='snapshot'
+      url?: string           // for kind='snapshot'
+      scopeCount?: number    // for kind='snapshot'
+    }
+  }
+  ```
 - `DetachResult` — simplified to `{ status: 'passed' | 'failed' | 'timedOut'; error?: string }`. Emitted as a `playwright.result` event when passed to `detach()`.
 
 ## Session Directory Layout
@@ -150,16 +167,16 @@ Trimmed to remove all plugin-related interfaces:
 .introspect/
   <session-id>/
     meta.json              ← { version, id, startedAt, label, endedAt? }
-    events.ndjson          ← one TraceEvent per line
-    bodies/
-      <event-id>.json      ← full response body for network.response events
-    snapshots/
-      js.error.<ts>.json   ← on-error snapshot (ts = ms since session start; multiple allowed)
-      manual.<ts>.json     ← on-demand snapshot (handle.snapshot())
+    events.ndjson          ← one TraceEvent per line (including asset events)
+    assets/
+      <uuid>.body.json        ← full response body (ext='json')
+      <uuid>.snapshot.json    ← on-error or manual snapshot (ext='json')
+      <uuid>.screenshot.png   ← future: screenshots (ext='png')
+      <uuid>.webgl-state.json ← future: WebGL state captures (ext='json')
     .socket                ← Unix domain socket (deleted on detach)
 ```
 
-Snapshot filenames include a millisecond-since-session-start timestamp (`Date.now() - startedAt`, computed in `attach.ts` before calling `takeSnapshot`) to avoid collisions when the same trigger fires multiple times in one session (e.g. two uncaught exceptions).
+All sidecar files live in `assets/`. The UUID is generated by `writeAsset` and ensures collision-free filenames across all asset types. The `kind` segment (`body`, `snapshot`, etc.) makes files identifiable without opening them. The event stream (`events.ndjson`) is the complete index — every asset has a corresponding `asset` event with an inline summary.
 
 ## What Is Deleted
 
