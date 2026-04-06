@@ -21,6 +21,24 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.37)
 
+  demos/black-canvas:
+    devDependencies:
+      '@introspection/playwright':
+        specifier: workspace:*
+        version: link:../../packages/playwright
+      '@introspection/plugin-webgl':
+        specifier: workspace:*
+        version: link:../../packages/plugin-webgl
+      '@playwright/test':
+        specifier: ^1.40.0
+        version: 1.59.1
+      introspect:
+        specifier: workspace:*
+        version: link:../../packages/cli
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
   demos/silent-form-error:
     devDependencies:
       '@introspection/playwright':
@@ -29,6 +47,9 @@ importers:
       '@playwright/test':
         specifier: ^1.40.0
         version: 1.59.1
+      introspect:
+        specifier: workspace:*
+        version: link:../../packages/cli
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -44,6 +65,9 @@ importers:
       '@playwright/test':
         specifier: ^1.40.0
         version: 1.59.1
+      introspect:
+        specifier: workspace:*
+        version: link:../../packages/cli
       typescript:
         specifier: ^5.4.0
         version: 5.9.3

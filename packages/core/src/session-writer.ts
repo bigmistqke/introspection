@@ -49,19 +49,20 @@ export async function appendEvent(outDir: string, sessionId: string, event: Trac
   await appendFile(join(outDir, sessionId, 'events.ndjson'), JSON.stringify(event) + '\n')
 }
 
-/** Writes content to assets/<uuid>.<kind>.<ext>, appends an asset event, and returns the relative path. */
+/** Writes content to assets/<id>.<kind>.<ext>, appends an asset event, and returns the relative path. */
 export async function writeAsset(opts: {
   directory: string
   name: string
   kind: string
   content: string | Buffer
   ext?: string
+  id?: string
   metadata: { timestamp: number; [key: string]: unknown }
   source?: EventSource
 }): Promise<string> {
   const { directory, name, kind, content, ext = 'json', metadata, source } = opts
-  const uuid = randomUUID().replace(/-/g, '').slice(0, 8)
-  const filename = `${uuid}.${kind}.${ext}`
+  const id = opts.id ?? randomUUID().replace(/-/g, '').slice(0, 8)
+  const filename = `${id}.${kind}.${ext}`
   const path = `assets/${filename}`
   await writeFile(join(directory, name, path), content)
   const { timestamp, ...rest } = metadata

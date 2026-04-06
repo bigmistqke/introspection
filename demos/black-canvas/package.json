@@ -1,5 +1,5 @@
 {
-  "name": "@introspection/demo-silent-form-error",
+  "name": "@introspection/demo-black-canvas",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -8,6 +8,7 @@
   },
   "devDependencies": {
     "@introspection/playwright": "workspace:*",
+    "@introspection/plugin-webgl": "workspace:*",
     "introspect": "workspace:*",
     "@playwright/test": "^1.40.0",
     "typescript": "^5.4.0"

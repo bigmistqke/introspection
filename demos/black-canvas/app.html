@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>WebGL Scene</title></head>
+<body style="margin:0;background:#000">
+<canvas id="canvas" width="400" height="400"></canvas>
+<script>
+  const canvas = document.getElementById('canvas')
+  const gl = canvas.getContext('webgl')
+
+  const vsSource = `
+    attribute vec2 position;
+    void main() {
+      gl_Position = vec4(position, 0.0, 1.0);
+    }
+  `
+  const fsSource = `
+    precision mediump float;
+    void main() {
+      gl_FragColor = vec4(0.2, 0.6, 1.0, 1.0);
+    }
+  `
+
+  function compileShader(type, source) {
+    const shader = gl.createShader(type)
+    gl.shaderSource(shader, source)
+    gl.compileShader(shader)
+    return shader
+  }
+
+  const program = gl.createProgram()
+  gl.attachShader(program, compileShader(gl.VERTEX_SHADER, vsSource))
+  gl.attachShader(program, compileShader(gl.FRAGMENT_SHADER, fsSource))
+  gl.linkProgram(program)
+  gl.useProgram(program)
+
+  const positionBuffer = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
+
+  const positionAttr = gl.getAttribLocation(program, 'position')
+  gl.enableVertexAttribArray(positionAttr)
+  gl.vertexAttribPointer(positionAttr, 2, gl.FLOAT, false, 0, 0)
+
+  let vertexCount = 0
+
+  function render() {
+    gl.clearColor(0.0, 0.0, 0.0, 1.0)
+    gl.clear(gl.COLOR_BUFFER_BIT)
+    gl.drawArrays(gl.TRIANGLES, 0, vertexCount)
+    requestAnimationFrame(render)
+  }
+  render()
+
+  class SceneLoader {
+    async load(url) {
+      const response = await fetch(url)
+      const scene = await response.json()
+      const { nodes = [], meshes = [] } = scene
+      const mesh = meshes.find(m => m.name === 'main') || null
+      this.buildGeometry(mesh)
+    }
+
+    buildGeometry(mesh) {
+      const positions = new Float32Array(mesh.position)
+      gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW)
+      vertexCount = positions.length / 2
+    }
+  }
+
+  const loader = new SceneLoader()
+  loader.load('/api/scene/1')
+</script>
+</body>
+</html>

@@ -150,7 +150,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
 
       // Build a synthetic exceptionDetails compatible with normaliseCdpJsError
       const syntheticParams = {
-        timestamp: Date.now(),
+        timestamp: Date.now() / 1000,
         exceptionDetails: {
           text: '',
           exception: params.data ?? {},
@@ -169,10 +169,13 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
       debug('js.error', errorEvent.data.message)
       await appendEvent(outDir, sessionId, errorEvent)
 
+      const url = await cdp.send('Runtime.evaluate', { expression: 'location.href', returnByValue: true })
+        .then((r) => ((r as { result: { value?: string } }).result.value ?? ''))
+        .catch(() => '')
       const snap = await takeSnapshot({
         cdpSession: { send: (method: string, p?: Record<string, unknown>) => cdp.send(method as never, p as never) },
         trigger: 'js.error',
-        url: await page.evaluate(() => location.href).catch(() => ''),
+        url,
         callFrames: [],
       })
       const mergedSnap = { ...snap, scopes }
@@ -211,7 +214,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
         const result = await cdp.send('Network.getResponseBody', { requestId: params.requestId }) as { body: string; base64Encoded: boolean }
         const body = result.base64Encoded ? Buffer.from(result.body, 'base64').toString('utf-8') : result.body
         const summary = summariseBody(body)
-        await writeAsset({ directory: outDir, name: sessionId, kind: 'body', content: body, metadata: { timestamp: ts(), summary } })
+        await writeAsset({ directory: outDir, name: sessionId, kind: 'body', id: responseEvent.id, content: body, metadata: { timestamp: ts(), summary } })
         await appendEvent(outDir, sessionId, { ...responseEvent, data: { ...responseEvent.data, bodySummary: summary } })
       } catch {
         await appendEvent(outDir, sessionId, responseEvent)

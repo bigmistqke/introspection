@@ -66,17 +66,6 @@ introspect events --since "form submitted"                 # events after a mark
 introspect events --filter 'event.data.status >= 400' --type network.response
 ```
 
-## Investigation report (required)
-
-**Always write your findings to `.introspect/<session-id>/reports/<uuid>.md`** before reporting back. Generate a short UUID for the filename. Use the session ID from `introspect list` output.
-
-Include:
-- Each command you ran and its exact output
-- What each output told you and what you looked at next
-- Root cause, location in code, and the fix
-
-Co-locating the report inside the session directory keeps the working tree clean and allows multiple reports on the same session.
-
 ## Event type reference
 
 | Type | What it means |
