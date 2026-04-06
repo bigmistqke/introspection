@@ -12,7 +12,7 @@ Read the following files and embed their full contents into the agent prompt:
 - `packages/cli/README.md`
 - `packages/plugin-webgl/README.md`
 
-Compute the rapport path: `<repo-root>/demo-rapports/<YYYY-MM-DD>-<demo-name>.md` using today's date and the demo directory name.
+Compute the rapport path: `<repo-root>/demo/.rapports/<YYYYMMDDHHmmss>-<demo-name>.md` using today's date and the demo directory name.
 
 Then launch a general-purpose agent with this prompt (substituting `<DEMO_DIR>` with the absolute path, `<RAPPORT_PATH>` with the computed rapport path, and `<README_CONTENTS>` with the file contents read above):
 
