@@ -8,7 +8,6 @@ import {
 } from '@introspection/core'
 import { createPageProxy } from './proxy.js'
 import { PluginRegistry } from './plugin-registry.js'
-import { join } from 'path'
 
 export interface AttachOptions {
   outDir?: string
@@ -73,14 +72,16 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
   await cdp.send('Debugger.setPauseOnExceptions', { state: 'uncaught' })
 
   // Push bridge — browser calls window.__introspect_push__(JSON.stringify({type, data}))
-  await cdp.send('Runtime.addBinding', { name: '__introspect_push__' })
-  cdp.on('Runtime.bindingCalled', (params: { name: string; payload: string }) => {
-    if (params.name !== '__introspect_push__') return
-    try {
-      const { type, data } = JSON.parse(params.payload) as { type: string; data: Record<string, unknown> }
-      emit({ type: type as never, source: 'plugin' as never, data } as never)
-    } catch { /* malformed push — ignore */ }
-  })
+  if (plugins.length > 0) {
+    await cdp.send('Runtime.addBinding', { name: '__introspect_push__' })
+    cdp.on('Runtime.bindingCalled', (params: { name: string; payload: string }) => {
+      if (params.name !== '__introspect_push__') return
+      try {
+        const { type, data } = JSON.parse(params.payload) as { type: string; data: Record<string, unknown> }
+        emit({ type: type as never, source: 'plugin' as never, data } as never)
+      } catch { /* malformed push — ignore */ }
+    })
+  }
 
   // Inject scripts (future navigations) + evaluate immediately (current page)
   for (const plugin of plugins) {
