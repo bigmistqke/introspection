@@ -1,6 +1,6 @@
-import { readFileSync } from 'fs'
-import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
+// Loaded as raw text by esbuild (tsup.node.config.ts sets loader['.iife.js'] = 'text').
+// The import path is relative to src/ and resolved at build time — not a runtime path.
+import BROWSER_SCRIPT from '../dist/browser.iife.js'
 import type { IntrospectionPlugin, PluginContext, WatchHandle, CaptureResult } from '@introspection/types'
 
 declare global {
@@ -8,17 +8,6 @@ declare global {
     __introspect_plugins__?: Record<string, unknown>
   }
 }
-
-function loadBrowserScript(): string {
-  // Works from dist/ (published) and src/ (during development/tests, after pnpm build)
-  const base = dirname(fileURLToPath(import.meta.url))
-  for (const rel of ['./browser.iife.js', '../dist/browser.iife.js']) {
-    try { return readFileSync(join(base, rel), 'utf-8') } catch { /* try next */ }
-  }
-  throw new Error('@introspection/plugin-webgl: browser bundle not found — run pnpm build first')
-}
-
-const BROWSER_SCRIPT = loadBrowserScript()
 
 export type NameFilter = string | RegExp
 

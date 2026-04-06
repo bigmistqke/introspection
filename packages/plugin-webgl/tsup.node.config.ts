@@ -6,4 +6,7 @@ export default defineConfig({
   format: ['esm'],
   platform: 'node',
   dts: true,
+  esbuildOptions(o) {
+    o.loader = { ...o.loader, '.iife.js': 'text' }
+  },
 })
