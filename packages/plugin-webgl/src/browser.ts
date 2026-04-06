@@ -148,7 +148,7 @@
           orig.call(this, location, ...rest)
           const contextId = getContextId(this)
           const name = getUniformName(location)
-          const value = rest[0]
+          const value = rest.length === 1 ? rest[0] : rest
           for (const sub of subscriptions.values()) {
             if (sub.spec.event !== 'uniform') continue
             if (!matchesSpec(sub.spec, contextId, name)) continue
@@ -246,7 +246,8 @@
   }
 
   function getState(): WebGLStateSnapshot[] {
-    return Array.from(contextIds.entries()).map(([gl, id]) => {
+    return Array.from(contextIds.entries()).flatMap(([gl, id]) => {
+      if (gl.isContextLost()) return []
       const textures: Array<{ unit: number; target: string; textureId: number | null }> = []
       const savedActiveTexture = gl.getParameter(gl.ACTIVE_TEXTURE) as number
       for (let unit = 0; unit < 32; unit++) {
@@ -258,7 +259,7 @@
       }
       gl.activeTexture(savedActiveTexture)  // restore — do not corrupt app state
 
-      return {
+      return [{
         contextId: id,
         uniforms: {},  // WebGL has no API to read back uniform values
         textures,
@@ -276,7 +277,7 @@
           func: gl.getParameter(gl.DEPTH_FUNC) as number,
           writeMask: gl.getParameter(gl.DEPTH_WRITEMASK) as boolean,
         },
-      }
+      }]
     })
   }
 
