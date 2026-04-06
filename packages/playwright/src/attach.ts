@@ -29,6 +29,8 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
   await initSessionDir(outDir, { id: sessionId, startedAt, label: testTitle })
 
   const cdp = await page.context().newCDPSession(page)
+  // Untyped wrapper for generic CDP calls where the method is a runtime string
+  const cdpSend = cdp.send.bind(cdp) as (method: string, params?: Record<string, unknown>) => Promise<unknown>
 
   function ts(): number { return Date.now() - startedAt }
 
@@ -42,7 +44,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
   function makePluginCtx(plugin: IntrospectionPlugin): PluginContext {
     return {
       page,
-      cdpSession: { send: (method, params) => cdp.send(method as never, params as never) },
+      cdpSession: { send: (method, params) => cdpSend(method, params) },
       emit,
       async writeAsset(wopts) {
         return writeAsset({
@@ -83,7 +85,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
       if (params.name !== '__introspect_push__') return
       try {
         const { type, data } = JSON.parse(params.payload) as { type: string; data: Record<string, unknown> }
-        emit({ type: type as never, source: 'plugin' as never, data } as never)
+        emit({ type, source: 'plugin', data } as unknown as Parameters<typeof emit>[0])
       } catch { /* malformed push — ignore */ }
     })
   }
@@ -173,7 +175,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
         .then((r) => ((r as { result: { value?: string } }).result.value ?? ''))
         .catch(() => '')
       const snap = await takeSnapshot({
-        cdpSession: { send: (method: string, p?: Record<string, unknown>) => cdp.send(method as never, p as never) },
+        cdpSession: { send: cdpSend },
         trigger: 'js.error',
         url,
         callFrames: [],
@@ -202,7 +204,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
     if (cdpTimeOffset === 0 && typeof p.wallTime === 'number' && typeof p.timestamp === 'number') {
       cdpTimeOffset = Math.round(p.wallTime * 1000 - p.timestamp * 1000)
     }
-    const event = normaliseCdpNetworkRequest(params as never, startedAt)
+    const event = normaliseCdpNetworkRequest(params as Record<string, unknown>, startedAt)
     debug('network.request', event.data.method, event.data.url)
     emit(event)
   })
@@ -210,7 +212,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
   const pendingResponses = new Map<string, ReturnType<typeof normaliseCdpNetworkResponse>>()
 
   cdp.on('Network.responseReceived', (params) => {
-    pendingResponses.set((params as { requestId: string }).requestId, normaliseCdpNetworkResponse(params as never, startedAt, cdpTimeOffset))
+    pendingResponses.set((params as { requestId: string }).requestId, normaliseCdpNetworkResponse(params as Record<string, unknown>, startedAt, cdpTimeOffset))
   })
 
   cdp.on('Network.loadingFinished', (params: { requestId: string }) => {
@@ -235,7 +237,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
     if (responseEvent) { pendingResponses.delete(params.requestId); void appendEvent(outDir, sessionId, responseEvent) }
   })
 
-  const proxiedPage = createPageProxy(page, (evt) => emit(evt as never))
+  const proxiedPage = createPageProxy(page, (evt) => emit(evt))
 
   return {
     page: proxiedPage,
@@ -244,7 +246,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
     },
     async snapshot() {
       const snap = await takeSnapshot({
-        cdpSession: { send: (method: string, p?: Record<string, unknown>) => cdp.send(method as never, p as never) },
+        cdpSession: { send: cdpSend },
         trigger: 'manual',
         url: await page.evaluate(() => location.href).catch(() => ''),
       })

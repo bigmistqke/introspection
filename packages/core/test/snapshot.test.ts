@@ -58,7 +58,7 @@ describe('takeSnapshot', () => {
       location: { scriptId: 's1', lineNumber: 41, columnNumber: 0 },
       scopeChain: [{ type: 'local', object: { objectId: 'obj1' } }]
     }
-    const snap = await takeSnapshot({ cdpSession: mockCdp, trigger: 'js.error', url: '/login', callFrames: [frame as never] })
+    const snap = await takeSnapshot({ cdpSession: mockCdp, trigger: 'js.error', url: '/login', callFrames: [frame] })
     expect(snap.scopes).toHaveLength(1)
     expect(snap.scopes[0].frame).toBe('handleSubmit (auth.ts:42)')
     expect(snap.scopes[0].locals).toEqual({ x: 42 })

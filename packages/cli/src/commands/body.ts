@@ -10,7 +10,7 @@ export function queryBody(raw: string, opts: BodyOpts): string {
 
   // Normalise path: jsonpath-plus requires a $ root; accept bare dotted paths like ".errors"
   const normPath = opts.path.startsWith('$') ? opts.path : `$${opts.path}`
-  const results = JSONPath({ path: normPath, json: parsed as never })
+  const results = JSONPath({ path: normPath, json: parsed as object })
   if (!results || (Array.isArray(results) && results.length === 0)) return '(no match for path)'
   return JSON.stringify(Array.isArray(results) && results.length === 1 ? results[0] : results, null, 2)
 }
