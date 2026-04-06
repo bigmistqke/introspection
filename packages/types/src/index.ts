@@ -1,6 +1,6 @@
 // ─── Event types ────────────────────────────────────────────────────────────
 
-export type EventSource = 'cdp' | 'agent' | 'playwright'
+export type EventSource = 'cdp' | 'agent' | 'playwright' | 'plugin'
 
 export interface BaseEvent {
   id: string
@@ -69,6 +69,12 @@ export interface AssetEvent extends BaseEvent {
   }
 }
 
+export interface PluginEvent extends BaseEvent {
+  source: 'plugin'
+  type: string   // e.g. 'webgl.uniform', 'redux.action'
+  data: Record<string, unknown>
+}
+
 export type TraceEvent =
   | NetworkRequestEvent
   | NetworkResponseEvent
@@ -79,6 +85,48 @@ export type TraceEvent =
   | PlaywrightActionEvent
   | PlaywrightResultEvent
   | AssetEvent
+  | PluginEvent
+
+// ─── Plugin system ────────────────────────────────────────────────────────────
+
+/** Minimal page abstraction. Playwright's Page satisfies this structurally. */
+export interface PluginPage {
+  evaluate<T>(fn: () => T): Promise<T>
+  evaluate<T, A>(fn: (arg: A) => T, arg: A): Promise<T>
+}
+
+export interface CaptureResult {
+  kind: string
+  content: string
+  summary: Record<string, unknown>
+}
+
+export interface WatchHandle {
+  unwatch(): Promise<void>
+}
+
+export interface PluginContext {
+  page: PluginPage
+  cdpSession: { send(method: string, params?: Record<string, unknown>): Promise<unknown> }
+  emit(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }): void
+  writeAsset(opts: {
+    kind: string
+    content: string | Buffer
+    ext?: string
+    metadata: { timestamp: number; [key: string]: unknown }
+    source?: EventSource
+  }): Promise<string>
+  timestamp(): number
+  /** Installs a browser-side watch and registers it for navigation recovery. */
+  addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
+}
+
+export interface IntrospectionPlugin {
+  name: string
+  script: string
+  install(ctx: PluginContext): Promise<void>
+  capture?(trigger: 'js.error' | 'manual' | 'detach', ts: number): Promise<CaptureResult[]>
+}
 
 // ─── Supporting types ────────────────────────────────────────────────────────
 
