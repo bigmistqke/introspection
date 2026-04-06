@@ -21,7 +21,9 @@ function makeFakePage() {
       click: vi.fn().mockResolvedValue(undefined),
       fill: vi.fn().mockResolvedValue(undefined),
       goto: vi.fn().mockResolvedValue(undefined),
-      evaluate: vi.fn().mockResolvedValue('http://localhost/'),
+      evaluate: vi.fn().mockResolvedValue(undefined),
+      addInitScript: vi.fn().mockResolvedValue(undefined),
+      on: vi.fn(),
     } as never,
     cdp: mockCdp,
     trigger: (event: string, params: unknown) => cdpListeners[event]?.(params),
@@ -131,5 +133,75 @@ describe('attach()', () => {
     const socketPath = join(dir, entries[0], '.socket')
     expect(existsSync(socketPath)).toBe(false)
     await handle.detach()
+  })
+})
+
+describe('attach() with plugins', () => {
+  it('push event from browser appears in events.ndjson with source: plugin', async () => {
+    const { page, cdp, trigger } = makeFakePage()
+    const plugin: import('@introspection/types').IntrospectionPlugin = {
+      name: 'test', script: '', install: async () => {},
+    }
+    const handle = await attach(page, { outDir: dir, plugins: [plugin] })
+
+    // Simulate browser calling window.__introspect_push__(...)
+    trigger('Runtime.bindingCalled', {
+      name: '__introspect_push__',
+      payload: JSON.stringify({ type: 'webgl.uniform', data: { name: 'u_time', value: 1.5, glType: 'float' } }),
+    })
+    await new Promise(r => setTimeout(r, 10))
+    await handle.detach()
+
+    const [sessionId] = await readdir(dir)
+    const events = (await readFile(join(dir, sessionId, 'events.ndjson'), 'utf-8'))
+      .trim().split('\n').map(l => JSON.parse(l))
+
+    const pushed = events.find((e: { type: string }) => e.type === 'webgl.uniform')
+    expect(pushed).toBeDefined()
+    expect(pushed.source).toBe('plugin')
+    expect(pushed.data.name).toBe('u_time')
+    expect(pushed.data.value).toBe(1.5)
+  })
+
+  it('ctx.writeAsset produces an asset event with source: plugin in events.ndjson', async () => {
+    const { page, cdp } = makeFakePage()
+    let savedCtx: import('@introspection/types').PluginContext
+    const plugin: import('@introspection/types').IntrospectionPlugin = {
+      name: 'test', script: '',
+      async install(ctx) { savedCtx = ctx },
+    }
+    const handle = await attach(page, { outDir: dir, plugins: [plugin] })
+    await savedCtx!.writeAsset({ kind: 'webgl-state', content: '{"ok":true}', metadata: { timestamp: 5 } })
+    await handle.detach()
+
+    const [sessionId] = await readdir(dir)
+    const events = (await readFile(join(dir, sessionId, 'events.ndjson'), 'utf-8'))
+      .trim().split('\n').map(l => JSON.parse(l))
+
+    const asset = events.find((e: { type: string }) => e.type === 'asset')
+    expect(asset).toBeDefined()
+    expect(asset.source).toBe('plugin')
+    expect(asset.data.kind).toBe('webgl-state')
+  })
+
+  it('detach() triggers plugin.capture("detach") and writes resulting assets', async () => {
+    const { page } = makeFakePage()
+    const plugin: import('@introspection/types').IntrospectionPlugin = {
+      name: 'test', script: '', install: async () => {},
+      async capture(trigger) {
+        if (trigger !== 'detach') return []
+        return [{ kind: 'webgl-state', content: '{"detached":true}', summary: { contextId: 'ctx_0' } }]
+      },
+    }
+    await attach(page, { outDir: dir, plugins: [plugin] }).then(h => h.detach())
+
+    const [sessionId] = await readdir(dir)
+    const events = (await readFile(join(dir, sessionId, 'events.ndjson'), 'utf-8'))
+      .trim().split('\n').map(l => JSON.parse(l))
+
+    const asset = events.find((e: { type: string; data?: { kind: string } }) =>
+      e.type === 'asset' && e.data?.kind === 'webgl-state')
+    expect(asset).toBeDefined()
+    expect(asset.source).toBe('plugin')
   })
 })

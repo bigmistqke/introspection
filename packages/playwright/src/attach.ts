@@ -1,18 +1,20 @@
 import { randomUUID } from 'crypto'
 import type { Page } from '@playwright/test'
-import type { TraceEvent, IntrospectHandle, DetachResult, ScopeFrame } from '@introspection/types'
+import type { TraceEvent, IntrospectHandle, DetachResult, ScopeFrame, IntrospectionPlugin, PluginContext } from '@introspection/types'
 import {
   initSessionDir, appendEvent, writeAsset, summariseBody, finalizeSession,
   normaliseCdpNetworkRequest, normaliseCdpNetworkResponse, normaliseCdpJsError,
   takeSnapshot,
 } from '@introspection/core'
 import { createPageProxy } from './proxy.js'
+import { PluginRegistry } from './plugin-registry.js'
 import { join } from 'path'
 
 export interface AttachOptions {
   outDir?: string
   testTitle?: string
   workerIndex?: number
+  plugins?: IntrospectionPlugin[]
 }
 
 export async function attach(page: Page, opts: AttachOptions = {}): Promise<IntrospectHandle> {
@@ -31,11 +33,74 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
     void appendEvent(outDir, sessionId, { id: randomUUID(), ts: ts(), ...event } as TraceEvent)
   }
 
+  const plugins = opts.plugins ?? []
+  const registry = new PluginRegistry()
+
+  function makePluginCtx(plugin: IntrospectionPlugin): PluginContext {
+    return {
+      page,
+      cdpSession: { send: (method, params) => cdp.send(method as never, params as never) },
+      emit,
+      async writeAsset(wopts) {
+        return writeAsset({
+          directory: outDir, name: sessionId,
+          kind: wopts.kind, content: wopts.content, ext: wopts.ext,
+          metadata: wopts.metadata, source: wopts.source ?? 'plugin',
+        })
+      },
+      timestamp: ts,
+      async addSubscription(pluginName: string, spec: unknown) {
+        const expr = `(() => { const p = window.__introspect_plugins__?.['${pluginName}']; return p ? p.watch(${JSON.stringify(spec)}) : null })()`
+        const result = await cdp.send('Runtime.evaluate', { expression: expr, returnByValue: true }) as { result: { value: string } }
+        const browserId = result.result.value
+        const nodeId = registry.add(pluginName, spec, browserId)
+        return {
+          async unwatch() {
+            const sub = registry.remove(nodeId)
+            if (!sub) return
+            const unwatchExpr = `(() => { window.__introspect_plugins__?.['${sub.pluginName}']?.unwatch(${JSON.stringify(sub.browserId)}) })()`
+            await cdp.send('Runtime.evaluate', { expression: unwatchExpr }).catch(() => {})
+          },
+        }
+      },
+    }
+  }
+
   await cdp.send('Network.enable')
   await cdp.send('Runtime.enable')
   await cdp.send('Debugger.enable')
   await cdp.send('DOM.enable')
   await cdp.send('Debugger.setPauseOnExceptions', { state: 'uncaught' })
+
+  // Push bridge — browser calls window.__introspect_push__(JSON.stringify({type, data}))
+  await cdp.send('Runtime.addBinding', { name: '__introspect_push__' })
+  cdp.on('Runtime.bindingCalled', (params: { name: string; payload: string }) => {
+    if (params.name !== '__introspect_push__') return
+    try {
+      const { type, data } = JSON.parse(params.payload) as { type: string; data: Record<string, unknown> }
+      emit({ type: type as never, source: 'plugin' as never, data } as never)
+    } catch { /* malformed push — ignore */ }
+  })
+
+  // Inject scripts (future navigations) + evaluate immediately (current page)
+  for (const plugin of plugins) {
+    await page.addInitScript({ content: plugin.script })
+    await page.evaluate((s: string) => { new Function(s)() }, plugin.script).catch(() => {})
+    await plugin.install(makePluginCtx(plugin))
+  }
+
+  // Re-apply subscriptions after each navigation
+  page.on('load', () => {
+    void (async () => {
+      for (const [nodeId, sub] of registry.all()) {
+        try {
+          const expr = `(() => { const p = window.__introspect_plugins__?.['${sub.pluginName}']; return p ? p.watch(${JSON.stringify(sub.spec)}) : null })()`
+          const result = await cdp.send('Runtime.evaluate', { expression: expr, returnByValue: true }) as { result: { value: string } }
+          registry.updateBrowserId(nodeId, result.result.value)
+        } catch { /* non-fatal */ }
+      }
+    })()
+  })
 
   let pendingSnapshot: { scopes: ScopeFrame[] } | null = null
 
@@ -118,6 +183,13 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
         timestamp: ts(), trigger: 'js.error', url: mergedSnap.url, scopeCount: mergedSnap.scopes.length,
       } })
       emit(normaliseCdpJsError(params as never, startedAt))
+      for (const plugin of plugins) {
+        if (!plugin.capture) continue
+        try {
+          for (const r of await plugin.capture('js.error', ts()))
+            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
+        } catch { /* non-fatal */ }
+      }
     })()
   })
 
@@ -137,9 +209,32 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
       await writeAsset({ directory: outDir, name: sessionId, kind: 'snapshot', content: JSON.stringify(snap), metadata: {
         timestamp: ts(), trigger: 'manual', url: snap.url, scopeCount: snap.scopes.length,
       } })
+      for (const plugin of plugins) {
+        if (!plugin.capture) continue
+        try {
+          for (const r of await plugin.capture('manual', ts()))
+            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
+        } catch { /* non-fatal */ }
+      }
     },
     async detach(result?: DetachResult) {
       if (result) emit({ type: 'playwright.result', source: 'playwright', data: result })
+
+      // Bulk unwatch
+      for (const [, sub] of registry.all()) {
+        const expr = `(() => { window.__introspect_plugins__?.['${sub.pluginName}']?.unwatch(${JSON.stringify(sub.browserId)}) })()`
+        await cdp.send('Runtime.evaluate', { expression: expr }).catch(() => {})
+      }
+
+      // Capture detach state
+      for (const plugin of plugins) {
+        if (!plugin.capture) continue
+        try {
+          for (const r of await plugin.capture('detach', ts()))
+            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
+        } catch { /* non-fatal */ }
+      }
+
       await finalizeSession(outDir, sessionId, Date.now())
       try { await cdp.detach() } catch { /* non-fatal */ }
     },
