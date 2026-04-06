@@ -9,8 +9,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts",
-    "test": "vitest run"
+    "build": "tsup src/index.ts --format esm --dts"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.40.0"

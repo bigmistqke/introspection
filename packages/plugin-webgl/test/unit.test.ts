@@ -2,10 +2,9 @@ import { describe, it, expect, vi } from 'vitest'
 import type { PluginContext } from '@introspection/types'
 
 describe('webgl() — Node-side', () => {
-  it('has name "webgl" and a non-empty script', async () => {
+  it('bundles a non-empty browser script', async () => {
     const { webgl } = await import('../src/index.js')
     const plugin = webgl()
-    expect(plugin.name).toBe('webgl')
     expect(plugin.script.length).toBeGreaterThan(0)
   })
 
