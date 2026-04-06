@@ -116,9 +116,9 @@ skillsCmd
       console.error('No skills found. Try reinstalling the introspect package.')
       process.exit(1)
     }
-    const maxNameLen = Math.max(...skills.map(s => s.name.length))
-    for (const s of skills) {
-      console.log(`${s.name.padEnd(maxNameLen + 2)}${s.description}`)
+    const maxNameLen = Math.max(...skills.map(skill => skill.name.length))
+    for (const skill of skills) {
+      console.log(`${skill.name.padEnd(maxNameLen + 2)}${skill.description}`)
     }
   })
 
@@ -156,9 +156,9 @@ skillsCmd
     const installRoot = getInstallRoot({ platform, cwd, dir: opts.dir })
     const results = await installSkills(BUNDLED_SKILLS_DIR, installRoot)
 
-    for (const r of results) {
-      if (r.overwritten) process.stderr.write(`Overwriting existing skill: ${r.path}\n`)
-      console.log(`Installed ${r.name} → ${r.path}`)
+    for (const result of results) {
+      if (result.overwritten) process.stderr.write(`Overwriting existing skill: ${result.path}\n`)
+      console.log(`Installed ${result.name} → ${result.path}`)
     }
   })
 

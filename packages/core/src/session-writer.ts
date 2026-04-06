@@ -12,11 +12,11 @@ export interface SessionInitParams {
 export function summariseBody(raw: string): BodySummary {
   let parsed: Record<string, unknown>
   try {
-    const p = JSON.parse(raw)
-    if (typeof p !== 'object' || p === null || Array.isArray(p)) {
+    const body = JSON.parse(raw)
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
       return { keys: [], scalars: {}, arrays: {}, errorFields: {} }
     }
-    parsed = p
+    parsed = body
   } catch { return { keys: [], scalars: {}, arrays: {}, errorFields: {} } }
 
   const keys = Object.keys(parsed)

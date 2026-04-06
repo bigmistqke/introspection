@@ -92,7 +92,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
   for (const plugin of plugins) {
     debug('installing plugin', plugin.name)
     await page.addInitScript({ content: plugin.script })
-    await page.evaluate((s: string) => { new Function(s)() }, plugin.script).catch(() => {})
+    await page.evaluate((script: string) => { new Function(script)() }, plugin.script).catch(() => {})
     await plugin.install(makePluginCtx(plugin))
   }
 
@@ -112,7 +112,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
   // Tracks in-flight async handlers (e.g. error processing). detach() drains these
   // before finalizing so no events are lost to a race with cleanup.
   const pending = new Set<Promise<void>>()
-  function track(p: Promise<void>): void { pending.add(p); void p.finally(() => pending.delete(p)) }
+  function track(promise: Promise<void>): void { pending.add(promise); void promise.finally(() => pending.delete(promise)) }
 
   cdp.on('Debugger.paused', (params: {
     reason: string
@@ -136,9 +136,9 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
               objectId: scope.object.objectId, ownProperties: true,
             }) as { result: Array<{ name: string; value?: { type?: string; value?: unknown; description?: string; objectId?: string } }> }
             for (const prop of result.slice(0, 20)) {
-              const v = prop.value
-              if (!v) { locals[prop.name] = undefined; continue }
-              locals[prop.name] = v.value ?? v.description ?? undefined
+              const propValue = prop.value
+              if (!propValue) { locals[prop.name] = undefined; continue }
+              locals[prop.name] = propValue.value ?? propValue.description ?? undefined
             }
           } catch { /* non-fatal */ }
         }
@@ -155,11 +155,11 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
           text: '',
           exception: params.data ?? {},
           stackTrace: {
-            callFrames: (params.callFrames ?? []).map(f => ({
-              functionName: f.functionName,
-              url: f.url,
-              lineNumber: f.location.lineNumber,
-              columnNumber: f.location.columnNumber ?? 0,
+            callFrames: (params.callFrames ?? []).map(frame => ({
+              functionName: frame.functionName,
+              url: frame.url,
+              lineNumber: frame.location.lineNumber,
+              columnNumber: frame.location.columnNumber ?? 0,
             })),
           },
         },

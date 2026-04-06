@@ -25,19 +25,19 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
   let lowerBound = opts.after ?? -Infinity
   if (opts.since !== undefined) {
     const mark = trace.events.find(
-      e => e.type === 'mark' && (e.data as { label: string }).label === opts.since
+      event => event.type === 'mark' && (event.data as { label: string }).label === opts.since
     )
     if (!mark) throw new Error(`no mark event with label "${opts.since}" found`)
     lowerBound = Math.max(lowerBound, mark.ts)
   }
 
-  const types = opts.type ? opts.type.split(',').map(s => s.trim()).filter(Boolean) : null
+  const types = opts.type ? opts.type.split(',').map(type => type.trim()).filter(Boolean) : null
 
-  let result = trace.events.filter(e => {
-    if (types && !types.includes(e.type)) return false
-    if (opts.source && e.source !== opts.source) return false
-    if (e.ts <= lowerBound) return false
-    if (opts.before !== undefined && e.ts >= opts.before) return false
+  let result = trace.events.filter(event => {
+    if (types && !types.includes(event.type)) return false
+    if (opts.source && event.source !== opts.source) return false
+    if (event.ts <= lowerBound) return false
+    if (opts.before !== undefined && event.ts >= opts.before) return false
     return true
   })
 

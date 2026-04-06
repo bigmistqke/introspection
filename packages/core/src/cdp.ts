@@ -46,11 +46,11 @@ export function normaliseCdpJsError(raw: Record<string, unknown>, startedAt: num
   const exception = (details.exception ?? {}) as Record<string, unknown>
   const trace = details.stackTrace as { callFrames: Array<Record<string, unknown>> } | undefined
   const message = (exception.description as string | undefined) ?? (details.text as string)
-  const stack: StackFrame[] = (trace?.callFrames ?? []).map(f => ({
-    functionName: (f.functionName as string) || '(anonymous)',
-    file: f.url as string,
-    line: (f.lineNumber as number) + 1,
-    column: f.columnNumber as number,
+  const stack: StackFrame[] = (trace?.callFrames ?? []).map(frame => ({
+    functionName: (frame.functionName as string) || '(anonymous)',
+    file: frame.url as string,
+    line: (frame.lineNumber as number) + 1,
+    column: frame.columnNumber as number,
   }))
   return {
     id: makeId(),

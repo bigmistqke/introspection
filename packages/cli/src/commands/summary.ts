@@ -9,25 +9,25 @@ export function buildSummary(trace: TraceFile): string {
   lines.push(`Session: "${label}" (${duration})`)
   lines.push('')
 
-  const actions = events.filter(e => e.type === 'playwright.action') as Array<{ data: { method: string; args: unknown[] } } & TraceEvent>
+  const actions = events.filter(event => event.type === 'playwright.action') as Array<{ data: { method: string; args: unknown[] } } & TraceEvent>
   if (actions.length) {
     lines.push(`Actions taken (${actions.length}):`)
-    for (const a of actions) lines.push(`  ${a.data.method}(${a.data.args[0] ?? ''})`)
+    for (const action of actions) lines.push(`  ${action.data.method}(${action.data.args[0] ?? ''})`)
     lines.push('')
   }
 
-  const responses = events.filter(e => e.type === 'network.response') as Array<{ data: { url: string; status: number } } & TraceEvent>
-  const failed = responses.filter(r => r.data.status >= 400)
+  const responses = events.filter(event => event.type === 'network.response') as Array<{ data: { url: string; status: number } } & TraceEvent>
+  const failed = responses.filter(response => response.data.status >= 400)
   if (failed.length) {
     lines.push(`Failed network requests (${failed.length}):`)
-    for (const r of failed) lines.push(`  ${r.data.status} ${r.data.url}`)
+    for (const response of failed) lines.push(`  ${response.data.status} ${response.data.url}`)
     lines.push('')
   }
 
-  const errors = events.filter(e => e.type === 'js.error') as Array<{ data: { message: string } } & TraceEvent>
+  const errors = events.filter(event => event.type === 'js.error') as Array<{ data: { message: string } } & TraceEvent>
   if (errors.length) {
     lines.push(`JS errors (${errors.length}):`)
-    for (const e of errors) lines.push(`  ${e.data.message}`)
+    for (const error of errors) lines.push(`  ${error.data.message}`)
   }
 
   return lines.join('\n')
