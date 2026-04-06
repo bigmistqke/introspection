@@ -180,6 +180,12 @@ Things that make the existing system nicer to use.
 
 ---
 
+## Testing
+
+- **Port `attach()` tests to use a real browser** — the current `attach.test.ts` uses a fake CDP session (vitest, Node-side only). Because `attach()` injects scripts via `page.addInitScript` and evaluates them via `page.evaluate`, a real Playwright test would validate the full round-trip without any mocking: script injection → browser-side interceptors → push events → `events.ndjson`. No fake CDP needed, no simulated `Runtime.bindingCalled`, just real browser behavior. The WebGL plugin tests (WG-4) already follow this pattern — `attach.test.ts` could be moved there too.
+
+---
+
 ## Protocol / Architecture
 
 Infrastructure that enables future capabilities.
