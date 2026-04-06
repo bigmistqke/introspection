@@ -1,3 +1,6 @@
+import { readFileSync } from 'fs'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
 import type { IntrospectionPlugin, PluginContext, WatchHandle, CaptureResult } from '@introspection/types'
 
 declare global {
@@ -6,7 +9,16 @@ declare global {
   }
 }
 
-const BROWSER_SCRIPT = '__BROWSER_SCRIPT_PLACEHOLDER__'
+function loadBrowserScript(): string {
+  // Works from dist/ (published) and src/ (during development/tests, after pnpm build)
+  const base = dirname(fileURLToPath(import.meta.url))
+  for (const rel of ['./browser.iife.js', '../dist/browser.iife.js']) {
+    try { return readFileSync(join(base, rel), 'utf-8') } catch { /* try next */ }
+  }
+  throw new Error('@introspection/plugin-webgl: browser bundle not found — run pnpm build first')
+}
+
+const BROWSER_SCRIPT = loadBrowserScript()
 
 export type NameFilter = string | RegExp
 
