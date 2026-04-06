@@ -1,6 +1,8 @@
 # @introspection/plugin-webgl
 
-Introspection plugin that intercepts WebGL calls in the browser. Tracks uniforms, draw calls, texture binds, and GL context state. On snapshot it serializes full GL state and captures each canvas as a PNG.
+Introspection plugin that intercepts WebGL calls in the browser. Tracks uniforms, draw calls, and texture binds as they happen. On snapshot it serializes full GL state and captures each canvas as a PNG.
+
+Works with both `HTMLCanvasElement` and `OffscreenCanvas`. WebGL 1 and WebGL 2 contexts are both intercepted. `preserveDrawingBuffer` is forced to `true` so canvas captures always reflect actual render output.
 
 ## Install
 
@@ -21,6 +23,7 @@ await handle.page.goto('/demo')
 
 const wh = await plugin.watch({ event: 'uniform', name: 'u_time', valueChanged: true })
 await plugin.watch({ event: 'draw' })
+await plugin.watch({ event: 'texture-bind' })
 
 // interact with the page...
 
@@ -29,51 +32,161 @@ await wh.unwatch()       // stop watching u_time
 await handle.detach()
 ```
 
+---
+
+## `webgl()`
+
+Returns a `WebGLPlugin` instance. Pass it to `attach()` via `opts.plugins`. A single plugin instance tracks all WebGL contexts on the page.
+
+---
+
 ## `plugin.watch(opts)`
 
-Returns a `WatchHandle` with an `unwatch()` method. Subscriptions survive navigation.
-
-### `uniform`
+Subscribes to a WebGL event. Returns a `Promise<WatchHandle>` — the subscription is established asynchronously in the browser. Subscriptions are automatically re-applied after navigation.
 
 ```ts
-plugin.watch({ event: 'uniform', name?: string | RegExp, valueChanged?: boolean, contextId?: string })
+const wh = await plugin.watch({ event: 'uniform', name: 'u_time' })
+await wh.unwatch()  // stop receiving events for this subscription
 ```
 
-Emits `webgl.uniform` events. `valueChanged: true` suppresses duplicate values.
+### `event: 'uniform'`
 
-### `draw`
+Fires on every `gl.uniform*()` call that matches the filter.
 
 ```ts
-plugin.watch({ event: 'draw', primitive?: 'TRIANGLES' | 'LINES' | 'POINTS' | ..., contextId?: string })
+plugin.watch({
+  event: 'uniform',
+  name?: string | RegExp,    // filter by uniform name; omit to watch all
+  valueChanged?: boolean,    // if true, suppress events when value hasn't changed
+  contextId?: string,        // restrict to a specific GL context
+})
 ```
 
-Emits `webgl.draw-arrays` / `webgl.draw-elements` events.
-
-### `texture-bind`
+Emits `webgl.uniform` events with:
 
 ```ts
-plugin.watch({ event: 'texture-bind', unit?: number, contextId?: string })
+{
+  type: 'webgl.uniform',
+  source: 'plugin',
+  data: {
+    contextId: string,
+    name: string,
+    value: number | number[],   // scalar or vector
+    glType: string,             // 'float', 'vec2', 'vec3', 'vec4', 'int', 'mat4', etc.
+  }
+}
 ```
 
-Emits `webgl.texture-bind` events.
+### `event: 'draw'`
 
-## Events emitted
+Fires on every `gl.drawArrays()` or `gl.drawElements()` call.
 
-| Type | Source | Description |
-|---|---|---|
-| `webgl.context-created` | plugin | A new WebGL context was created |
-| `webgl.uniform` | plugin | A uniform was set |
-| `webgl.draw-arrays` | plugin | `gl.drawArrays()` call |
-| `webgl.draw-elements` | plugin | `gl.drawElements()` call |
-| `webgl.texture-bind` | plugin | `gl.bindTexture()` call |
+```ts
+plugin.watch({
+  event: 'draw',
+  primitive?: 'TRIANGLES' | 'LINES' | 'POINTS' | 'LINE_STRIP' | 'LINE_LOOP' | 'TRIANGLE_STRIP' | 'TRIANGLE_FAN',
+  contextId?: string,
+})
+```
 
-All events include a `contextId` field to correlate with a specific canvas/context.
+Emits `webgl.draw-arrays` or `webgl.draw-elements` events with:
+
+```ts
+{
+  type: 'webgl.draw-arrays',
+  source: 'plugin',
+  data: {
+    contextId: string,
+    primitive: string,   // e.g. 'TRIANGLES'
+    first: number,
+    count: number,
+  }
+}
+// or
+{
+  type: 'webgl.draw-elements',
+  source: 'plugin',
+  data: {
+    contextId: string,
+    primitive: string,
+    count: number,
+    offset: number,
+  }
+}
+```
+
+### `event: 'texture-bind'`
+
+Fires on every `gl.bindTexture()` call.
+
+```ts
+plugin.watch({
+  event: 'texture-bind',
+  unit?: number,       // filter by texture unit (0-based)
+  contextId?: string,
+})
+```
+
+Emits `webgl.texture-bind` events with:
+
+```ts
+{
+  type: 'webgl.texture-bind',
+  source: 'plugin',
+  data: {
+    contextId: string,
+    unit: number,       // active texture unit at time of bind
+    target: string,     // 'TEXTURE_2D', 'TEXTURE_CUBE_MAP', etc.
+  }
+}
+```
+
+---
+
+## Events emitted automatically (no watch needed)
+
+| Type | Trigger |
+|---|---|
+| `webgl.context-created` | Any `canvas.getContext('webgl')` or `getContext('webgl2')` call |
+
+```ts
+{
+  type: 'webgl.context-created',
+  source: 'plugin',
+  data: { contextId: string, type: 'webgl' | 'webgl2' }
+}
+```
+
+---
 
 ## Assets captured on snapshot
 
-| Kind | Format | Contents |
-|---|---|---|
-| `webgl-state` | JSON | Uniforms, bound textures, viewport, blend state, depth state |
-| `webgl-canvas` | PNG | Pixel content of each WebGL canvas |
+Capture runs on `handle.snapshot()` (trigger: `'manual'`), on uncaught JS errors (trigger: `'js.error'`), and on `handle.detach()` (trigger: `'detach'`). One asset is written per active GL context.
 
-Capture runs on `snapshot()`, on JS errors, and on `detach()`.
+### `webgl-state` (JSON)
+
+Full GL state snapshot:
+
+```ts
+interface WebGLStateSnapshot {
+  contextId: string
+  uniforms: Record<string, { value: unknown; glType: string }>
+  textures: Array<{ unit: number; target: string; textureId: number | null }>
+  viewport: [x: number, y: number, width: number, height: number]
+  blendState: {
+    enabled: boolean
+    srcRgb: number; dstRgb: number
+    srcAlpha: number; dstAlpha: number
+    equation: number
+  }
+  depthState: {
+    testEnabled: boolean
+    func: number
+    writeMask: boolean
+  }
+}
+```
+
+### `webgl-canvas` (PNG)
+
+Pixel content of the canvas at the time of capture. Written as a binary PNG file. `preserveDrawingBuffer: true` is forced when the context is created so the framebuffer is always readable.
