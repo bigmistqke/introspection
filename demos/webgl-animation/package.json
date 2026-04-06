@@ -1,0 +1,15 @@
+{
+  "name": "@introspection/demo-webgl-animation",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@introspection/playwright": "workspace:*",
+    "@introspection/plugin-webgl": "workspace:*",
+    "@playwright/test": "^1.40.0",
+    "typescript": "^5.4.0"
+  }
+}
