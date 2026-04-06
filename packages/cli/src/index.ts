@@ -182,7 +182,7 @@ program
       process.exit(1)
     }
     try {
-      const out = formatEvents(trace, opts, opts.filter)
+      const out = formatEvents(trace, opts)
       if (out) console.log(out)
     } catch (err) {
       console.error(`Error: ${(err as Error).message}`)

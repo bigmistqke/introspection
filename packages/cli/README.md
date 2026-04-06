@@ -120,17 +120,18 @@ introspect dom [--session <id>]
 
 ---
 
-### `events [expression]`
+### `events`
 
-Filter and transform raw events. An optional JS expression is evaluated against each event.
+Filter and transform raw events. Use `--filter` with a JS expression evaluated against each event (`event`).
 
 ```
-introspect events [expression] [--session <id>] [--type <types>] [--source <source>]
+introspect events [--session <id>] [--filter <expr>] [--type <types>] [--source <source>]
   [--after <ms>] [--before <ms>] [--since <label>] [--last <n>]
 ```
 
 | Flag | Description |
 |---|---|
+| `--filter <expr>` | JS expression per event (`event`), e.g. `'event.data.status >= 400'` |
 | `--type <types>` | Comma-separated event types to include (e.g. `webgl.uniform,js.error`) |
 | `--source <source>` | Filter by event source |
 | `--after <ms>` | Keep events after this timestamp (ms since session start) |
@@ -143,7 +144,7 @@ Examples:
 ```bash
 introspect events --type webgl.uniform --last 20
 introspect events --since before-submit
-introspect events 'e.data.status >= 400' --type network.response
+introspect events --filter 'event.data.status >= 400' --type network.response
 ```
 
 ---

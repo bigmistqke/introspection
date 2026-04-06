@@ -11,6 +11,7 @@ export interface EventFilterOpts {
   before?: number
   since?: string
   last?: number
+  filter?: string
 }
 
 export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): TraceEvent[] {
@@ -45,16 +46,16 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
   return result
 }
 
-export function formatEvents(trace: TraceFile, opts: EventFilterOpts, expression?: string): string {
+export function formatEvents(trace: TraceFile, opts: EventFilterOpts): string {
   const filtered = applyEventFilters(trace, opts)
 
-  if (!expression) {
+  if (!opts.filter) {
     return formatTimeline({ ...trace, events: filtered })
   }
 
   const results = filtered.map(ev => {
     try {
-      const raw = runInNewContext(expression, { event: ev })
+      const raw = runInNewContext(opts.filter!, { event: ev })
       return raw === undefined ? null : raw
     } catch (err) {
       return { error: String(err), event: ev }
