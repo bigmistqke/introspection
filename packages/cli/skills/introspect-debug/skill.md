@@ -57,13 +57,14 @@ introspect events --type webgl.draw-arrays,webgl.draw-elements
 introspect eval 'events.filter(event => event.type === "webgl.texture-bind").length'
 ```
 
-### Nothing obvious → browse the timeline
+### Nothing obvious → browse events
 
 ```bash
-introspect timeline                                        # all events in order
+introspect events                                          # all events in order
 introspect events --type js.error,network.response        # filter by type
 introspect events --since "form submitted"                 # events after a mark
 introspect events --filter 'event.data.status >= 400' --type network.response
+introspect events --format json | jq '.[].data.url'       # extract fields
 ```
 
 ## Event type reference

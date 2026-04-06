@@ -106,7 +106,7 @@ describe('applyEventFilters', () => {
   })
 })
 
-describe('formatEvents — default output (no expression)', () => {
+describe('formatEvents — text output (default)', () => {
   it('returns timeline-formatted string of all events when no flags', () => {
     const out = formatEvents(trace, {})
     expect(out).toContain('plugin.redux.action')
@@ -127,47 +127,51 @@ describe('formatEvents — default output (no expression)', () => {
   })
 })
 
-describe('formatEvents — expression mode', () => {
-  it('maps each event with the expression using `event` as the variable', () => {
-    const out = formatEvents(trace, { type: 'plugin.redux.action', filter: 'event.data.action.type' })
-    const parsed = JSON.parse(out)
-    expect(parsed).toEqual(['CART/ADD', 'CART/REMOVE'])
+describe('formatEvents — --filter predicate', () => {
+  it('keeps only events where predicate is truthy', () => {
+    const out = formatEvents(trace, { filter: 'event.source === "cdp"' })
+    expect(out).toContain('plugin.redux.action')
+    expect(out).toContain('network.request')
+    expect(out).not.toContain('mark')
+    expect(out).not.toContain('playwright.action')
   })
 
-  it('expression returning an object produces array of objects', () => {
-    const out = formatEvents(trace, { type: 'plugin.redux.action', filter: '({ timestamp: event.timestamp, action: event.data.action.type })' })
+  it('predicate that throws for an event excludes that event', () => {
+    // Only redux events have data.action — others throw and are excluded
+    const out = formatEvents(trace, { format: 'json', filter: 'event.data.action.type === "CART/ADD"' })
     const parsed = JSON.parse(out)
-    expect(parsed).toEqual([
-      { timestamp: 100, action: 'CART/ADD' },
-      { timestamp: 300, action: 'CART/REMOVE' },
-    ])
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0].id).toBe('e2')
   })
 
-  it('expression returning undefined maps to null', () => {
-    const out = formatEvents(trace, { type: 'plugin.redux.action', filter: 'undefined' })
-    const parsed = JSON.parse(out)
-    expect(parsed).toEqual([null, null])
+  it('returns empty string when no events match predicate', () => {
+    const out = formatEvents(trace, { filter: 'false' })
+    expect(out).toBe('')
   })
 
-  it('expression that throws for one event produces error slot, rest unaffected', () => {
-    // mark event has no .data.action — will throw; redux events work fine
-    const out = formatEvents(trace, { filter: 'event.data.action.type' })
+  it('only `event` is in scope — `events` is undefined', () => {
+    // If `events` were in scope this would throw; since it's not, the predicate is false
+    const out = formatEvents(trace, { filter: 'typeof events === "undefined"' })
+    expect(out).toContain('mark')
+  })
+})
+
+describe('formatEvents — --format json', () => {
+  it('returns JSON array of full TraceEvent objects', () => {
+    const out = formatEvents(trace, { format: 'json', type: 'mark' })
     const parsed = JSON.parse(out)
-    // e2 and e4 are redux events — those should return the action type
-    expect(parsed[1]).toBe('CART/ADD')
-    expect(parsed[3]).toBe('CART/REMOVE')
-    // e1 (mark), e3 (network.request), e5 (playwright) have no action — error slots
-    expect(parsed[0]).toHaveProperty('error')
-    expect(parsed[0]).toHaveProperty('event')
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]).toMatchObject({ id: 'e1', type: 'mark', source: 'agent' })
   })
 
-  it('returns [] when no events match filters', () => {
-    const out = formatEvents(trace, { type: 'nonexistent', filter: 'event.id' })
+  it('combined with --filter returns only matching events as JSON', () => {
+    const out = formatEvents(trace, { format: 'json', filter: 'event.source === "cdp"' })
+    const parsed = JSON.parse(out)
+    expect(parsed.every((event: { source: string }) => event.source === 'cdp')).toBe(true)
+  })
+
+  it('returns empty array when no events match', () => {
+    const out = formatEvents(trace, { format: 'json', type: 'nonexistent' })
     expect(JSON.parse(out)).toEqual([])
-  })
-
-  it('only `event` is in scope — `events`, `snapshot`, `test` are undefined', () => {
-    const out = formatEvents(trace, { type: 'mark', filter: 'typeof events' })
-    expect(JSON.parse(out)).toEqual(['undefined'])
   })
 })

@@ -2,7 +2,6 @@
 import { Command } from 'commander'
 import { TraceReader } from './trace-reader.js'
 import { buildSummary } from './commands/summary.js'
-import { formatTimeline } from './commands/timeline.js'
 import { formatErrors } from './commands/errors.js'
 import { formatSnapshot } from './commands/snapshot.js'
 import { formatNetworkTable } from './commands/network.js'
@@ -28,11 +27,6 @@ async function loadTrace(opts: { session?: string }) {
 program.command('summary').option('--session <id>').action(async (opts) => {
   const trace = await loadTrace(opts)
   console.log(buildSummary(trace))
-})
-
-program.command('timeline').option('--session <id>').option('--type <eventType>').option('--source <source>').action(async (opts) => {
-  const trace = await loadTrace(opts)
-  console.log(formatTimeline(trace, opts))
 })
 
 program.command('errors').option('--session <id>').action(async (opts) => {
@@ -166,7 +160,8 @@ program
   .command('events')
   .description('Filter and transform trace events')
   .option('--session <id>')
-  .option('--filter <expr>', 'JS expression per event (event), e.g. \'event.data.status >= 400\'')
+  .option('--filter <expr>', 'Boolean predicate per event (event), e.g. \'event.data.status >= 400\'')
+  .option('--format <fmt>', 'Output format: text (default) or json')
   .option('--type <types>', 'Comma-separated event types to include')
   .option('--source <source>', 'Filter by source: cdp, agent, plugin, playwright')
   .option('--after <ms>', 'Keep events after this timestamp (ms)', (v) => parseFloat(v))

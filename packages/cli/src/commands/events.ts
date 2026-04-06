@@ -12,6 +12,7 @@ export interface EventFilterOpts {
   since?: string
   last?: number
   filter?: string
+  format?: 'text' | 'json'
 }
 
 export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): TraceEvent[] {
@@ -47,19 +48,21 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
 }
 
 export function formatEvents(trace: TraceFile, opts: EventFilterOpts): string {
-  const filtered = applyEventFilters(trace, opts)
+  let filtered = applyEventFilters(trace, opts)
 
-  if (!opts.filter) {
-    return formatTimeline({ ...trace, events: filtered })
+  if (opts.filter) {
+    filtered = filtered.filter(event => {
+      try {
+        return Boolean(runInNewContext(opts.filter!, { event }))
+      } catch {
+        return false
+      }
+    })
   }
 
-  const results = filtered.map(ev => {
-    try {
-      const raw = runInNewContext(opts.filter!, { event: ev })
-      return raw === undefined ? null : raw
-    } catch (error) {
-      return { error: String(error), event: ev }
-    }
-  })
-  return JSON.stringify(results, null, 2)
+  if (opts.format === 'json') {
+    return JSON.stringify(filtered, null, 2)
+  }
+
+  return formatTimeline({ ...trace, events: filtered })
 }

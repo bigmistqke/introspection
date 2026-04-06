@@ -44,21 +44,6 @@ Defaults to the most recent session when `--session` is omitted.
 
 ---
 
-### `timeline`
-
-Chronological event log with optional filtering.
-
-```
-introspect timeline [--session <id>] [--type <eventType>] [--source <source>]
-```
-
-| Flag | Description |
-|---|---|
-| `--type <eventType>` | Show only events of this type (e.g. `network.request`) |
-| `--source <source>` | Show only events from this source (`cdp`, `agent`, `playwright`, `plugin`) |
-
----
-
 ### `errors`
 
 All JS errors with full stack traces.
@@ -122,16 +107,17 @@ introspect dom [--session <id>]
 
 ### `events`
 
-Filter and transform raw events. Use `--filter` with a JS expression evaluated against each event (`event`).
+Chronological event log with filtering. Outputs human-readable text by default; use `--format json` to get raw event objects (pipe to `jq` for field extraction).
 
 ```
-introspect events [--session <id>] [--filter <expr>] [--type <types>] [--source <source>]
-  [--after <ms>] [--before <ms>] [--since <label>] [--last <n>]
+introspect events [--session <id>] [--filter <expr>] [--format <fmt>] [--type <types>]
+  [--source <source>] [--after <ms>] [--before <ms>] [--since <label>] [--last <n>]
 ```
 
 | Flag | Description |
 |---|---|
-| `--filter <expr>` | JS expression per event (`event`), e.g. `'event.data.status >= 400'` |
+| `--filter <expr>` | Boolean predicate per event (`event`), e.g. `'event.data.status >= 400'` |
+| `--format <fmt>` | Output format: `text` (default) or `json` |
 | `--type <types>` | Comma-separated event types to include (e.g. `webgl.uniform,js.error`) |
 | `--source <source>` | Filter by event source |
 | `--after <ms>` | Keep events after this timestamp (ms since session start) |
@@ -145,6 +131,7 @@ Examples:
 introspect events --type webgl.uniform --last 20
 introspect events --since before-submit
 introspect events --filter 'event.data.status >= 400' --type network.response
+introspect events --format json | jq '.[].data.url'
 ```
 
 ---
