@@ -1,5 +1,11 @@
 import type { IntrospectionPlugin, PluginContext, WatchHandle, CaptureResult } from '@introspection/types'
 
+declare global {
+  interface Window {
+    __introspect_plugins__?: Record<string, unknown>
+  }
+}
+
 const BROWSER_SCRIPT = '__BROWSER_SCRIPT_PLACEHOLDER__'
 
 export type NameFilter = string | RegExp

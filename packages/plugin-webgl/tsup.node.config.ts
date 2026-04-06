@@ -7,7 +7,7 @@ export default defineConfig({
   outDir: 'dist',
   format: ['esm'],
   platform: 'node',
-  dts: false,
+  dts: true,
   esbuildPlugins: [
     {
       name: 'embed-browser-script',
