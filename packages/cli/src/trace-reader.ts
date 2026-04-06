@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
-import type { TraceFile, TraceEvent } from '@introspection/types'
+import type { TraceFile, TraceEvent, AssetEvent } from '@introspection/types'
 
 interface FilterOptions { type?: string; url?: string; failed?: boolean }
 
@@ -36,16 +36,18 @@ export class TraceReader {
       .filter(line => line.trim())
       .map(line => JSON.parse(line) as TraceEvent)
 
+    const assetEvents = events.filter((e): e is AssetEvent => e.type === 'asset')
+
     const snapshots: TraceFile['snapshots'] = {}
-    try {
-      const snapshotFiles = await readdir(join(sessionDir, 'snapshots'))
-      for (const file of snapshotFiles) {
-        if (!file.endsWith('.json')) continue
-        const key = file.replace('.json', '')
-        snapshots[key] = JSON.parse(await readFile(join(sessionDir, 'snapshots', file), 'utf-8'))
+    for (const assetEvt of assetEvents) {
+      if (assetEvt.data.kind !== 'snapshot') continue
+      try {
+        const raw = await readFile(join(sessionDir, 'assets', assetEvt.data.path), 'utf-8')
+        const key = assetEvt.data.path.replace(/\.snapshot\.json$/, '')
+        snapshots[key] = JSON.parse(raw)
+      } catch (err: unknown) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
       }
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
     }
 
     return {
@@ -57,7 +59,7 @@ export class TraceReader {
   }
 
   async readBody(sessionId: string, eventId: string): Promise<string | null> {
-    try { return await readFile(join(this.dir, sessionId, 'bodies', `${eventId}.json`), 'utf-8') } catch { return null }
+    try { return await readFile(join(this.dir, sessionId, 'assets', `${eventId}.body.json`), 'utf-8') } catch { return null }
   }
 
   filterEvents(trace: TraceFile, opts: FilterOptions): TraceEvent[] {

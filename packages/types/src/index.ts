@@ -122,6 +122,13 @@ export interface SessionMeta {
   label?: string       // human-readable name
 }
 
+export interface TraceFile {
+  version: '2'
+  session: Omit<SessionMeta, 'version'>
+  events: TraceEvent[]
+  snapshots: { [key: string]: OnErrorSnapshot | undefined }
+}
+
 // ─── IntrospectHandle (returned by attach()) ──────────────────────────────────
 
 export interface DetachResult {

@@ -17,7 +17,7 @@ async function writeSession(id: string, opts: {
   snapshot?: OnErrorSnapshot
 } = {}) {
   const sessionDir = join(dir, id)
-  await mkdir(join(sessionDir, 'snapshots'), { recursive: true })
+  await mkdir(sessionDir, { recursive: true })
   const meta = {
     version: '2', id,
     startedAt: opts.startedAt ?? 1000,
@@ -25,12 +25,18 @@ async function writeSession(id: string, opts: {
     label: opts.label,
   }
   await writeFile(join(sessionDir, 'meta.json'), JSON.stringify(meta))
-  const events = opts.events ?? []
+  const events = opts.events ? [...opts.events] : []
+  if (opts.snapshot) {
+    const uuid = opts.snapshot.trigger
+    await mkdir(join(sessionDir, 'assets'), { recursive: true })
+    await writeFile(join(sessionDir, 'assets', `${uuid}.snapshot.json`), JSON.stringify(opts.snapshot))
+    events.push({
+      id: `asset-${uuid}`, type: 'asset', ts: opts.snapshot.ts, source: 'agent',
+      data: { path: `${uuid}.snapshot.json`, kind: 'snapshot' },
+    })
+  }
   const ndjson = events.map(e => JSON.stringify(e)).join('\n') + (events.length ? '\n' : '')
   await writeFile(join(sessionDir, 'events.ndjson'), ndjson)
-  if (opts.snapshot) {
-    await writeFile(join(sessionDir, 'snapshots', `${opts.snapshot.trigger}.json`), JSON.stringify(opts.snapshot))
-  }
 }
 
 describe('TraceReader', () => {
@@ -57,9 +63,9 @@ describe('TraceReader', () => {
     expect(trace.events).toHaveLength(0)
   })
 
-  it('load() reads snapshot from snapshots/ dir', async () => {
+  it('load() reads snapshot from assets/ dir via asset events', async () => {
     const snap: OnErrorSnapshot = {
-      ts: 100, trigger: 'manual', url: 'http://localhost/', dom: '<html/>', scopes: [], globals: {}, plugins: {},
+      ts: 100, trigger: 'manual', url: 'http://localhost/', dom: '<html/>', scopes: [], globals: {},
     }
     await writeSession('sess-snap', { snapshot: snap })
     const trace = await new TraceReader(dir).load('sess-snap')
@@ -82,11 +88,11 @@ describe('TraceReader', () => {
     expect(sessions).toContain('sess-2')
   })
 
-  it('readBody() reads from session bodies directory', async () => {
+  it('readBody() reads from session assets directory', async () => {
     await writeSession('sess-body')
-    const bodiesDir = join(dir, 'sess-body', 'bodies')
-    await mkdir(bodiesDir, { recursive: true })
-    await writeFile(join(bodiesDir, 'evt-123.json'), '{"ok":true}')
+    const assetsDir = join(dir, 'sess-body', 'assets')
+    await mkdir(assetsDir, { recursive: true })
+    await writeFile(join(assetsDir, 'evt-123.body.json'), '{"ok":true}')
     const body = await new TraceReader(dir).readBody('sess-body', 'evt-123')
     expect(body).toBe('{"ok":true}')
   })
