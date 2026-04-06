@@ -42,7 +42,7 @@ program.command('errors').option('--session <id>').action(async (opts) => {
 
 program.command('snapshot')
   .option('--session <id>')
-  .option('--filter <expr>', 'JS expression to filter snapshots, e.g. \'s.trigger === "js.error"\'')
+  .option('--filter <expr>', 'JS expression to filter snapshots (snapshot), e.g. \'snapshot.trigger === "js.error"\'')
   .action(async (opts) => {
     const trace = await loadTrace(opts)
     console.log(formatSnapshot(trace, opts.filter))
@@ -55,7 +55,7 @@ program.command('network').option('--session <id>').option('--failed').option('-
 
 program.command('dom')
   .option('--session <id>')
-  .option('--filter <expr>', 'JS expression to filter snapshots, e.g. \'s.trigger === "js.error"\'')
+  .option('--filter <expr>', 'JS expression to filter snapshots (snapshot), e.g. \'snapshot.trigger === "js.error"\'')
   .action(async (opts) => {
     const trace = await loadTrace(opts)
     console.log(formatDom(trace, opts.filter))
@@ -163,16 +163,17 @@ skillsCmd
   })
 
 program
-  .command('events [expression]')
+  .command('events')
   .description('Filter and transform trace events')
   .option('--session <id>')
+  .option('--filter <expr>', 'JS expression per event (event), e.g. \'event.data.status >= 400\'')
   .option('--type <types>', 'Comma-separated event types to include')
   .option('--source <source>', 'Filter by source: cdp, agent, plugin, playwright')
   .option('--after <ms>', 'Keep events after this timestamp (ms)', (v) => parseFloat(v))
   .option('--before <ms>', 'Keep events before this timestamp (ms)', (v) => parseFloat(v))
   .option('--since <label>', 'Keep events after the named mark event')
   .option('--last <n>', 'Keep only the last N events', (v) => parseInt(v, 10))
-  .action(async (expression: string | undefined, opts) => {
+  .action(async (opts) => {
     let trace
     try {
       trace = await loadTrace(opts)
@@ -181,7 +182,7 @@ program
       process.exit(1)
     }
     try {
-      const out = formatEvents(trace, opts, expression)
+      const out = formatEvents(trace, opts, opts.filter)
       if (out) console.log(out)
     } catch (err) {
       console.error(`Error: ${(err as Error).message}`)

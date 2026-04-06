@@ -4,7 +4,7 @@ import type { Snapshot } from '@introspection/types'
 export function selectSnapshot(snapshots: Snapshot[], filter?: string): Snapshot | undefined {
   if (!snapshots.length) return undefined
   if (!filter) return snapshots.at(-1)
-  const fn = new Function('s', `return (${filter})`) as (s: Snapshot) => boolean
+  const fn = new Function('snapshot', `return (${filter})`) as (snapshot: Snapshot) => boolean
   return snapshots.filter(fn).at(-1)
 }
 
