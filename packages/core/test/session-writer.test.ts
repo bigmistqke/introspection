@@ -78,6 +78,18 @@ describe('writeAsset', () => {
     const path = await writeAsset({ directory: dir, name: 'sess-1', kind: 'webgl-state', content: '{}', metadata: { timestamp: 0 } })
     expect(path).toContain('.webgl-state.json')
   })
+
+  it('writeAsset emits asset event with source: plugin when passed', async () => {
+    await initSessionDir(dir, { id: 'sid', startedAt: 0 })
+    await writeAsset({
+      directory: dir, name: 'sid', kind: 'webgl-state',
+      content: '{}', metadata: { timestamp: 10 }, source: 'plugin',
+    })
+    const ndjson = await readFile(join(dir, 'sid', 'events.ndjson'), 'utf-8')
+    const events = ndjson.trim().split('\n').map(l => JSON.parse(l))
+    const asset = events.find((e: { type: string }) => e.type === 'asset')
+    expect(asset.source).toBe('plugin')
+  })
 })
 
 describe('finalizeSession', () => {

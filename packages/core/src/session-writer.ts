@@ -1,7 +1,7 @@
 import { writeFile, mkdir, appendFile, readFile } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
-import type { TraceEvent, SessionMeta, BodySummary } from '@introspection/types'
+import type { TraceEvent, SessionMeta, BodySummary, EventSource } from '@introspection/types'
 
 export interface SessionInitParams {
   id: string
@@ -57,8 +57,9 @@ export async function writeAsset(opts: {
   content: string | Buffer
   ext?: string
   metadata: { timestamp: number; [key: string]: unknown }
+  source?: EventSource
 }): Promise<string> {
-  const { directory, name, kind, content, ext = 'json', metadata } = opts
+  const { directory, name, kind, content, ext = 'json', metadata, source } = opts
   const uuid = randomUUID().replace(/-/g, '').slice(0, 8)
   const filename = `${uuid}.${kind}.${ext}`
   const path = `assets/${filename}`
@@ -68,7 +69,7 @@ export async function writeAsset(opts: {
     id: randomUUID().replace(/-/g, '').slice(0, 8),
     type: 'asset' as const,
     ts: timestamp,
-    source: 'agent' as const,
+    source: (source ?? 'agent') as EventSource,
     data: { path, kind, ...rest },
   }
   await appendFile(join(directory, name, 'events.ndjson'), JSON.stringify(event) + '\n')
