@@ -33,9 +33,15 @@ interface IntrospectionPlugin {
   capture?(trigger: 'js.error' | 'manual' | 'detach', ts: number): Promise<CaptureResult[]>
 }
 
+/** Minimal page abstraction — satisfied structurally by Playwright's Page, Puppeteer's Page, or any CDP wrapper. */
+interface PluginPage {
+  evaluate<T>(fn: () => T): Promise<T>
+  evaluate<T, A>(fn: (arg: A) => T, arg: A): Promise<T>
+}
+
 interface PluginContext {
-  page: Page
-  cdpSession: CDPSession
+  page: PluginPage
+  cdpSession: { send(method: string, params?: Record<string, unknown>): Promise<unknown> }
   emit(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }): void
   // writeAsset wraps core's writeAsset; source defaults to 'plugin' (unlike core's default of 'agent')
   writeAsset(opts: {
@@ -46,6 +52,16 @@ interface PluginContext {
     source?: EventSource   // default: 'plugin'
   }): Promise<string>
   timestamp(): number   // ms since session start
+  /**
+   * Installs a browser-side watch and registers it for navigation recovery.
+   * Called by plugin's typed watch() method with the serialised spec.
+   * attach() performs the Runtime.evaluate call, stores { pluginName, spec, browserId } in its
+   * Node-side registry, and returns a WatchHandle whose unwatch() removes the entry.
+   * This method exists on PluginContext rather than requiring the plugin to call cdpSession.send
+   * directly because navigation recovery requires attach() to own the registry — it re-applies
+   * all stored specs after each page.on('load') event.
+   */
+  addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
 }
 
 interface CaptureResult {
@@ -215,9 +231,10 @@ With `'plugin'` added to `VALID_SOURCES`, `introspect events --source plugin` re
 
 - **Plugin instance is the API surface** — callers hold a reference to the plugin object and call `watch()` directly. No `handle.plugins` registry, no complex TypeScript generics on `attach()`.
 - **Interceptors are lazy** — nothing is proxied until subscribed; restored when last subscription is removed. Plugin manages its own ref counting.
-- **Node owns subscription registry** — browser-side IDs are ephemeral (lost on navigation). Node re-applies specs after each `load` event using stored `{ plugin, spec }` pairs.
+- **Node owns subscription registry via `ctx.addSubscription`** — browser-side IDs are ephemeral (lost on navigation). `attach()` owns the registry; `ctx.addSubscription(pluginName, spec)` is the hook that calls `Runtime.evaluate`, stores `{ pluginName, spec, browserId }`, and returns a `WatchHandle`. The plugin's typed `watch()` method calls `ctx.addSubscription` — it never calls `cdpSession.send` directly. This gives `attach()` full visibility into active watches for post-navigation re-apply.
 - **Push via `Runtime.addBinding`** — uses the existing CDP connection, survives navigation, no extra transport.
-- **Pull via plugin-owned evaluate calls** — `capture()` is a Node-side method on the plugin object; it may use `ctx.page.evaluate()` or `ctx.cdpSession.send('Runtime.evaluate', ...)` internally — the plugin's choice. Full state is written as sidecar assets with `source: 'plugin'`.
+- **`PluginPage` abstraction instead of Playwright `Page`** — `ctx.page` is typed as `PluginPage` (two `evaluate` overloads), not `import('@playwright/test').Page`. Playwright's `Page` satisfies it structurally; any other CDP-backed runner can too. Plugins never import `@playwright/test`.
+- **Pull via plugin-owned evaluate calls** — `capture()` is a Node-side method on the plugin object; it uses `ctx.page.evaluate()` to read browser state. Full state is written as sidecar assets with `source: 'plugin'`.
 - **`ts` generated Node-side** — browser `performance.now()` is not aligned with session start; timestamp is assigned when `Runtime.bindingCalled` fires.
 - **`detach()` bulk-unwatches** — callers do not need to clean up individual `WatchHandle`s before detaching.
 - **`capture()` returns array** — supports plugins that produce multiple assets per trigger (e.g. one per WebGL context).
