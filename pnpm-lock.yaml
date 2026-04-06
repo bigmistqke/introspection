@@ -101,20 +101,20 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.17)
 
-  packages/playwright:
+  packages/core:
     dependencies:
-      '@bigmistqke/rpc':
-        specifier: ^0.1.6
-        version: 0.1.6(typescript@5.9.3)
       '@introspection/types':
         specifier: workspace:*
         version: link:../types
-      '@introspection/vite':
+
+  packages/playwright:
+    dependencies:
+      '@introspection/core':
         specifier: workspace:*
-        version: link:../vite
-      ws:
-        specifier: ^8.17.0
-        version: 8.20.0
+        version: link:../core
+      '@introspection/types':
+        specifier: workspace:*
+        version: link:../types
     devDependencies:
       '@playwright/test':
         specifier: ^1.40.0
