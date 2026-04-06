@@ -2,37 +2,152 @@ import { test, expect } from '@playwright/test'
 import { mkdtemp, rm, readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { webgl } from '../src/index.js'
+import { attach } from '@introspection/playwright'
+import type { IntrospectHandle } from '@introspection/types'
 
-// Helpers defined here — expanded in later tasks
-async function getEvents(outDir: string) {
-  const [sessionId] = await readdir(outDir)
-  return (await readFile(join(outDir, sessionId, 'events.ndjson'), 'utf-8'))
-    .trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+// ─── Test helpers ─────────────────────────────────────────────────────────────
+
+async function makeSession(page: import('@playwright/test').Page) {
+  const outDir = await mkdtemp(join(tmpdir(), 'introspect-webgl-'))
+  const plugin = webgl()
+  const handle = await attach(page, { outDir, plugins: [plugin] })
+  return { outDir, plugin, handle }
 }
 
+async function endSession(handle: IntrospectHandle, outDir: string) {
+  await handle.detach()
+  const [sessionId] = await readdir(outDir)
+  const raw = await readFile(join(outDir, sessionId, 'events.ndjson'), 'utf-8')
+  await rm(outDir, { recursive: true, force: true })
+  return raw.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+}
+
+// Sets up a minimal linked WebGL program on the page.
+// Stores gl and prog on window._gl / window._prog for later evaluate() calls.
+async function setupGL(page: import('@playwright/test').Page) {
+  await page.evaluate(() => {
+    const canvas = document.createElement('canvas')
+    document.body.appendChild(canvas)
+    const gl = canvas.getContext('webgl')!
+    const vs = gl.createShader(gl.VERTEX_SHADER)!
+    gl.shaderSource(vs, 'uniform float u_time; uniform vec2 u_resolution; attribute vec4 p; void main(){gl_Position=p*u_time;}')
+    gl.compileShader(vs)
+    const fs = gl.createShader(gl.FRAGMENT_SHADER)!
+    gl.shaderSource(fs, 'void main(){gl_FragColor=vec4(1.0);}')
+    gl.compileShader(fs)
+    const prog = gl.createProgram()!
+    gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog); gl.useProgram(prog)
+    ;(window as unknown as Record<string, unknown>)._gl = gl
+    ;(window as unknown as Record<string, unknown>)._prog = prog
+  })
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
 test('webgl.context-created fires when getContext("webgl") is called', async ({ page }) => {
-  // Dynamic import — will fail until index.ts exists
-  const { webgl } = await import('../src/index.js')
-  const { attach } = await import('@introspection/playwright')
+  const { outDir, handle } = await makeSession(page)
 
-  const outDir = await mkdtemp(join(tmpdir(), 'introspect-webgl-'))
-  try {
-    const plugin = webgl()
-    const handle = await attach(page, { outDir, plugins: [plugin] })
+  await page.evaluate(() => {
+    document.createElement('canvas').getContext('webgl')
+  })
 
-    await page.evaluate(() => {
-      const canvas = document.createElement('canvas')
-      document.body.appendChild(canvas)
-      canvas.getContext('webgl')
-    })
+  const events = await endSession(handle, outDir)
+  const created = events.find((e: { type: string }) => e.type === 'webgl.context-created')
+  expect(created).toBeDefined()
+  expect(created.source).toBe('plugin')
+  expect(typeof created.data.contextId).toBe('string')
+})
 
-    await handle.detach()
-    const events = await getEvents(outDir)
-    const created = events.find((e: { type: string }) => e.type === 'webgl.context-created')
-    expect(created).toBeDefined()
-    expect(created.source).toBe('plugin')
-    expect(created.data.contextId).toBeDefined()
-  } finally {
-    await rm(outDir, { recursive: true, force: true })
-  }
+test('uniform1f push event has correct name, value, and glType', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+  await plugin.watch({ event: 'uniform', name: 'u_time' })
+
+  await page.evaluate(() => {
+    const { _gl: gl, _prog: prog } = window as unknown as { _gl: WebGLRenderingContext; _prog: WebGLProgram }
+    gl.uniform1f(gl.getUniformLocation(prog, 'u_time'), 1.5)
+  })
+
+  const events = await endSession(handle, outDir)
+  const uniform = events.find((e: { type: string; data?: { name: string } }) =>
+    e.type === 'webgl.uniform' && e.data?.name === 'u_time')
+  expect(uniform).toBeDefined()
+  expect(uniform.data.value).toBe(1.5)
+  expect(uniform.data.glType).toBe('float')
+  expect(uniform.source).toBe('plugin')
+})
+
+test('valueChanged suppresses duplicate values, fires on change', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+  await plugin.watch({ event: 'uniform', name: 'u_time', valueChanged: true })
+
+  await page.evaluate(() => {
+    const { _gl: gl, _prog: prog } = window as unknown as { _gl: WebGLRenderingContext; _prog: WebGLProgram }
+    const loc = gl.getUniformLocation(prog, 'u_time')
+    gl.uniform1f(loc, 2.0)  // fires
+    gl.uniform1f(loc, 2.0)  // suppressed — same value
+    gl.uniform1f(loc, 3.0)  // fires — different value
+  })
+
+  const events = await endSession(handle, outDir)
+  const uniforms = events.filter((e: { type: string; data?: { name: string } }) =>
+    e.type === 'webgl.uniform' && e.data?.name === 'u_time')
+  expect(uniforms).toHaveLength(2)
+  expect(uniforms[0].data.value).toBe(2.0)
+  expect(uniforms[1].data.value).toBe(3.0)
+})
+
+test('drawArrays push event has correct primitive name', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+  await plugin.watch({ event: 'draw' })
+
+  await page.evaluate(() => {
+    const { _gl: gl } = window as unknown as { _gl: WebGLRenderingContext }
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+  })
+
+  const events = await endSession(handle, outDir)
+  const draw = events.find((e: { type: string }) => e.type === 'webgl.draw-arrays')
+  expect(draw).toBeDefined()
+  expect(draw.data.primitive).toBe('TRIANGLES')
+  expect(draw.data.first).toBe(0)
+  expect(draw.data.count).toBe(3)
+})
+
+test('unwatch stops events from being pushed', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+  const wh = await plugin.watch({ event: 'draw' })
+
+  await page.evaluate(() => {
+    ;(window as unknown as { _gl: WebGLRenderingContext })._gl.drawArrays(
+      (window as unknown as { _gl: WebGLRenderingContext })._gl.TRIANGLES, 0, 3)
+  })
+  await wh.unwatch()
+  await page.evaluate(() => {
+    ;(window as unknown as { _gl: WebGLRenderingContext })._gl.drawArrays(
+      (window as unknown as { _gl: WebGLRenderingContext })._gl.TRIANGLES, 0, 3)
+  })
+
+  const events = await endSession(handle, outDir)
+  const draws = events.filter((e: { type: string }) => e.type === 'webgl.draw-arrays')
+  expect(draws).toHaveLength(1)  // only the one before unwatch
+})
+
+test('capture() returns webgl-state asset with viewport and context info', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+
+  await handle.snapshot()  // triggers plugin.capture('manual')
+  const events = await endSession(handle, outDir)
+
+  const asset = events.find((e: { type: string; data?: { kind: string } }) =>
+    e.type === 'asset' && e.data?.kind === 'webgl-state')
+  expect(asset).toBeDefined()
+  expect(asset.source).toBe('plugin')
+  expect(asset.data.contextId).toBeDefined()
+  expect(Array.isArray(asset.data.viewport)).toBe(true)
 })
