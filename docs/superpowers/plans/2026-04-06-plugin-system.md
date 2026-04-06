@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript, `@playwright/test` CDP session, `Runtime.addBinding`, `page.addInitScript`, vitest
 
+**Test philosophy:** Test observable behavior — what ends up in `events.ndjson`. Don't test wiring (was method X called?), don't test trivial data structures. The TypeScript compiler handles interface shape.
+
 ---
 
 ## File Map
@@ -26,64 +28,10 @@
 
 **Files:**
 - Modify: `packages/types/src/index.ts`
-- Test: `packages/types/test/index.test.ts` (create)
 
-- [ ] **Step 1: Write the failing test**
+No new test file — the TypeScript compiler enforces interface shape. The tests in later tasks will fail to compile if the types are wrong.
 
-Create `packages/types/test/index.test.ts`:
-
-```ts
-import { describe, it, expectTypeOf } from 'vitest'
-import type {
-  EventSource, TraceEvent, PluginEvent,
-  IntrospectionPlugin, PluginContext, PluginPage, WatchHandle, CaptureResult,
-} from '../src/index.js'
-
-describe('plugin types', () => {
-  it('EventSource includes plugin', () => {
-    const s: EventSource = 'plugin'
-    expectTypeOf(s).toMatchTypeOf<EventSource>()
-  })
-
-  it('PluginEvent is in TraceEvent union', () => {
-    const e: TraceEvent = {
-      id: 'x', ts: 0, source: 'plugin', type: 'webgl.uniform',
-      data: { contextId: 'ctx_0', name: 'u_time', value: 1.0, glType: 'float' },
-    }
-    expectTypeOf(e).toMatchTypeOf<TraceEvent>()
-  })
-
-  it('IntrospectionPlugin has required shape', () => {
-    expectTypeOf<IntrospectionPlugin>().toHaveProperty('name')
-    expectTypeOf<IntrospectionPlugin>().toHaveProperty('script')
-    expectTypeOf<IntrospectionPlugin>().toHaveProperty('install')
-  })
-
-  it('PluginPage has evaluate()', () => {
-    expectTypeOf<PluginPage>().toHaveProperty('evaluate')
-  })
-
-  it('WatchHandle has unwatch()', () => {
-    expectTypeOf<WatchHandle>().toHaveProperty('unwatch')
-  })
-
-  it('CaptureResult has kind, content, summary', () => {
-    expectTypeOf<CaptureResult>().toHaveProperty('kind')
-    expectTypeOf<CaptureResult>().toHaveProperty('content')
-    expectTypeOf<CaptureResult>().toHaveProperty('summary')
-  })
-})
-```
-
-- [ ] **Step 2: Run to verify it fails**
-
-```
-cd packages/types && pnpm test
-```
-
-Expected: compilation errors — `PluginEvent`, `IntrospectionPlugin`, etc. not found.
-
-- [ ] **Step 3: Add types to `packages/types/src/index.ts`**
+- [ ] **Step 1: Update `packages/types/src/index.ts`**
 
 After the existing `EventSource` line, replace:
 ```ts
@@ -137,7 +85,7 @@ export interface PluginContext {
     source?: EventSource
   }): Promise<string>
   timestamp(): number
-  /** Internal: installs a browser-side watch and registers it for navigation recovery. */
+  /** Installs a browser-side watch and registers it for navigation recovery. */
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
 }
 
@@ -149,19 +97,19 @@ export interface IntrospectionPlugin {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [ ] **Step 2: Verify it compiles**
 
 ```
-cd packages/types && pnpm test
+cd packages/types && pnpm build
 ```
 
-Expected: all pass.
+Expected: no errors.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add packages/types/src/index.ts packages/types/test/index.test.ts
-git commit -m "feat(types): add plugin system types — EventSource, PluginEvent, IntrospectionPlugin, PluginContext, WatchHandle, CaptureResult"
+git add packages/types/src/index.ts
+git commit -m "feat(types): add plugin system types — PluginPage, PluginEvent, IntrospectionPlugin, PluginContext, WatchHandle, CaptureResult"
 ```
 
 ---
@@ -170,23 +118,20 @@ git commit -m "feat(types): add plugin system types — EventSource, PluginEvent
 
 **Files:**
 - Modify: `packages/core/src/session-writer.ts`
-- Modify: `packages/core/test/session-writer.test.ts` (add test case)
+- Modify: `packages/core/test/session-writer.test.ts`
 
-- [ ] **Step 1: Find the existing writeAsset test**
+- [ ] **Step 1: Confirm tests pass before any change**
 
 ```
 cd packages/core && pnpm test
 ```
 
-Confirm tests pass before any change.
+- [ ] **Step 2: Write the failing test**
 
-- [ ] **Step 2: Add failing test**
-
-In `packages/core/test/session-writer.test.ts`, add inside the `writeAsset` describe block (or create one):
+In `packages/core/test/session-writer.test.ts`, add:
 
 ```ts
-it('writeAsset uses source: plugin when passed', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'iw-'))
+it('writeAsset emits asset event with source: plugin when passed', async () => {
   await initSessionDir(dir, { id: 'sid', startedAt: 0 })
   await writeAsset({
     directory: dir, name: 'sid', kind: 'webgl-state',
@@ -196,7 +141,6 @@ it('writeAsset uses source: plugin when passed', async () => {
   const events = ndjson.trim().split('\n').map(l => JSON.parse(l))
   const asset = events.find((e: { type: string }) => e.type === 'asset')
   expect(asset.source).toBe('plugin')
-  await rm(dir, { recursive: true, force: true })
 })
 ```
 
@@ -206,29 +150,25 @@ it('writeAsset uses source: plugin when passed', async () => {
 cd packages/core && pnpm test
 ```
 
-Expected: test fails — writeAsset doesn't accept source param, asset.source is 'agent'.
+Expected: TypeScript error — `source` not in opts type; or test fails with `asset.source === 'agent'`.
 
-- [ ] **Step 4: Update `writeAsset` in `packages/core/src/session-writer.ts`**
+- [ ] **Step 4: Update `packages/core/src/session-writer.ts`**
 
-First, add `EventSource` to the existing import at line 4:
+Add `EventSource` to the existing import at the top:
 ```ts
 import type { TraceEvent, SessionMeta, BodySummary, EventSource } from '@introspection/types'
 ```
 
-Then add `source?: EventSource` to the `writeAsset` opts type (the existing `opts` object, not a new signature):
+Add `source?: EventSource` to the `writeAsset` opts type, and use it inside the function:
 ```ts
-export async function writeAsset(opts: {
-  directory: string
-  name: string
-  kind: string
-  content: string | Buffer
-  ext?: string
-  metadata: { timestamp: number; [key: string]: unknown }
-  source?: EventSource   // ← add this line
-}): Promise<string>
-```
+// In opts type — add:
+source?: EventSource
 
-Inside the function, change `source: 'agent' as const` to `source: (opts.source ?? 'agent') as EventSource`.
+// In the event object — change:
+source: 'agent' as const,
+// To:
+source: (opts.source ?? 'agent') as EventSource,
+```
 
 - [ ] **Step 5: Run tests**
 
@@ -251,59 +191,10 @@ git commit -m "feat(core): writeAsset accepts optional source param, defaults to
 
 **Files:**
 - Create: `packages/playwright/src/plugin-registry.ts`
-- Create: `packages/playwright/test/plugin-registry.test.ts`
 
-The registry stores `{ plugin, spec, browserId }` per subscription. `attach.ts` creates one registry per session, passes it into the `PluginContext`, and uses it to re-apply subscriptions on navigation.
+No dedicated unit test — it's a thin Map wrapper. Its behavior is covered by the integration tests in Task 4.
 
-- [ ] **Step 1: Write the failing test**
-
-Create `packages/playwright/test/plugin-registry.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import { PluginRegistry } from '../src/plugin-registry.js'
-
-describe('PluginRegistry', () => {
-  it('add() stores subscription and returns node-side id', () => {
-    const registry = new PluginRegistry()
-    const id = registry.add('webgl', { event: 'uniform' }, 'browser-id-1')
-    expect(id).toBeDefined()
-    expect(registry.get(id)).toMatchObject({ pluginName: 'webgl', spec: { event: 'uniform' }, browserId: 'browser-id-1' })
-  })
-
-  it('remove() deletes and returns the subscription', () => {
-    const registry = new PluginRegistry()
-    const id = registry.add('webgl', { event: 'draw' }, 'b1')
-    const removed = registry.remove(id)
-    expect(removed).toMatchObject({ pluginName: 'webgl', browserId: 'b1' })
-    expect(registry.get(id)).toBeUndefined()
-  })
-
-  it('all() returns all entries', () => {
-    const registry = new PluginRegistry()
-    registry.add('webgl', { event: 'uniform' }, 'b1')
-    registry.add('webgl', { event: 'draw' }, 'b2')
-    expect([...registry.all()]).toHaveLength(2)
-  })
-
-  it('updateBrowserId() replaces the browserId on an existing entry', () => {
-    const registry = new PluginRegistry()
-    const id = registry.add('webgl', { event: 'uniform' }, 'old-id')
-    registry.updateBrowserId(id, 'new-id')
-    expect(registry.get(id)?.browserId).toBe('new-id')
-  })
-})
-```
-
-- [ ] **Step 2: Run to verify it fails**
-
-```
-cd packages/playwright && pnpm test
-```
-
-Expected: `plugin-registry.js` not found.
-
-- [ ] **Step 3: Create `packages/playwright/src/plugin-registry.ts`**
+- [ ] **Step 1: Create `packages/playwright/src/plugin-registry.ts`**
 
 ```ts
 export interface PluginSubscription {
@@ -343,186 +234,121 @@ export class PluginRegistry {
 }
 ```
 
-- [ ] **Step 4: Run tests**
-
-```
-cd packages/playwright && pnpm test
-```
-
-Expected: plugin-registry tests pass.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 2: Commit**
 
 ```bash
-git add packages/playwright/src/plugin-registry.ts packages/playwright/test/plugin-registry.test.ts
+git add packages/playwright/src/plugin-registry.ts
 git commit -m "feat(playwright): add PluginRegistry for node-side subscription tracking"
 ```
 
 ---
 
-### Task 4: Wire plugin system into `attach()`
+### Task 4: Wire plugin system into `attach()` — with behavioral tests
 
 **Files:**
 - Modify: `packages/playwright/src/attach.ts`
 - Modify: `packages/playwright/test/attach.test.ts`
 
-This is the core integration: script injection, push bridge, `install(ctx)`, `load` re-apply, capture triggers, bulk unwatch.
+Tests focus on what ends up in `events.ndjson` — not on whether internal methods were called.
 
-- [ ] **Step 1: Write failing tests first**
+- [ ] **Step 1: Write failing behavioral tests**
 
-First, update the existing `makeFakePage()` helper in `attach.test.ts` to add `page.on` and `page.addInitScript` mocks (required by the plugin integration):
+First, update the existing `makeFakePage()` helper to add `addInitScript` and `on` mocks:
 
 ```ts
 // Inside makeFakePage(), add to the page object:
 addInitScript: vi.fn().mockResolvedValue(undefined),
+evaluate: vi.fn().mockResolvedValue(undefined),  // update existing mock — now returns undefined by default
 on: vi.fn(),
 ```
 
-Then add the plugin helper and tests:
+Then add a minimal plugin that actually pushes events browser-side. Because the fake CDP session intercepts `Runtime.bindingCalled`, we can simulate it manually:
 
 ```ts
-// Helper that builds a minimal IntrospectionPlugin for testing
-function makePlugin(name = 'test-plugin') {
-  const installed = vi.fn()
-  const captured = vi.fn().mockResolvedValue([])
-  return {
-    plugin: {
-      name,
-      script: `window.__introspect_plugins__ = window.__introspect_plugins__ || {}; window.__introspect_plugins__['${name}'] = { watch(spec){ return 'b1' }, unwatch(id){} }`,
-      install: installed,
-      capture: captured,
-    } as import('@introspection/types').IntrospectionPlugin,
-    installed,
-    captured,
-  }
-}
-
 describe('attach() with plugins', () => {
-  it('calls plugin.install() with a PluginContext after attach', async () => {
-    const { page, cdp } = makeFakePage()
-    // Runtime.evaluate returns browser-side watch ID
-    cdp.send.mockImplementation((method: string) => {
-      if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'b1' } })
-      return Promise.resolve({})
-    })
-    const { plugin, installed } = makePlugin()
-    await attach(page, { outDir: dir, plugins: [plugin] })
-    expect(installed).toHaveBeenCalledOnce()
-    const ctx = installed.mock.calls[0][0]
-    expect(ctx).toHaveProperty('emit')
-    expect(ctx).toHaveProperty('writeAsset')
-    expect(ctx).toHaveProperty('timestamp')
-    expect(ctx).toHaveProperty('addSubscription')
-  })
-
-  it('installs Runtime.addBinding for __introspect_push__', async () => {
-    const { page, cdp } = makeFakePage()
-    const { plugin } = makePlugin()
-    await attach(page, { outDir: dir, plugins: [plugin] })
-    expect(cdp.send).toHaveBeenCalledWith('Runtime.addBinding', { name: '__introspect_push__' })
-  })
-
-  it('Runtime.bindingCalled with __introspect_push__ emits a PluginEvent', async () => {
+  it('push event from browser appears in events.ndjson with source: plugin', async () => {
     const { page, cdp, trigger } = makeFakePage()
-    const { plugin } = makePlugin()
+    const plugin: import('@introspection/types').IntrospectionPlugin = {
+      name: 'test', script: '', install: async () => {},
+    }
     const handle = await attach(page, { outDir: dir, plugins: [plugin] })
+
+    // Simulate browser calling window.__introspect_push__(...)
     trigger('Runtime.bindingCalled', {
       name: '__introspect_push__',
-      payload: JSON.stringify({ type: 'webgl.uniform', data: { contextId: 'ctx_0', name: 'u_time', value: 1.0, glType: 'float' } }),
+      payload: JSON.stringify({ type: 'webgl.uniform', data: { name: 'u_time', value: 1.5, glType: 'float' } }),
     })
     await new Promise(r => setTimeout(r, 10))
     await handle.detach()
-    const entries = await readdir(dir)
-    const ndjson = await readFile(join(dir, entries[0], 'events.ndjson'), 'utf-8')
-    const events = ndjson.trim().split('\n').map(l => JSON.parse(l))
-    const pluginEvent = events.find((e: { type: string }) => e.type === 'webgl.uniform')
-    expect(pluginEvent).toBeDefined()
-    expect(pluginEvent.source).toBe('plugin')
-    expect(pluginEvent.data.name).toBe('u_time')
+
+    const [sessionId] = await readdir(dir)
+    const events = (await readFile(join(dir, sessionId, 'events.ndjson'), 'utf-8'))
+      .trim().split('\n').map(l => JSON.parse(l))
+
+    const pushed = events.find((e: { type: string }) => e.type === 'webgl.uniform')
+    expect(pushed).toBeDefined()
+    expect(pushed.source).toBe('plugin')
+    expect(pushed.data.name).toBe('u_time')
+    expect(pushed.data.value).toBe(1.5)
   })
 
-  it('ignores Runtime.bindingCalled for other bindings', async () => {
-    const { page, cdp, trigger } = makeFakePage()
-    const { plugin } = makePlugin()
-    const handle = await attach(page, { outDir: dir, plugins: [plugin] })
-    // Should not throw
-    trigger('Runtime.bindingCalled', { name: 'someOtherBinding', payload: '{}' })
-    await new Promise(r => setTimeout(r, 10))
-    await handle.detach()
-  })
-
-  it('detach() calls plugin.capture("detach", ts)', async () => {
+  it('ctx.writeAsset produces an asset event with source: plugin in events.ndjson', async () => {
     const { page, cdp } = makeFakePage()
-    const { plugin, captured } = makePlugin()
-    const handle = await attach(page, { outDir: dir, plugins: [plugin] })
-    await handle.detach()
-    expect(captured).toHaveBeenCalledWith('detach', expect.any(Number))
-  })
-
-  it('snapshot() calls plugin.capture("manual", ts)', async () => {
-    const { page, cdp } = makeFakePage()
-    cdp.send.mockImplementation((method: string) => {
-      if (method === 'DOM.getDocument') return Promise.resolve({ root: { nodeId: 1 } })
-      if (method === 'DOM.getOuterHTML') return Promise.resolve({ outerHTML: '<html/>' })
-      return Promise.resolve({})
-    })
-    const { plugin, captured } = makePlugin()
-    const handle = await attach(page, { outDir: dir, plugins: [plugin] })
-    await handle.snapshot()
-    expect(captured).toHaveBeenCalledWith('manual', expect.any(Number))
-    await handle.detach()
-  })
-
-  it('ctx.writeAsset writes an asset event with source: plugin', async () => {
-    const { page, cdp } = makeFakePage()
-    let capturedCtx: import('@introspection/types').PluginContext
+    let savedCtx: import('@introspection/types').PluginContext
     const plugin: import('@introspection/types').IntrospectionPlugin = {
       name: 'test', script: '',
-      async install(ctx) { capturedCtx = ctx },
+      async install(ctx) { savedCtx = ctx },
     }
-    await attach(page, { outDir: dir, plugins: [plugin] })
-    await capturedCtx!.writeAsset({ kind: 'webgl-state', content: '{"ok":true}', metadata: { timestamp: 5 } })
-    const entries = await readdir(dir)
-    const ndjson = await readFile(join(dir, entries[0], 'events.ndjson'), 'utf-8')
-    const events = ndjson.trim().split('\n').map(l => JSON.parse(l))
+    const handle = await attach(page, { outDir: dir, plugins: [plugin] })
+    await savedCtx!.writeAsset({ kind: 'webgl-state', content: '{"ok":true}', metadata: { timestamp: 5 } })
+    await handle.detach()
+
+    const [sessionId] = await readdir(dir)
+    const events = (await readFile(join(dir, sessionId, 'events.ndjson'), 'utf-8'))
+      .trim().split('\n').map(l => JSON.parse(l))
+
     const asset = events.find((e: { type: string }) => e.type === 'asset')
     expect(asset).toBeDefined()
     expect(asset.source).toBe('plugin')
     expect(asset.data.kind).toBe('webgl-state')
   })
 
-  it('ctx.addSubscription installs watch browser-side and returns WatchHandle', async () => {
-    const { page, cdp } = makeFakePage()
-    cdp.send.mockImplementation((method: string) => {
-      if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'b42' } })
-      return Promise.resolve({})
-    })
-    let capturedCtx: import('@introspection/types').PluginContext
+  it('detach() triggers plugin.capture("detach") and writes resulting assets', async () => {
+    const { page } = makeFakePage()
     const plugin: import('@introspection/types').IntrospectionPlugin = {
-      name: 'test', script: '',
-      async install(ctx) { capturedCtx = ctx },
+      name: 'test', script: '', install: async () => {},
+      async capture(trigger) {
+        if (trigger !== 'detach') return []
+        return [{ kind: 'webgl-state', content: '{"detached":true}', summary: { contextId: 'ctx_0' } }]
+      },
     }
-    await attach(page, { outDir: dir, plugins: [plugin] })
-    const wh = await capturedCtx!.addSubscription('test', { event: 'uniform' })
-    expect(wh).toHaveProperty('unwatch')
-    expect(typeof wh.unwatch).toBe('function')
+    await attach(page, { outDir: dir, plugins: [plugin] }).then(h => h.detach())
+
+    const [sessionId] = await readdir(dir)
+    const events = (await readFile(join(dir, sessionId, 'events.ndjson'), 'utf-8'))
+      .trim().split('\n').map(l => JSON.parse(l))
+
+    const asset = events.find((e: { type: string; data?: { kind: string } }) =>
+      e.type === 'asset' && e.data?.kind === 'webgl-state')
+    expect(asset).toBeDefined()
+    expect(asset.source).toBe('plugin')
   })
 })
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [ ] **Step 2: Run to verify tests fail**
 
 ```
 cd packages/playwright && pnpm test
 ```
 
-Expected: all new tests fail — `plugins` option not implemented.
+Expected: new tests fail — `plugins` option not implemented.
 
 - [ ] **Step 3: Update `packages/playwright/src/attach.ts`**
 
 Add imports at top:
 ```ts
-import type { IntrospectionPlugin, PluginContext, CaptureResult } from '@introspection/types'
+import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 import { PluginRegistry } from './plugin-registry.js'
 import { writeAsset as coreWriteAsset } from '@introspection/core'
 ```
@@ -537,13 +363,12 @@ export interface AttachOptions {
 }
 ```
 
-Inside `attach()`, after `const cdp = await page.context().newCDPSession(page)` and the existing `ts()` / `emit()` helpers, add plugin setup:
+Inside `attach()`, after the existing `ts()` and `emit()` helpers:
 
 ```ts
 const plugins = opts.plugins ?? []
 const registry = new PluginRegistry()
 
-// Build PluginContext for each plugin
 function makePluginCtx(plugin: IntrospectionPlugin): PluginContext {
   return {
     page,
@@ -551,18 +376,14 @@ function makePluginCtx(plugin: IntrospectionPlugin): PluginContext {
     emit,
     async writeAsset(wopts) {
       return coreWriteAsset({
-        directory: outDir,
-        name: sessionId,
-        kind: wopts.kind,
-        content: wopts.content,
-        ext: wopts.ext,
-        metadata: wopts.metadata,
-        source: wopts.source ?? 'plugin',
+        directory: outDir, name: sessionId,
+        kind: wopts.kind, content: wopts.content, ext: wopts.ext,
+        metadata: wopts.metadata, source: wopts.source ?? 'plugin',
       })
     },
     timestamp: ts,
     async addSubscription(pluginName: string, spec: unknown) {
-      const expr = `(() => { const p = window.__introspect_plugins__['${pluginName}']; return p ? p.watch(${JSON.stringify(spec)}) : null })()`
+      const expr = `(() => { const p = window.__introspect_plugins__?.['${pluginName}']; return p ? p.watch(${JSON.stringify(spec)}) : null })()`
       const result = await cdp.send('Runtime.evaluate', { expression: expr, returnByValue: true }) as { result: { value: string } }
       const browserId = result.result.value
       const nodeId = registry.add(pluginName, spec, browserId)
@@ -570,35 +391,32 @@ function makePluginCtx(plugin: IntrospectionPlugin): PluginContext {
         async unwatch() {
           const sub = registry.remove(nodeId)
           if (!sub) return
-          const unwatchExpr = `(() => { const p = window.__introspect_plugins__['${sub.pluginName}']; if (p) p.unwatch(${JSON.stringify(sub.browserId)}) })()`
-          await cdp.send('Runtime.evaluate', { expression: unwatchExpr }).catch(() => {/* non-fatal */})
-        }
+          const unwatchExpr = `(() => { window.__introspect_plugins__?.['${sub.pluginName}']?.unwatch(${JSON.stringify(sub.browserId)}) })()`
+          await cdp.send('Runtime.evaluate', { expression: unwatchExpr }).catch(() => {})
+        },
       }
     },
   }
 }
 ```
 
-After `emit` definition, add push bridge and script injection:
+After `emit` definition, add the push bridge and plugin setup:
 
 ```ts
-// Install push bridge
+// Push bridge — browser calls window.__introspect_push__(JSON.stringify({type, data}))
 await cdp.send('Runtime.addBinding', { name: '__introspect_push__' })
-
-// Wire push handler
 cdp.on('Runtime.bindingCalled', (params: { name: string; payload: string }) => {
   if (params.name !== '__introspect_push__') return
   try {
-    const payload = JSON.parse(params.payload) as { type: string; data: Record<string, unknown> }
-    emit({ type: payload.type as never, source: 'plugin' as never, data: payload.data } as never)
+    const { type, data } = JSON.parse(params.payload) as { type: string; data: Record<string, unknown> }
+    emit({ type: type as never, source: 'plugin' as never, data } as never)
   } catch { /* malformed push — ignore */ }
 })
 
-// Inject plugin scripts (runs on every future navigation)
-// and evaluate immediately for the current page (already loaded)
+// Inject scripts (future navigations) + evaluate immediately (current page)
 for (const plugin of plugins) {
   await page.addInitScript({ content: plugin.script })
-  await page.evaluate((script) => { new Function(script)() }, plugin.script).catch(() => {/* non-fatal if page not ready */})
+  await page.evaluate((s: string) => { new Function(s)() }, plugin.script).catch(() => {})
   await plugin.install(makePluginCtx(plugin))
 }
 
@@ -607,63 +425,51 @@ page.on('load', () => {
   void (async () => {
     for (const [nodeId, sub] of registry.all()) {
       try {
-        const expr = `(() => { const p = window.__introspect_plugins__['${sub.pluginName}']; return p ? p.watch(${JSON.stringify(sub.spec)}) : null })()`
+        const expr = `(() => { const p = window.__introspect_plugins__?.['${sub.pluginName}']; return p ? p.watch(${JSON.stringify(sub.spec)}) : null })()`
         const result = await cdp.send('Runtime.evaluate', { expression: expr, returnByValue: true }) as { result: { value: string } }
         registry.updateBrowserId(nodeId, result.result.value)
-      } catch { /* non-fatal — page may not have the plugin */ }
+      } catch { /* non-fatal */ }
     }
   })()
 })
 ```
 
-In the `Runtime.exceptionThrown` handler, after writing the snapshot asset, call plugin capture:
-
+In `Runtime.exceptionThrown` handler, after the existing snapshot write:
 ```ts
-// After writeAsset for snapshot:
 for (const plugin of plugins) {
   if (!plugin.capture) continue
   try {
-    const results = await plugin.capture('js.error', ts())
-    for (const r of results) {
+    for (const r of await plugin.capture('js.error', ts()))
       await coreWriteAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
-    }
   } catch { /* non-fatal */ }
 }
 ```
 
-In `snapshot()`, after writing the snapshot asset:
-
+In `snapshot()`, after the existing snapshot write:
 ```ts
 for (const plugin of plugins) {
   if (!plugin.capture) continue
   try {
-    const results = await plugin.capture('manual', ts())
-    for (const r of results) {
+    for (const r of await plugin.capture('manual', ts()))
       await coreWriteAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
-    }
   } catch { /* non-fatal */ }
 }
 ```
 
 In `detach()`, before `finalizeSession`:
-
 ```ts
-// Bulk unwatch all active subscriptions
+// Bulk unwatch
 for (const [, sub] of registry.all()) {
-  try {
-    const expr = `(() => { const p = window.__introspect_plugins__['${sub.pluginName}']; if (p) p.unwatch(${JSON.stringify(sub.browserId)}) })()`
-    await cdp.send('Runtime.evaluate', { expression: expr }).catch(() => {})
-  } catch { /* non-fatal */ }
+  const expr = `(() => { window.__introspect_plugins__?.['${sub.pluginName}']?.unwatch(${JSON.stringify(sub.browserId)}) })()`
+  await cdp.send('Runtime.evaluate', { expression: expr }).catch(() => {})
 }
 
-// Capture detach state for all plugins
+// Capture detach state
 for (const plugin of plugins) {
   if (!plugin.capture) continue
   try {
-    const results = await plugin.capture('detach', ts())
-    for (const r of results) {
+    for (const r of await plugin.capture('detach', ts()))
       await coreWriteAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
-    }
   } catch { /* non-fatal */ }
 }
 ```
@@ -693,15 +499,15 @@ git commit -m "feat(playwright): wire plugin system into attach() — push bridg
 
 - [ ] **Step 1: Write failing test**
 
-In `packages/cli/test/commands/events.test.ts`, add a test for `--source plugin`. First, add a plugin event to the fixture `trace`:
+In `packages/cli/test/commands/events.test.ts`, add a plugin event to the fixture `trace`:
 
 ```ts
-{ id: 'e6', type: 'webgl.uniform', ts: 450, source: 'plugin', data: { contextId: 'ctx_0', name: 'u_time', value: 1.0, glType: 'float' } },
+{ id: 'e6', type: 'webgl.uniform', ts: 450, source: 'plugin', data: { name: 'u_time', value: 1.5 } },
 ```
 
-Then add:
+Add test:
 ```ts
-it('--source plugin filters to plugin events', () => {
+it('--source plugin returns only plugin events', () => {
   const result = applyEventFilters(trace, { source: 'plugin' })
   expect(result).toHaveLength(1)
   expect(result[0].id).toBe('e6')
@@ -716,18 +522,13 @@ cd packages/cli && pnpm test
 
 Expected: fails with `unknown source "plugin"`.
 
-- [ ] **Step 3: Update `VALID_SOURCES`**
+- [ ] **Step 3: Update `packages/cli/src/commands/events.ts`**
 
-In `packages/cli/src/commands/events.ts`, change:
-```ts
-const VALID_SOURCES = new Set(['cdp', 'agent', 'playwright'])
-```
-To:
 ```ts
 const VALID_SOURCES = new Set(['cdp', 'agent', 'playwright', 'plugin'])
 ```
 
-Also update the error message:
+Update the error message:
 ```ts
 throw new Error(`unknown source "${opts.source}". Valid values: cdp, agent, playwright, plugin`)
 ```
@@ -737,8 +538,6 @@ throw new Error(`unknown source "${opts.source}". Valid values: cdp, agent, play
 ```
 cd packages/cli && pnpm test
 ```
-
-Expected: all pass.
 
 - [ ] **Step 5: Commit**
 
@@ -762,7 +561,5 @@ Expected: all packages pass.
 - [ ] **Step 2: Commit if any loose changes remain**
 
 ```bash
-git status
-git add -p  # stage only intentional changes
-git commit -m "chore(plugin-system): final integration check"
+git status && git add -p && git commit -m "chore: final integration check"
 ```

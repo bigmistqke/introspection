@@ -6,9 +6,11 @@
 
 **Architecture:** Two-layer design. `browser.ts` is a self-contained browser-side script (bundled separately) that patches WebGL prototypes and exposes `window.__introspect_plugins__.webgl`. `index.ts` is the Node-side plugin factory that implements `IntrospectionPlugin`, stores `PluginContext` during `install()`, and exposes a typed `watch()` API that calls `ctx.addSubscription()`. Two-pass tsup build: browser bundle first, then Node bundle that embeds it as a string literal via placeholder substitution.
 
-**Tech Stack:** TypeScript, tsup (two-pass build), vitest, `@introspection/types` (only runtime dep)
+**Tech Stack:** TypeScript, tsup (two-pass, sequential), vitest (unit), `@playwright/test` (integration), `@introspection/types` (only runtime dep)
 
-**Depends on:** Plugin system plan (`2026-04-06-plugin-system.md`) must be complete first. That plan adds `IntrospectionPlugin`, `PluginContext`, `PluginPage`, `WatchHandle`, `CaptureResult`, and `EventSource: 'plugin'` to `@introspection/types`. This plan imports all of those — they must exist before any code in this plan can compile.
+**Depends on:** Plugin system plan (`2026-04-06-plugin-system.md`) must be complete first. That plan adds `IntrospectionPlugin`, `PluginContext`, `PluginPage`, `WatchHandle`, `CaptureResult`, and `EventSource: 'plugin'` to `@introspection/types`.
+
+**Test philosophy:** Browser-side interceptor behavior is tested in a real browser via Playwright — no WebGL stubs, no mocks, no "did it call X". Unit tests cover only non-obvious Node-side transformations (RegExp serialization). The TypeScript compiler handles interface shape.
 
 ---
 
@@ -16,12 +18,14 @@
 
 | File | Change | Responsibility |
 |------|--------|----------------|
-| `packages/plugin-webgl/package.json` | Create | Package manifest, workspace dep on `@introspection/types` |
-| `packages/plugin-webgl/tsup.config.ts` | Create | Two-pass build: browser bundle → embed in Node bundle |
-| `packages/plugin-webgl/src/browser.ts` | Create | Browser-side script: always-active interceptors, lazy interceptors, push events |
-| `packages/plugin-webgl/src/index.ts` | Create | Node-side: `webgl()` factory, `IntrospectionPlugin` impl, typed `watch()` API |
-| `packages/plugin-webgl/test/webgl.test.ts` | Create | Unit tests for Node-side plugin |
-| `pnpm-workspace.yaml` | Already covers `packages/*` | No change needed |
+| `packages/plugin-webgl/package.json` | Create | Package manifest; deps on `@introspection/types`, `@introspection/playwright`; devDep on `@playwright/test` |
+| `packages/plugin-webgl/tsup.browser.config.ts` | Create | Pass 1: browser IIFE bundle |
+| `packages/plugin-webgl/tsup.node.config.ts` | Create | Pass 2: Node ESM bundle with browser script embedded |
+| `packages/plugin-webgl/src/browser.ts` | Create | Browser-side script: always-active + lazy WebGL interceptors |
+| `packages/plugin-webgl/src/index.ts` | Create | Node-side: `webgl()` factory, `IntrospectionPlugin` impl, typed `watch()` |
+| `packages/plugin-webgl/test/unit.test.ts` | Create | Unit tests: RegExp serialization only |
+| `packages/plugin-webgl/test/webgl.spec.ts` | Create | Playwright integration tests: real browser behavior |
+| `packages/plugin-webgl/playwright.config.ts` | Create | Minimal Playwright config for this package |
 
 ---
 
@@ -29,7 +33,9 @@
 
 **Files:**
 - Create: `packages/plugin-webgl/package.json`
-- Create: `packages/plugin-webgl/tsup.config.ts`
+- Create: `packages/plugin-webgl/tsup.browser.config.ts`
+- Create: `packages/plugin-webgl/tsup.node.config.ts`
+- Create: `packages/plugin-webgl/playwright.config.ts`
 
 - [ ] **Step 1: Create `packages/plugin-webgl/package.json`**
 
@@ -46,12 +52,16 @@
   },
   "scripts": {
     "build": "tsup --config tsup.browser.config.ts && tsup --config tsup.node.config.ts",
-    "test": "vitest run"
+    "test:unit": "vitest run",
+    "test:integration": "playwright test",
+    "test": "pnpm run test:unit && pnpm run test:integration"
   },
   "dependencies": {
     "@introspection/types": "workspace:*"
   },
   "devDependencies": {
+    "@introspection/playwright": "workspace:*",
+    "@playwright/test": "^1.40.0",
     "tsup": "^8.0.0",
     "vitest": "^1.0.0",
     "typescript": "^5.0.0"
@@ -59,11 +69,8 @@
 }
 ```
 
-- [ ] **Step 2: Create two separate tsup config files**
+- [ ] **Step 2: Create `packages/plugin-webgl/tsup.browser.config.ts`**
 
-The two passes must be sequential — pass 2 reads `dist/browser.iife.js` which pass 1 creates. Using a single `defineConfig([...])` array would run them concurrently and fail. Split into two files:
-
-**`packages/plugin-webgl/tsup.browser.config.ts`** — pass 1, browser IIFE bundle:
 ```ts
 import { defineConfig } from 'tsup'
 
@@ -79,7 +86,8 @@ export default defineConfig({
 })
 ```
 
-**`packages/plugin-webgl/tsup.node.config.ts`** — pass 2, Node ESM bundle with browser script embedded:
+- [ ] **Step 3: Create `packages/plugin-webgl/tsup.node.config.ts`**
+
 ```ts
 import { defineConfig } from 'tsup'
 import { readFileSync } from 'fs'
@@ -98,8 +106,7 @@ export default defineConfig({
         build.onLoad({ filter: /src\/index\.ts$/ }, async (args) => {
           const src = readFileSync(args.path, 'utf-8')
           const browserScript = readFileSync(resolve('dist/browser.iife.js'), 'utf-8')
-          const escaped = JSON.stringify(browserScript)
-          const result = src.replace("'__BROWSER_SCRIPT_PLACEHOLDER__'", escaped)
+          const result = src.replace("'__BROWSER_SCRIPT_PLACEHOLDER__'", JSON.stringify(browserScript))
           return { contents: result, loader: 'ts' }
         })
       },
@@ -108,7 +115,26 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 3: Verify pnpm picks up the new package**
+- [ ] **Step 4: Create `packages/plugin-webgl/playwright.config.ts`**
+
+```ts
+import { defineConfig } from '@playwright/test'
+
+export default defineConfig({
+  testDir: './test',
+  testMatch: '**/*.spec.ts',
+  use: {
+    headless: true,
+    launchOptions: {
+      args: ['--enable-webgl', '--use-gl=swiftshader'],
+    },
+  },
+})
+```
+
+Note: `--use-gl=swiftshader` ensures WebGL works in headless Chromium (software renderer).
+
+- [ ] **Step 5: Install and verify workspace picks up the package**
 
 ```
 pnpm install
@@ -116,11 +142,11 @@ pnpm install
 
 Expected: `@introspection/plugin-webgl` appears in workspace.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add packages/plugin-webgl/package.json packages/plugin-webgl/tsup.browser.config.ts packages/plugin-webgl/tsup.node.config.ts
-git commit -m "feat(plugin-webgl): add package scaffold with two-pass tsup config"
+git add packages/plugin-webgl/
+git commit -m "feat(plugin-webgl): add package scaffold with sequential two-pass tsup config and playwright setup"
 ```
 
 ---
@@ -130,67 +156,85 @@ git commit -m "feat(plugin-webgl): add package scaffold with two-pass tsup confi
 **Files:**
 - Create: `packages/plugin-webgl/src/browser.ts`
 
-This file is bundled independently — no imports from Node, no external deps. It runs in the browser before any app code.
+This file is bundled independently — no imports, no external deps. It runs in the browser before any app code.
 
-- [ ] **Step 1: Write the failing test (Node-side smoke test for browser script existence)**
+- [ ] **Step 1: Write a failing integration test first**
 
-Create `packages/plugin-webgl/test/webgl.test.ts` with just a placeholder:
+Create `packages/plugin-webgl/test/webgl.spec.ts`:
 
 ```ts
-import { describe, it, expect } from 'vitest'
+import { test, expect } from '@playwright/test'
+import { mkdtemp, rm, readdir, readFile } from 'fs/promises'
+import { join } from 'path'
+import { tmpdir } from 'os'
 
-describe('browser script', () => {
-  it('is a non-empty string (placeholder — real tests in Task 3)', () => {
-    // Will be replaced with actual import once index.ts exists
-    // This import will fail until index.ts exists
-    const { webgl } = await import('../src/index.js')
+// Helpers defined here — expanded in later tasks
+async function getEvents(outDir: string) {
+  const [sessionId] = await readdir(outDir)
+  return (await readFile(join(outDir, sessionId, 'events.ndjson'), 'utf-8'))
+    .trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+}
+
+test('webgl.context-created fires when getContext("webgl") is called', async ({ page }) => {
+  // Dynamic import — will fail until index.ts exists
+  const { webgl } = await import('../src/index.js')
+  const { attach } = await import('@introspection/playwright')
+
+  const outDir = await mkdtemp(join(tmpdir(), 'introspect-webgl-'))
+  try {
     const plugin = webgl()
-    expect(plugin.script).toContain('__introspect_plugins__')
-    expect(plugin.script).toContain('webgl')
-  })
+    const handle = await attach(page, { outDir, plugins: [plugin] })
+
+    await page.evaluate(() => {
+      const canvas = document.createElement('canvas')
+      document.body.appendChild(canvas)
+      canvas.getContext('webgl')
+    })
+
+    await handle.detach()
+    const events = await getEvents(outDir)
+    const created = events.find((e: { type: string }) => e.type === 'webgl.context-created')
+    expect(created).toBeDefined()
+    expect(created.source).toBe('plugin')
+    expect(created.data.contextId).toBeDefined()
+  } finally {
+    await rm(outDir, { recursive: true, force: true })
+  }
 })
 ```
 
+- [ ] **Step 2: Run to verify it fails**
+
 ```
-cd packages/plugin-webgl && pnpm test
+cd packages/plugin-webgl && pnpm run test:integration
 ```
 
-Expected: fails — `../src/index.js` not found. (This test stays in the file and will pass once Task 3 is complete.)
+Expected: fails — `../src/index.js` not found.
 
-- [ ] **Step 2: Create `packages/plugin-webgl/src/browser.ts`**
+- [ ] **Step 3: Create `packages/plugin-webgl/src/browser.ts`**
 
 ```ts
 // Browser-side WebGL instrumentation script.
 // Bundled as IIFE and embedded into index.ts at build time.
-// No imports allowed — this runs standalone in the browser.
+// No imports — runs standalone in the browser.
 
 ;(() => {
   type GL = WebGLRenderingContext | WebGL2RenderingContext
 
   // ─── State ───────────────────────────────────────────────────────────────────
 
-  // contextId per canvas context (assigned at getContext time).
-  // Plain Map (not WeakMap) so getState() can iterate all active contexts.
+  // Plain Map (not WeakMap) — getState() needs to iterate all active contexts
   const contextIds = new Map<GL, string>()
-
-  // location → name per context
   const locationNames = new WeakMap<WebGLUniformLocation, string>()
-
-  // textureId per WebGLTexture object
   const textureIds = new WeakMap<WebGLTexture, number>()
-  const textureCounters = new WeakMap<GL, number>()
+  const textureCounters = new Map<GL, number>()
 
-  // Active watch subscriptions
-  interface Subscription {
-    id: string
-    spec: Record<string, unknown>
-    cleanup?: () => void
-  }
+  interface Subscription { id: string; spec: Record<string, unknown> }
   const subscriptions = new Map<string, Subscription>()
   let subCounter = 0
 
-  // Ref counts per lazy interceptor group
   const refCounts: Record<string, number> = { uniform: 0, draw: 0, 'texture-bind': 0 }
+  const lastUniformValue = new Map<string, unknown>()
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -226,7 +270,7 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
     return names[value] ?? String(value)
   }
 
-  function matchesFilter(spec: Record<string, unknown>, contextId: string, name?: string): boolean {
+  function matchesSpec(spec: Record<string, unknown>, contextId: string, name?: string): boolean {
     if (spec.contextId !== undefined && spec.contextId !== contextId) return false
     if (name !== undefined && spec.name !== undefined) {
       if (typeof spec.name === 'string') {
@@ -241,7 +285,6 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
 
   // ─── Always-active interceptors ──────────────────────────────────────────────
 
-  // 1. getContext — assign contextId
   const origGetContext = HTMLCanvasElement.prototype.getContext
   HTMLCanvasElement.prototype.getContext = function (...args: Parameters<typeof origGetContext>) {
     const ctx = origGetContext.apply(this, args)
@@ -252,7 +295,6 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
         textureCounters.set(ctx, 0)
         ctx.canvas.addEventListener('webglcontextlost', () => {
           push('webgl.context-lost', { contextId: id })
-          // Clear valueChanged state — after restoration, first push for each uniform always fires
           for (const key of lastUniformValue.keys()) {
             if (key.startsWith(`${id}:`)) lastUniformValue.delete(key)
           }
@@ -266,8 +308,7 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
     return ctx
   } as typeof origGetContext
 
-  // 2. getUniformLocation — build location → name map
-  function patchGetUniformLocation(proto: typeof WebGLRenderingContext.prototype | typeof WebGL2RenderingContext.prototype): void {
+  function patchGetUniformLocation(proto: WebGLRenderingContext): void {
     const orig = proto.getUniformLocation
     proto.getUniformLocation = function (program, name) {
       const location = orig.call(this, program, name)
@@ -276,10 +317,9 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
     }
   }
   patchGetUniformLocation(WebGLRenderingContext.prototype)
-  patchGetUniformLocation(WebGL2RenderingContext.prototype)
+  if (typeof WebGL2RenderingContext !== 'undefined') patchGetUniformLocation(WebGL2RenderingContext.prototype as unknown as WebGLRenderingContext)
 
-  // 3. createTexture — assign textureId
-  function patchCreateTexture(proto: typeof WebGLRenderingContext.prototype | typeof WebGL2RenderingContext.prototype): void {
+  function patchCreateTexture(proto: WebGLRenderingContext): void {
     const orig = proto.createTexture
     proto.createTexture = function () {
       const texture = orig.call(this)
@@ -292,33 +332,32 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
     }
   }
   patchCreateTexture(WebGLRenderingContext.prototype)
-  patchCreateTexture(WebGL2RenderingContext.prototype)
+  if (typeof WebGL2RenderingContext !== 'undefined') patchCreateTexture(WebGL2RenderingContext.prototype as unknown as WebGLRenderingContext)
 
-  // ─── Lazy interceptor installation ───────────────────────────────────────────
+  // ─── Lazy interceptors ───────────────────────────────────────────────────────
 
-  // Previous uniform value per (contextId+name) for valueChanged filtering
-  const lastUniformValue = new Map<string, unknown>()
+  const uniformMethods = [
+    'uniform1f','uniform1fv','uniform2f','uniform2fv','uniform3f','uniform3fv','uniform4f','uniform4fv',
+    'uniform1i','uniform1iv','uniform2i','uniform2iv','uniform3i','uniform3iv','uniform4i','uniform4iv',
+    'uniformMatrix2fv','uniformMatrix3fv','uniformMatrix4fv',
+  ] as const
+
+  const glTypeFor: Record<string, string> = {
+    uniform1f:'float', uniform1fv:'float', uniform2f:'vec2', uniform2fv:'vec2',
+    uniform3f:'vec3', uniform3fv:'vec3', uniform4f:'vec4', uniform4fv:'vec4',
+    uniform1i:'int', uniform1iv:'int', uniform2i:'ivec2', uniform2iv:'ivec2',
+    uniform3i:'ivec3', uniform3iv:'ivec3', uniform4i:'ivec4', uniform4iv:'ivec4',
+    uniformMatrix2fv:'mat2', uniformMatrix3fv:'mat3', uniformMatrix4fv:'mat4',
+  }
+
+  const lazyCleanups: Partial<Record<string, () => void>> = {}
 
   function installUniforms(): () => void {
-    const uniformMethods = [
-      'uniform1f','uniform1fv','uniform2f','uniform2fv','uniform3f','uniform3fv','uniform4f','uniform4fv',
-      'uniform1i','uniform1iv','uniform2i','uniform2iv','uniform3i','uniform3iv','uniform4i','uniform4iv',
-      'uniformMatrix2fv','uniformMatrix3fv','uniformMatrix4fv',
-    ] as const
-
-    const glTypeFor: Record<string, string> = {
-      uniform1f:'float', uniform1fv:'float', uniform2f:'vec2', uniform2fv:'vec2',
-      uniform3f:'vec3', uniform3fv:'vec3', uniform4f:'vec4', uniform4fv:'vec4',
-      uniform1i:'int', uniform1iv:'int', uniform2i:'ivec2', uniform2iv:'ivec2',
-      uniform3i:'ivec3', uniform3iv:'ivec3', uniform4i:'ivec4', uniform4iv:'ivec4',
-      uniformMatrix2fv:'mat2', uniformMatrix3fv:'mat3', uniformMatrix4fv:'mat4',
-    }
-
     const originals: Array<[object, string, unknown]> = []
-
-    for (const proto of [WebGLRenderingContext.prototype, WebGL2RenderingContext.prototype]) {
+    const protos = [WebGLRenderingContext.prototype, ...(typeof WebGL2RenderingContext !== 'undefined' ? [WebGL2RenderingContext.prototype] : [])]
+    for (const proto of protos) {
       for (const method of uniformMethods) {
-        const orig = (proto as Record<string, unknown>)[method] as (...args: unknown[]) => void
+        const orig = (proto as Record<string, unknown>)[method] as (...a: unknown[]) => void
         originals.push([proto, method, orig])
         const glType = glTypeFor[method]
         ;(proto as Record<string, unknown>)[method] = function (this: GL, location: WebGLUniformLocation | null, ...rest: unknown[]) {
@@ -326,15 +365,12 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
           const contextId = getContextId(this)
           const name = getUniformName(location)
           const value = rest[0]
-          // Check active subscriptions
           for (const sub of subscriptions.values()) {
             if (sub.spec.event !== 'uniform') continue
-            if (!matchesFilter(sub.spec, contextId, name)) continue
+            if (!matchesSpec(sub.spec, contextId, name)) continue
             if (sub.spec.valueChanged) {
               const key = `${contextId}:${name}`
-              const last = lastUniformValue.get(key)
-              const valueStr = JSON.stringify(value)
-              if (JSON.stringify(last) === valueStr) continue
+              if (JSON.stringify(lastUniformValue.get(key)) === JSON.stringify(value)) continue
               lastUniformValue.set(key, value)
             }
             push('webgl.uniform', { contextId, name, value, glType })
@@ -342,18 +378,13 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
         }
       }
     }
-
-    return () => {
-      for (const [proto, method, orig] of originals) {
-        ;(proto as Record<string, unknown>)[method] = orig
-      }
-    }
+    return () => { for (const [proto, method, orig] of originals) (proto as Record<string, unknown>)[method] = orig }
   }
 
   function installDraw(): () => void {
     const cleanups: Array<() => void> = []
-
-    for (const proto of [WebGLRenderingContext.prototype, WebGL2RenderingContext.prototype]) {
+    const protos = [WebGLRenderingContext.prototype, ...(typeof WebGL2RenderingContext !== 'undefined' ? [WebGL2RenderingContext.prototype] : [])]
+    for (const proto of protos) {
       const origArrays = proto.drawArrays
       proto.drawArrays = function (this: GL, mode, first, count) {
         origArrays.call(this, mode, first, count)
@@ -366,34 +397,27 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
           push('webgl.draw-arrays', { contextId, primitive, first, count })
         }
       }
-
       const origElements = proto.drawElements
       proto.drawElements = function (this: GL, mode, count, type, offset) {
         origElements.call(this, mode, count, type, offset)
         const contextId = getContextId(this)
         const primitive = glConstantName(this, mode)
-        const indexType = indexTypeName(this, type)
         for (const sub of subscriptions.values()) {
           if (sub.spec.event !== 'draw') continue
           if (sub.spec.contextId !== undefined && sub.spec.contextId !== contextId) continue
           if (sub.spec.primitive !== undefined && sub.spec.primitive !== primitive) continue
-          push('webgl.draw-elements', { contextId, primitive, count, indexType, offset })
+          push('webgl.draw-elements', { contextId, primitive, count, indexType: indexTypeName(this, type), offset })
         }
       }
-
-      cleanups.push(() => {
-        proto.drawArrays = origArrays
-        proto.drawElements = origElements
-      })
+      cleanups.push(() => { proto.drawArrays = origArrays; proto.drawElements = origElements })
     }
-
     return () => cleanups.forEach(c => c())
   }
 
   function installTextureBind(): () => void {
     const cleanups: Array<() => void> = []
-
-    for (const proto of [WebGLRenderingContext.prototype, WebGL2RenderingContext.prototype]) {
+    const protos = [WebGLRenderingContext.prototype, ...(typeof WebGL2RenderingContext !== 'undefined' ? [WebGL2RenderingContext.prototype] : [])]
+    for (const proto of protos) {
       const orig = proto.bindTexture
       proto.bindTexture = function (this: GL, target, texture) {
         orig.call(this, target, texture)
@@ -410,15 +434,12 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
       }
       cleanups.push(() => { proto.bindTexture = orig })
     }
-
     return () => cleanups.forEach(c => c())
   }
 
-  const lazyCleanups: Partial<Record<string, () => void>> = {}
-
   function installLazy(event: string): void {
     refCounts[event] = (refCounts[event] ?? 0) + 1
-    if (refCounts[event] !== 1) return  // already installed
+    if (refCounts[event] !== 1) return
     if (event === 'uniform') lazyCleanups[event] = installUniforms()
     else if (event === 'draw') lazyCleanups[event] = installDraw()
     else if (event === 'texture-bind') lazyCleanups[event] = installTextureBind()
@@ -426,10 +447,53 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
 
   function uninstallLazy(event: string): void {
     refCounts[event] = Math.max(0, (refCounts[event] ?? 0) - 1)
-    if (refCounts[event] === 0) {
-      lazyCleanups[event]?.()
-      delete lazyCleanups[event]
-    }
+    if (refCounts[event] === 0) { lazyCleanups[event]?.(); delete lazyCleanups[event] }
+  }
+
+  // ─── GL state capture ─────────────────────────────────────────────────────────
+
+  interface WebGLStateSnapshot {
+    contextId: string
+    uniforms: Record<string, { value: unknown; glType: string }>
+    textures: Array<{ unit: number; target: string; textureId: number | null }>
+    viewport: [number, number, number, number]
+    blendState: { enabled: boolean; srcRgb: number; dstRgb: number; srcAlpha: number; dstAlpha: number; equation: number }
+    depthState: { testEnabled: boolean; func: number; writeMask: boolean }
+  }
+
+  function getState(): WebGLStateSnapshot[] {
+    return Array.from(contextIds.entries()).map(([gl, id]) => {
+      const textures: Array<{ unit: number; target: string; textureId: number | null }> = []
+      const savedActiveTexture = gl.getParameter(gl.ACTIVE_TEXTURE) as number
+      for (let unit = 0; unit < 32; unit++) {
+        gl.activeTexture(gl.TEXTURE0 + unit)
+        const bound2d = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null
+        const boundCube = gl.getParameter(gl.TEXTURE_BINDING_CUBE_MAP) as WebGLTexture | null
+        if (bound2d) textures.push({ unit, target: 'TEXTURE_2D', textureId: textureIds.get(bound2d) ?? null })
+        if (boundCube) textures.push({ unit, target: 'TEXTURE_CUBE_MAP', textureId: textureIds.get(boundCube) ?? null })
+      }
+      gl.activeTexture(savedActiveTexture)  // restore — do not corrupt app state
+
+      return {
+        contextId: id,
+        uniforms: {},  // WebGL has no API to read back uniform values
+        textures,
+        viewport: Array.from(gl.getParameter(gl.VIEWPORT)) as [number, number, number, number],
+        blendState: {
+          enabled: gl.isEnabled(gl.BLEND),
+          srcRgb: gl.getParameter(gl.BLEND_SRC_RGB) as number,
+          dstRgb: gl.getParameter(gl.BLEND_DST_RGB) as number,
+          srcAlpha: gl.getParameter(gl.BLEND_SRC_ALPHA) as number,
+          dstAlpha: gl.getParameter(gl.BLEND_DST_ALPHA) as number,
+          equation: gl.getParameter(gl.BLEND_EQUATION_RGB) as number,
+        },
+        depthState: {
+          testEnabled: gl.isEnabled(gl.DEPTH_TEST),
+          func: gl.getParameter(gl.DEPTH_FUNC) as number,
+          writeMask: gl.getParameter(gl.DEPTH_WRITEMASK) as boolean,
+        },
+      }
+    })
   }
 
   // ─── Public API ───────────────────────────────────────────────────────────────
@@ -438,8 +502,7 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
   ;(window.__introspect_plugins__ as Record<string, unknown>).webgl = {
     watch(spec: Record<string, unknown>): string {
       const id = String(subCounter++)
-      const event = spec.event as string
-      installLazy(event)
+      installLazy(spec.event as string)
       subscriptions.set(id, { id, spec })
       return id
     },
@@ -449,121 +512,51 @@ Expected: fails — `../src/index.js` not found. (This test stays in the file an
       subscriptions.delete(id)
       uninstallLazy(sub.spec.event as string)
     },
+    getState,
   }
 })()
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add packages/plugin-webgl/src/browser.ts
-git commit -m "feat(plugin-webgl): add browser-side script — always-active + lazy WebGL interceptors"
+git commit -m "feat(plugin-webgl): add browser-side script — always-active + lazy WebGL interceptors with getState()"
 ```
 
 ---
 
-### Task 3: Node-side plugin (`index.ts`)
+### Task 3: Node-side plugin factory
 
 **Files:**
 - Create: `packages/plugin-webgl/src/index.ts`
-- Modify: `packages/plugin-webgl/test/webgl.test.ts`
+- Create: `packages/plugin-webgl/test/unit.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [ ] **Step 1: Write failing unit tests**
 
-Replace `packages/plugin-webgl/test/webgl.test.ts`:
+Create `packages/plugin-webgl/test/unit.test.ts`:
 
 ```ts
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { IntrospectionPlugin, PluginContext, WatchHandle } from '@introspection/types'
+import { describe, it, expect, vi } from 'vitest'
+import type { PluginContext } from '@introspection/types'
 
-// We can't actually import index.ts before it exists, so we describe the shape
-describe('webgl() factory', () => {
-  let plugin: IntrospectionPlugin
-  let ctx: PluginContext
-  let addSubscriptionMock: ReturnType<typeof vi.fn>
-  let watchHandle: WatchHandle
-
-  beforeEach(async () => {
+describe('webgl() — Node-side', () => {
+  it('has name "webgl" and a non-empty script', async () => {
     const { webgl } = await import('../src/index.js')
-    plugin = webgl()
-
-    watchHandle = { unwatch: vi.fn().mockResolvedValue(undefined) }
-    addSubscriptionMock = vi.fn().mockResolvedValue(watchHandle)
-
-    ctx = {
-      page: {
-        evaluate: vi.fn().mockResolvedValue(undefined),
-      },
-      cdpSession: {
-        send: vi.fn().mockResolvedValue({}),
-      },
-      emit: vi.fn(),
-      writeAsset: vi.fn().mockResolvedValue('assets/test.json'),
-      timestamp: () => 42,
-      addSubscription: addSubscriptionMock,
-    } as unknown as PluginContext
-  })
-
-  it('has name "webgl"', () => {
+    const plugin = webgl()
     expect(plugin.name).toBe('webgl')
-  })
-
-  it('has a non-empty script string', () => {
-    expect(typeof plugin.script).toBe('string')
     expect(plugin.script.length).toBeGreaterThan(0)
   })
 
-  it('install() stores ctx', async () => {
-    await plugin.install(ctx)
-    // No error = success; ctx is stored internally
-  })
-
-  it('watch({ event: "uniform" }) calls ctx.addSubscription with plugin name and spec', async () => {
-    await plugin.install(ctx)
-    const p = plugin as ReturnType<typeof import('../src/index.js').webgl>
-    await p.watch({ event: 'uniform', name: 'u_time' })
-    expect(addSubscriptionMock).toHaveBeenCalledWith('webgl', { event: 'uniform', name: 'u_time' })
-  })
-
-  it('watch({ event: "uniform", name: regex }) serialises RegExp as { source, flags }', async () => {
-    await plugin.install(ctx)
-    const p = plugin as ReturnType<typeof import('../src/index.js').webgl>
-    await p.watch({ event: 'uniform', name: /^u_/ })
-    expect(addSubscriptionMock).toHaveBeenCalledWith('webgl', {
-      event: 'uniform', name: { source: '^u_', flags: '' },
-    })
-  })
-
-  it('watch({ event: "draw" }) calls ctx.addSubscription with draw spec', async () => {
-    await plugin.install(ctx)
-    const p = plugin as ReturnType<typeof import('../src/index.js').webgl>
-    await p.watch({ event: 'draw', primitive: 'TRIANGLES' })
-    expect(addSubscriptionMock).toHaveBeenCalledWith('webgl', { event: 'draw', primitive: 'TRIANGLES' })
-  })
-
-  it('watch() returns the WatchHandle from ctx.addSubscription', async () => {
-    await plugin.install(ctx)
-    const p = plugin as ReturnType<typeof import('../src/index.js').webgl>
-    const wh = await p.watch({ event: 'uniform' })
-    expect(wh).toBe(watchHandle)
-  })
-
-  it('capture("manual") calls page.evaluate and writes asset for each context', async () => {
-    const fakeState = [{ contextId: 'ctx_0', uniforms: {}, textures: [], viewport: [0,0,800,600], blendState: { enabled: false, srcRgb: 1, dstRgb: 0, srcAlpha: 1, dstAlpha: 0, equation: 32774 }, depthState: { testEnabled: true, func: 515, writeMask: true } }]
-    ;(ctx.page.evaluate as ReturnType<typeof vi.fn>).mockResolvedValue(fakeState)
-    await plugin.install(ctx)
-    const results = await plugin.capture!('manual', 42)
-    expect(results).toHaveLength(1)
-    expect(results[0].kind).toBe('webgl-state')
-    const parsed = JSON.parse(results[0].content)
-    expect(parsed.contextId).toBe('ctx_0')
-  })
-
-  it('capture() returns [] when page.evaluate returns empty array', async () => {
-    ;(ctx.page.evaluate as ReturnType<typeof vi.fn>).mockResolvedValue([])
-    await plugin.install(ctx)
-    const results = await plugin.capture!('manual', 42)
-    expect(results).toHaveLength(0)
+  it('watch() serialises RegExp name filter as { source, flags }', async () => {
+    const { webgl } = await import('../src/index.js')
+    const plugin = webgl()
+    const addSubscription = vi.fn().mockResolvedValue({ unwatch: vi.fn() })
+    await plugin.install({ addSubscription, page: { evaluate: vi.fn() }, cdpSession: { send: vi.fn() }, emit: vi.fn(), writeAsset: vi.fn(), timestamp: () => 0 } as unknown as PluginContext)
+    await plugin.watch({ event: 'uniform', name: /^u_/ })
+    expect(addSubscription).toHaveBeenCalledWith('webgl', expect.objectContaining({
+      name: { source: '^u_', flags: '' },
+    }))
   })
 })
 ```
@@ -571,26 +564,21 @@ describe('webgl() factory', () => {
 - [ ] **Step 2: Run to verify tests fail**
 
 ```
-cd packages/plugin-webgl && pnpm test
+cd packages/plugin-webgl && pnpm run test:unit
 ```
 
-Expected: `../src/index.js` not found.
+Expected: fails — `../src/index.js` not found.
 
 - [ ] **Step 3: Create `packages/plugin-webgl/src/index.ts`**
 
 ```ts
-import type {
-  IntrospectionPlugin, PluginContext, WatchHandle, CaptureResult,
-} from '@introspection/types'
+import type { IntrospectionPlugin, PluginContext, WatchHandle, CaptureResult } from '@introspection/types'
 
-// Embedded at build time by tsup plugin — replaced with actual browser bundle content
 const BROWSER_SCRIPT = '__BROWSER_SCRIPT_PLACEHOLDER__'
-
-// ─── Watch spec types ─────────────────────────────────────────────────────────
 
 export type NameFilter = string | RegExp
 
-function serialiseNameFilter(name: NameFilter | undefined): string | { source: string; flags: string } | undefined {
+function serialiseName(name: NameFilter | undefined): string | { source: string; flags: string } | undefined {
   if (name === undefined) return undefined
   if (typeof name === 'string') return name
   return { source: name.source, flags: name.flags }
@@ -617,20 +605,14 @@ export interface TextureBindWatchOpts {
 
 export type WebGLWatchOpts = UniformWatchOpts | DrawWatchOpts | TextureBindWatchOpts
 
-// ─── WebGL state snapshot shape (returned by page.evaluate) ──────────────────
-
-interface WebGLStateSnapshot {
+export interface WebGLStateSnapshot {
   contextId: string
   uniforms: Record<string, { value: unknown; glType: string }>
   textures: Array<{ unit: number; target: string; textureId: number | null }>
   viewport: [number, number, number, number]
-  blendState: {
-    enabled: boolean; srcRgb: number; dstRgb: number; srcAlpha: number; dstAlpha: number; equation: number
-  }
+  blendState: { enabled: boolean; srcRgb: number; dstRgb: number; srcAlpha: number; dstAlpha: number; equation: number }
   depthState: { testEnabled: boolean; func: number; writeMask: boolean }
 }
-
-// ─── Plugin factory ───────────────────────────────────────────────────────────
 
 export interface WebGLPlugin extends IntrospectionPlugin {
   watch(opts: WebGLWatchOpts): Promise<WatchHandle>
@@ -638,18 +620,6 @@ export interface WebGLPlugin extends IntrospectionPlugin {
 
 export function webgl(): WebGLPlugin {
   let ctx: PluginContext | null = null
-
-  async function captureGLState(): Promise<WebGLStateSnapshot[]> {
-    if (!ctx) return []
-    return ctx.page.evaluate(() => {
-      const results: WebGLStateSnapshot[] = []
-      const plugins = (window as unknown as { __introspect_plugins__?: { webgl?: { getState?(): WebGLStateSnapshot[] } } }).__introspect_plugins__
-      if (plugins?.webgl?.getState) {
-        return plugins.webgl.getState()
-      }
-      return results
-    })
-  }
 
   return {
     name: 'webgl',
@@ -661,14 +631,12 @@ export function webgl(): WebGLPlugin {
 
     async watch(opts: WebGLWatchOpts): Promise<WatchHandle> {
       if (!ctx) throw new Error('webgl plugin: watch() called before install()')
-
-      // Serialise spec — RegExp name filter becomes { source, flags }
       let spec: Record<string, unknown>
       if (opts.event === 'uniform') {
         spec = {
           event: 'uniform',
           ...(opts.contextId !== undefined && { contextId: opts.contextId }),
-          ...(opts.name !== undefined && { name: serialiseNameFilter(opts.name) }),
+          ...(opts.name !== undefined && { name: serialiseName(opts.name) }),
           ...(opts.valueChanged !== undefined && { valueChanged: opts.valueChanged }),
         }
       } else if (opts.event === 'draw') {
@@ -684,12 +652,14 @@ export function webgl(): WebGLPlugin {
           ...((opts as TextureBindWatchOpts).unit !== undefined && { unit: (opts as TextureBindWatchOpts).unit }),
         }
       }
-
       return ctx.addSubscription('webgl', spec)
     },
 
-    async capture(trigger: 'js.error' | 'manual' | 'detach', ts: number): Promise<CaptureResult[]> {
-      const snapshots = await captureGLState()
+    async capture(_trigger: 'js.error' | 'manual' | 'detach', ts: number): Promise<CaptureResult[]> {
+      if (!ctx) return []
+      const snapshots = await ctx.page.evaluate(() => {
+        return (window.__introspect_plugins__ as { webgl?: { getState?(): unknown[] } })?.webgl?.getState?.() ?? []
+      }) as WebGLStateSnapshot[]
       return snapshots.map(snapshot => ({
         kind: 'webgl-state',
         content: JSON.stringify(snapshot),
@@ -698,7 +668,6 @@ export function webgl(): WebGLPlugin {
           uniformCount: Object.keys(snapshot.uniforms).length,
           boundTextureCount: snapshot.textures.length,
           viewport: snapshot.viewport,
-          trigger,
           timestamp: ts,
         },
       }))
@@ -707,216 +676,275 @@ export function webgl(): WebGLPlugin {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [ ] **Step 4: Run unit tests**
 
 ```
-cd packages/plugin-webgl && pnpm test
+cd packages/plugin-webgl && pnpm run test:unit
 ```
 
-Expected: all pass.
-
-Note: The `capture()` test mocks `page.evaluate` to return state directly. The `script` test verifies the string is non-empty — at this point the script is the literal placeholder string `'__BROWSER_SCRIPT_PLACEHOLDER__'` (embedding happens at build time, not at import time in tests). The test only checks `length > 0`, which passes.
+Expected: both pass. Note: `plugin.script` will be the literal placeholder string `'__BROWSER_SCRIPT_PLACEHOLDER__'` at this point (embedding happens at build time) — `length > 0` passes.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/plugin-webgl/src/index.ts packages/plugin-webgl/test/webgl.test.ts
-git commit -m "feat(plugin-webgl): add Node-side plugin factory with typed watch() API and capture()"
+git add packages/plugin-webgl/src/index.ts packages/plugin-webgl/test/unit.test.ts
+git commit -m "feat(plugin-webgl): add Node-side plugin factory with typed watch() and capture()"
 ```
 
 ---
 
-### Task 4: Add `getState()` to browser script for capture
+### Task 4: Playwright integration tests
 
 **Files:**
-- Modify: `packages/plugin-webgl/src/browser.ts`
+- Modify: `packages/plugin-webgl/test/webgl.spec.ts`
 
-The `capture()` in `index.ts` calls `ctx.page.evaluate(() => window.__introspect_plugins__.webgl.getState())`. This Task adds `getState()` to the browser-side API.
+These tests use a real browser. They test actual interceptor behavior — not mocks.
 
-- [ ] **Step 1: Write failing test**
-
-Add to `packages/plugin-webgl/test/webgl.test.ts`:
+A minimal WebGL helper is needed for uniform tests (requires a linked shader program):
 
 ```ts
-it('capture() summary includes contextId, uniformCount, boundTextureCount, viewport', async () => {
-  const fakeState: WebGLStateSnapshot[] = [{
-    contextId: 'ctx_0',
-    uniforms: { u_time: { value: 1.5, glType: 'float' }, u_resolution: { value: [800, 600], glType: 'vec2' } },
-    textures: [{ unit: 0, target: 'TEXTURE_2D', textureId: 1 }],
-    viewport: [0, 0, 800, 600],
-    blendState: { enabled: false, srcRgb: 1, dstRgb: 0, srcAlpha: 1, dstAlpha: 0, equation: 32774 },
-    depthState: { testEnabled: true, func: 515, writeMask: true },
-  }]
-  ;(ctx.page.evaluate as ReturnType<typeof vi.fn>).mockResolvedValue(fakeState)
-  await plugin.install(ctx)
-  const results = await plugin.capture!('manual', 42)
-  expect(results[0].summary.uniformCount).toBe(2)
-  expect(results[0].summary.boundTextureCount).toBe(1)
-  expect(results[0].summary.viewport).toEqual([0, 0, 800, 600])
-})
+// In the browser page — sets up a tiny GL program, returns nothing
+// (all interaction goes through the WebGL interceptor → push events)
+function setupGL() {
+  const canvas = document.createElement('canvas')
+  document.body.appendChild(canvas)
+  const gl = canvas.getContext('webgl')!
+
+  const vs = gl.createShader(gl.VERTEX_SHADER)!
+  gl.shaderSource(vs, `
+    uniform float u_time;
+    uniform vec2 u_resolution;
+    attribute vec4 a_pos;
+    void main() { gl_Position = a_pos * u_time; }
+  `)
+  gl.compileShader(vs)
+
+  // Fragment shader (required for link)
+  const fs = gl.createShader(gl.FRAGMENT_SHADER)!
+  gl.shaderSource(fs, 'void main() { gl_FragColor = vec4(1.0); }')
+  gl.compileShader(fs)
+
+  const prog = gl.createProgram()!
+  gl.attachShader(prog, vs)
+  gl.attachShader(prog, fs)
+  gl.linkProgram(prog)
+  gl.useProgram(prog)
+
+  // Store on window so subsequent evaluate() calls can use it
+  ;(window as unknown as { _gl: WebGLRenderingContext; _prog: WebGLProgram }).
+    _gl = gl
+  ;(window as unknown as { _gl: WebGLRenderingContext; _prog: WebGLProgram }).
+    _prog = prog
+}
 ```
 
-(Need to import `WebGLStateSnapshot` type at top of test file:)
-```ts
-import type { WebGLStateSnapshot } from '../src/index.js'
-```
-
-- [ ] **Step 2: Run to verify test status**
-
-```
-cd packages/plugin-webgl && pnpm test
-```
-
-Expected: pass (the mock already returns well-formed data; verifies summary extraction logic).
-
-- [ ] **Step 3: Add `getState()` to `browser.ts`**
-
-Inside the public API section, after `unwatch`, add:
-
-```ts
-getState(): WebGLStateSnapshot[] {
-  const results: WebGLStateSnapshot[] = []
-  for (const [gl, id] of contextIds.entries()) {
-    // Read all uniforms from locationNames for this context
-    const uniforms: Record<string, { value: unknown; glType: string }> = {}
-    // Enumerate bound texture units (0..31)
-    const textures: Array<{ unit: number; target: string; textureId: number | null }> = []
-    const savedActiveTexture = gl.getParameter(gl.ACTIVE_TEXTURE) as number
-    for (let unit = 0; unit < 32; unit++) {
-      gl.activeTexture(gl.TEXTURE0 + unit)
-      const bound2d = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null
-      const boundCube = gl.getParameter(gl.TEXTURE_BINDING_CUBE_MAP) as WebGLTexture | null
-      if (bound2d) textures.push({ unit, target: 'TEXTURE_2D', textureId: textureIds.get(bound2d) ?? null })
-      if (boundCube) textures.push({ unit, target: 'TEXTURE_CUBE_MAP', textureId: textureIds.get(boundCube) ?? null })
-    }
-    gl.activeTexture(savedActiveTexture)  // restore — do not corrupt app state
-    const viewport = gl.getParameter(gl.VIEWPORT) as [number, number, number, number]
-    const blendState = {
-      enabled: gl.isEnabled(gl.BLEND),
-      srcRgb: gl.getParameter(gl.BLEND_SRC_RGB) as number,
-      dstRgb: gl.getParameter(gl.BLEND_DST_RGB) as number,
-      srcAlpha: gl.getParameter(gl.BLEND_SRC_ALPHA) as number,
-      dstAlpha: gl.getParameter(gl.BLEND_DST_ALPHA) as number,
-      equation: gl.getParameter(gl.BLEND_EQUATION_RGB) as number,
-    }
-    const depthState = {
-      testEnabled: gl.isEnabled(gl.DEPTH_TEST),
-      func: gl.getParameter(gl.DEPTH_FUNC) as number,
-      writeMask: gl.getParameter(gl.DEPTH_WRITEMASK) as boolean,
-    }
-    results.push({ contextId: id, uniforms, textures, viewport: Array.from(viewport) as [number, number, number, number], blendState, depthState })
-  }
-  return results
-},
-```
-
-Note: uniform values can't be read back from WebGL (read-only API doesn't expose current uniform values). The `uniforms` map is always empty in `getState()` — this is a known WebGL limitation. The capture spec says "uniforms: Record<string, { value, glType }>" but these values are only known from intercepted `uniform*` calls, not from GL state queries. For a production implementation, a Map per context tracking the last-seen value for each named uniform would be maintained in `browser.ts`. For now, `uniforms` is an empty object and this is acceptable per spec (the spec doesn't guarantee uniform readback, only state capture of readable fields).
-
-- [ ] **Step 4: Run all tests**
-
-```
-pnpm -r test
-```
-
-Expected: all pass.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add packages/plugin-webgl/src/browser.ts
-git commit -m "feat(plugin-webgl): add getState() to browser API for capture()"
-```
-
----
-
-### Task 5: Build verification
-
-Verify the two-pass build works end-to-end.
-
-- [ ] **Step 1: Install tsup in plugin-webgl if not already**
-
-```
-cd packages/plugin-webgl && pnpm install
-```
-
-- [ ] **Step 2: Run the build**
+- [ ] **Step 1: Build the browser bundle first (needed for integration tests)**
 
 ```
 cd packages/plugin-webgl && pnpm build
 ```
 
-Expected:
-1. `dist/browser.iife.js` created
-2. `dist/index.js` created with browser script embedded (no `__BROWSER_SCRIPT_PLACEHOLDER__` literal remaining)
-3. `dist/index.d.ts` created
+Expected: `dist/browser.iife.js` and `dist/index.js` created.
 
-Verify placeholder is gone:
+- [ ] **Step 2: Write integration tests**
+
+Replace `packages/plugin-webgl/test/webgl.spec.ts` with:
+
+```ts
+import { test, expect } from '@playwright/test'
+import { mkdtemp, rm, readdir, readFile } from 'fs/promises'
+import { join } from 'path'
+import { tmpdir } from 'os'
+import { webgl } from '../src/index.js'
+import { attach } from '@introspection/playwright'
+import type { IntrospectHandle } from '@introspection/types'
+
+// ─── Test helpers ─────────────────────────────────────────────────────────────
+
+async function makeSession(page: import('@playwright/test').Page) {
+  const outDir = await mkdtemp(join(tmpdir(), 'introspect-webgl-'))
+  const plugin = webgl()
+  const handle = await attach(page, { outDir, plugins: [plugin] })
+  return { outDir, plugin, handle }
+}
+
+async function endSession(handle: IntrospectHandle, outDir: string) {
+  await handle.detach()
+  const [sessionId] = await readdir(outDir)
+  const raw = await readFile(join(outDir, sessionId, 'events.ndjson'), 'utf-8')
+  await rm(outDir, { recursive: true, force: true })
+  return raw.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+}
+
+// Sets up a minimal linked WebGL program on the page.
+// Stores gl and prog on window._gl / window._prog for later evaluate() calls.
+async function setupGL(page: import('@playwright/test').Page) {
+  await page.evaluate(() => {
+    const canvas = document.createElement('canvas')
+    document.body.appendChild(canvas)
+    const gl = canvas.getContext('webgl')!
+    const vs = gl.createShader(gl.VERTEX_SHADER)!
+    gl.shaderSource(vs, 'uniform float u_time; uniform vec2 u_resolution; attribute vec4 p; void main(){gl_Position=p*u_time;}')
+    gl.compileShader(vs)
+    const fs = gl.createShader(gl.FRAGMENT_SHADER)!
+    gl.shaderSource(fs, 'void main(){gl_FragColor=vec4(1.0);}')
+    gl.compileShader(fs)
+    const prog = gl.createProgram()!
+    gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog); gl.useProgram(prog)
+    ;(window as unknown as Record<string, unknown>)._gl = gl
+    ;(window as unknown as Record<string, unknown>)._prog = prog
+  })
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+test('webgl.context-created fires when getContext("webgl") is called', async ({ page }) => {
+  const { outDir, handle } = await makeSession(page)
+
+  await page.evaluate(() => {
+    document.createElement('canvas').getContext('webgl')
+  })
+
+  const events = await endSession(handle, outDir)
+  const created = events.find((e: { type: string }) => e.type === 'webgl.context-created')
+  expect(created).toBeDefined()
+  expect(created.source).toBe('plugin')
+  expect(typeof created.data.contextId).toBe('string')
+})
+
+test('uniform1f push event has correct name, value, and glType', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+  await plugin.watch({ event: 'uniform', name: 'u_time' })
+
+  await page.evaluate(() => {
+    const { _gl: gl, _prog: prog } = window as unknown as { _gl: WebGLRenderingContext; _prog: WebGLProgram }
+    gl.uniform1f(gl.getUniformLocation(prog, 'u_time'), 1.5)
+  })
+
+  const events = await endSession(handle, outDir)
+  const uniform = events.find((e: { type: string; data?: { name: string } }) =>
+    e.type === 'webgl.uniform' && e.data?.name === 'u_time')
+  expect(uniform).toBeDefined()
+  expect(uniform.data.value).toBe(1.5)
+  expect(uniform.data.glType).toBe('float')
+  expect(uniform.source).toBe('plugin')
+})
+
+test('valueChanged suppresses duplicate values, fires on change', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+  await plugin.watch({ event: 'uniform', name: 'u_time', valueChanged: true })
+
+  await page.evaluate(() => {
+    const { _gl: gl, _prog: prog } = window as unknown as { _gl: WebGLRenderingContext; _prog: WebGLProgram }
+    const loc = gl.getUniformLocation(prog, 'u_time')
+    gl.uniform1f(loc, 2.0)  // fires
+    gl.uniform1f(loc, 2.0)  // suppressed — same value
+    gl.uniform1f(loc, 3.0)  // fires — different value
+  })
+
+  const events = await endSession(handle, outDir)
+  const uniforms = events.filter((e: { type: string; data?: { name: string } }) =>
+    e.type === 'webgl.uniform' && e.data?.name === 'u_time')
+  expect(uniforms).toHaveLength(2)
+  expect(uniforms[0].data.value).toBe(2.0)
+  expect(uniforms[1].data.value).toBe(3.0)
+})
+
+test('drawArrays push event has correct primitive name', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+  await plugin.watch({ event: 'draw' })
+
+  await page.evaluate(() => {
+    const { _gl: gl } = window as unknown as { _gl: WebGLRenderingContext }
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+  })
+
+  const events = await endSession(handle, outDir)
+  const draw = events.find((e: { type: string }) => e.type === 'webgl.draw-arrays')
+  expect(draw).toBeDefined()
+  expect(draw.data.primitive).toBe('TRIANGLES')
+  expect(draw.data.first).toBe(0)
+  expect(draw.data.count).toBe(3)
+})
+
+test('unwatch stops events from being pushed', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+  const wh = await plugin.watch({ event: 'draw' })
+
+  await page.evaluate(() => {
+    ;(window as unknown as { _gl: WebGLRenderingContext })._gl.drawArrays(
+      (window as unknown as { _gl: WebGLRenderingContext })._gl.TRIANGLES, 0, 3)
+  })
+  await wh.unwatch()
+  await page.evaluate(() => {
+    ;(window as unknown as { _gl: WebGLRenderingContext })._gl.drawArrays(
+      (window as unknown as { _gl: WebGLRenderingContext })._gl.TRIANGLES, 0, 3)
+  })
+
+  const events = await endSession(handle, outDir)
+  const draws = events.filter((e: { type: string }) => e.type === 'webgl.draw-arrays')
+  expect(draws).toHaveLength(1)  // only the one before unwatch
+})
+
+test('capture() returns webgl-state asset with viewport and context info', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+
+  await handle.snapshot()  // triggers plugin.capture('manual')
+  const events = await endSession(handle, outDir)
+
+  const asset = events.find((e: { type: string; data?: { kind: string } }) =>
+    e.type === 'asset' && e.data?.kind === 'webgl-state')
+  expect(asset).toBeDefined()
+  expect(asset.source).toBe('plugin')
+  expect(asset.data.contextId).toBeDefined()
+  expect(Array.isArray(asset.data.viewport)).toBe(true)
+})
 ```
-grep -c '__BROWSER_SCRIPT_PLACEHOLDER__' dist/index.js || echo "placeholder absent — good"
-```
 
-- [ ] **Step 3: Smoke-test the built output**
+- [ ] **Step 3: Run integration tests**
 
 ```
-node -e "import('@introspection/plugin-webgl').then(m => { const p = m.webgl(); console.log(p.name, typeof p.script, p.script.length > 100 ? 'script ok' : 'script too short') })"
+cd packages/plugin-webgl && pnpm run test:integration
 ```
 
-Expected: `webgl string script ok`
+Expected: all pass.
 
-- [ ] **Step 4: Commit build outputs (if tracked) or verify .gitignore**
+If WebGL is unavailable in headless Chromium: verify the `--use-gl=swiftshader` flag is in `playwright.config.ts`. If still failing, try `--enable-unsafe-webgpu` or check Chromium's WebGL support in the environment.
 
-`dist/` is typically gitignored. If not, add it:
+- [ ] **Step 4: Run unit tests too**
+
+```
+cd packages/plugin-webgl && pnpm run test:unit
+```
+
+- [ ] **Step 5: Commit**
+
 ```bash
-echo 'dist/' >> packages/plugin-webgl/.gitignore
-git add packages/plugin-webgl/.gitignore
-git commit -m "chore(plugin-webgl): gitignore dist/"
+git add packages/plugin-webgl/test/webgl.spec.ts packages/plugin-webgl/test/unit.test.ts
+git commit -m "test(plugin-webgl): Playwright integration tests for WebGL interceptor behavior"
 ```
 
 ---
 
-### Task 6: Wire up types for `WebGLStateSnapshot` export
+### Task 5: Build verification and workspace check
 
-**Files:**
-- Modify: `packages/plugin-webgl/src/index.ts`
-
-`WebGLStateSnapshot` is currently defined inline in `index.ts` but not exported. Tests and consumers need it.
-
-- [ ] **Step 1: Ensure `WebGLStateSnapshot` is exported**
-
-In `packages/plugin-webgl/src/index.ts`, change:
-```ts
-interface WebGLStateSnapshot {
-```
-To:
-```ts
-export interface WebGLStateSnapshot {
-```
-
-- [ ] **Step 2: Update test import**
-
-In `packages/plugin-webgl/test/webgl.test.ts`, ensure the import at the top includes `WebGLStateSnapshot`:
-```ts
-import type { WebGLStateSnapshot } from '../src/index.js'
-```
-
-- [ ] **Step 3: Run tests**
+- [ ] **Step 1: Full build**
 
 ```
-cd packages/plugin-webgl && pnpm test
+cd packages/plugin-webgl && pnpm build
 ```
 
-- [ ] **Step 4: Commit**
-
-```bash
-git add packages/plugin-webgl/src/index.ts packages/plugin-webgl/test/webgl.test.ts
-git commit -m "feat(plugin-webgl): export WebGLStateSnapshot type"
+Verify placeholder is gone from the built output:
+```
+grep '__BROWSER_SCRIPT_PLACEHOLDER__' dist/index.js && echo "ERROR: placeholder not replaced" || echo "OK"
 ```
 
----
-
-### Task 7: Final integration check
-
-- [ ] **Step 1: Run all workspace tests**
+- [ ] **Step 2: Run all workspace tests**
 
 ```
 pnpm -r test
@@ -924,41 +952,8 @@ pnpm -r test
 
 Expected: all packages pass.
 
-- [ ] **Step 2: Type-check the workspace**
-
-```
-pnpm -r --filter @introspection/plugin-webgl exec tsc --noEmit
-pnpm -r --filter @introspection/playwright exec tsc --noEmit
-pnpm -r --filter @introspection/types exec tsc --noEmit
-```
-
-- [ ] **Step 3: Verify a minimal usage example compiles**
-
-Create a temporary file `packages/plugin-webgl/test/usage-example.ts` (not a test, just type-check):
-
-```ts
-import { webgl } from '../src/index.js'
-import type { IntrospectionPlugin } from '@introspection/types'
-
-const plugin: IntrospectionPlugin = webgl()
-// Should compile without importing @playwright/test
-console.log(plugin.name)
-```
-
-```
-cd packages/plugin-webgl && npx tsc --noEmit test/usage-example.ts --moduleResolution bundler --module esnext
-```
-
-Expected: no errors.
-
-Delete the file after:
-```bash
-rm packages/plugin-webgl/test/usage-example.ts
-```
-
-- [ ] **Step 4: Commit any remaining changes**
+- [ ] **Step 3: Commit if any loose changes remain**
 
 ```bash
-git add -p
-git commit -m "chore(plugin-webgl): final integration checks pass"
+git add -p && git commit -m "chore(plugin-webgl): build verification"
 ```
