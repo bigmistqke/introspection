@@ -140,6 +140,23 @@ test('unwatch stops events from being pushed', async ({ page }) => {
   expect(draws).toHaveLength(1)  // only the one before unwatch
 })
 
+test('watch() with RegExp name filter only matches matching uniforms', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+  // /^u_/ should match u_time but not other names
+  await plugin.watch({ event: 'uniform', name: /^u_/ })
+
+  await page.evaluate(() => {
+    const { _gl: gl, _prog: prog } = window as unknown as { _gl: WebGLRenderingContext; _prog: WebGLProgram }
+    gl.uniform1f(gl.getUniformLocation(prog, 'u_time'), 1.0)
+  })
+
+  const events = await endSession(handle, outDir)
+  const uniforms = events.filter((e: { type: string }) => e.type === 'webgl.uniform')
+  expect(uniforms).toHaveLength(1)
+  expect(uniforms[0].data.name).toBe('u_time')
+})
+
 test('capture() returns webgl-state asset with viewport and context info', async ({ page }) => {
   const { outDir, plugin, handle } = await makeSession(page)
   await setupGL(page)

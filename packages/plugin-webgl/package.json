@@ -10,9 +10,7 @@
   },
   "scripts": {
     "build": "tsup --config tsup.browser.config.ts && tsup --config tsup.node.config.ts",
-    "test:unit": "vitest run",
-    "test:integration": "playwright test",
-    "test": "pnpm run test:unit"
+    "test": "playwright test"
   },
   "dependencies": {
     "@introspection/types": "workspace:*"
@@ -21,7 +19,6 @@
     "@introspection/playwright": "workspace:*",
     "@playwright/test": "^1.40.0",
     "tsup": "^8.0.0",
-    "vitest": "^1.0.0",
     "typescript": "^5.0.0"
   }
 }
