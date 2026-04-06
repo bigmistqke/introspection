@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtemp, rm, readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { webgl } from '../src/index.js'
+import { webgl } from '../dist/index.js'
 import { attach } from '@introspection/playwright'
 import type { IntrospectHandle } from '@introspection/types'
 
