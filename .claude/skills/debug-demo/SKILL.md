@@ -62,6 +62,8 @@ Every entry must follow this format:
 
 Mark any tool use that is **not** the introspect CLI with `non-CLI tool` and the reason. This makes it visible when the introspect workflow was insufficient.
 
+**Every file edit or write must also get its own rapport entry.** This includes: adding instrumentation to `test.spec.ts`, editing `app.html` to apply a fix, reverting files. Use the same format — tool is `Edit` or `Write`, non-CLI tool, reason is why the source change was needed at that moment.
+
 ---
 
 After the agent completes, share the rapport path `<RAPPORT_PATH>` with the user and summarise:

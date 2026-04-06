@@ -6,12 +6,12 @@ const trace: TraceFile = {
   version: '1',
   test: { title: 't', file: 'f', status: 'passed', duration: 100 },
   events: [
-    { id: 'evt-aaa1', type: 'network.request', ts: 10, source: 'cdp', data: { cdpRequestId: '1000.1', url: '/api/users', method: 'GET', headers: {} } },
-    { id: 'evt-aaa2', type: 'network.response', ts: 50, source: 'cdp', initiator: 'evt-aaa1', data: { cdpRequestId: '1000.1', requestId: '1000.1', url: '/api/users', status: 200, headers: {} } },
-    { id: 'evt-bbb1', type: 'network.request', ts: 60, source: 'cdp', data: { cdpRequestId: '1000.2', url: '/api/auth', method: 'POST', headers: {} } },
-    { id: 'evt-bbb2', type: 'network.response', ts: 100, source: 'cdp', initiator: 'evt-bbb1', data: { cdpRequestId: '1000.2', requestId: '1000.2', url: '/api/auth', status: 401, headers: {} } },
-    { id: 'evt-ccc1', type: 'network.request', ts: 110, source: 'cdp', data: { cdpRequestId: '1000.3', url: '/api/slow', method: 'GET', headers: {} } },
-    { id: 'evt-ccc2', type: 'network.error', ts: 200, source: 'cdp', data: { cdpRequestId: '1000.3', url: '/api/slow', errorText: 'net::ERR_CONNECTION_TIMED_OUT' } },
+    { id: 'evt-aaa1', type: 'network.request', timestamp: 10, source: 'cdp', data: { cdpRequestId: '1000.1', url: '/api/users', method: 'GET', headers: {} } },
+    { id: 'evt-aaa2', type: 'network.response', timestamp: 50, source: 'cdp', initiator: 'evt-aaa1', data: { cdpRequestId: '1000.1', requestId: '1000.1', url: '/api/users', status: 200, headers: {} } },
+    { id: 'evt-bbb1', type: 'network.request', timestamp: 60, source: 'cdp', data: { cdpRequestId: '1000.2', url: '/api/auth', method: 'POST', headers: {} } },
+    { id: 'evt-bbb2', type: 'network.response', timestamp: 100, source: 'cdp', initiator: 'evt-bbb1', data: { cdpRequestId: '1000.2', requestId: '1000.2', url: '/api/auth', status: 401, headers: {} } },
+    { id: 'evt-ccc1', type: 'network.request', timestamp: 110, source: 'cdp', data: { cdpRequestId: '1000.3', url: '/api/slow', method: 'GET', headers: {} } },
+    { id: 'evt-ccc2', type: 'network.error', timestamp: 200, source: 'cdp', data: { cdpRequestId: '1000.3', url: '/api/slow', errorText: 'net::ERR_CONNECTION_TIMED_OUT' } },
   ],
   snapshots: {},
 }
@@ -47,7 +47,7 @@ describe('formatNetworkTable', () => {
 
   it('shows ? for method when response has no matching request', () => {
     const orphanEvents: TraceFile['events'] = [
-      { id: 'evt-1', type: 'network.response', ts: 50, source: 'cdp', data: { cdpRequestId: 'orphan', requestId: 'orphan', url: '/api/orphan', status: 200, headers: {} } },
+      { id: 'evt-1', type: 'network.response', timestamp: 50, source: 'cdp', data: { cdpRequestId: 'orphan', requestId: 'orphan', url: '/api/orphan', status: 200, headers: {} } },
     ]
     const out = formatNetworkTable(orphanEvents, {})
     expect(out).toContain('?')

@@ -80,8 +80,8 @@ program.command('eval <expression>').option('--session <id>').action(async (expr
   const trace = await loadTrace(opts)
   try {
     console.log(evalExpression(trace, expression))
-  } catch (err) {
-    console.error(`Error: ${(err as Error).message}`)
+  } catch (error) {
+    console.error(`Error: ${(error as Error).message}`)
     process.exit(1)
   }
 })
@@ -177,15 +177,15 @@ program
     let trace
     try {
       trace = await loadTrace(opts)
-    } catch (err) {
-      console.error(String(err))
+    } catch (error) {
+      console.error(String(error))
       process.exit(1)
     }
     try {
       const out = formatEvents(trace, opts)
       if (out) console.log(out)
-    } catch (err) {
-      console.error(`Error: ${(err as Error).message}`)
+    } catch (error) {
+      console.error(`Error: ${(error as Error).message}`)
       process.exit(1)
     }
   })

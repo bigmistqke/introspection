@@ -1,7 +1,7 @@
 import type { Snapshot, ScopeFrame } from '@introspection/types'
 
 interface CdpSession {
-  send(method: string, params?: Record<string, unknown>): Promise<unknown>
+  send(method: string, parameters?: Record<string, unknown>): Promise<unknown>
 }
 
 interface CallFrame {
@@ -57,5 +57,5 @@ export async function takeSnapshot(options: TakeSnapshotOptions): Promise<Omit<S
     } catch { /* non-fatal */ }
   }
 
-  return { ts: Date.now(), trigger, url, dom, scopes, globals }
+  return { timestamp: Date.now(), trigger, url, dom, scopes, globals }
 }

@@ -97,7 +97,7 @@ export function webgl(): WebGLPlugin {
         } | undefined)?.webgl
         return plugin?.captureCanvases?.() ?? []
       })
-      const ts = ctx.timestamp()
+      const timestamp = ctx.timestamp()
       for (const { contextId, dataUrl } of canvases) {
         if (opts?.contextId !== undefined && contextId !== opts.contextId) continue
         const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
@@ -105,12 +105,12 @@ export function webgl(): WebGLPlugin {
           kind: 'webgl-canvas',
           content: Buffer.from(base64, 'base64'),
           ext: 'png',
-          metadata: { timestamp: ts, contextId },
+          metadata: { timestamp, contextId },
         })
       }
     },
 
-    async capture(_trigger: 'js.error' | 'manual' | 'detach', ts: number): Promise<CaptureResult[]> {
+    async capture(_trigger: 'js.error' | 'manual' | 'detach', timestamp: number): Promise<CaptureResult[]> {
       if (!ctx) return []
 
       const snapshots = await ctx.page.evaluate(() => {
@@ -133,7 +133,7 @@ export function webgl(): WebGLPlugin {
           uniformCount: Object.keys(snapshot.uniforms).length,
           boundTextureCount: snapshot.textures.length,
           viewport: snapshot.viewport,
-          timestamp: ts,
+          timestamp,
         },
       }))
 
@@ -143,7 +143,7 @@ export function webgl(): WebGLPlugin {
           kind: 'webgl-canvas',
           content: Buffer.from(base64, 'base64'),
           ext: 'png',
-          summary: { contextId, timestamp: ts },
+          summary: { contextId, timestamp },
         })
       }
 

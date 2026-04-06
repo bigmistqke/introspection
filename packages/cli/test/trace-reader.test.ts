@@ -31,7 +31,7 @@ async function writeSession(id: string, opts: {
     await mkdir(join(sessionDir, 'assets'), { recursive: true })
     await writeFile(join(sessionDir, 'assets', `${uuid}.snapshot.json`), JSON.stringify(opts.snapshot))
     events.push({
-      id: `asset-${uuid}`, type: 'asset', ts: opts.snapshot.ts, source: 'agent',
+      id: `asset-${uuid}`, type: 'asset', timestamp: opts.snapshot.timestamp, source: 'agent',
       data: { path: `${uuid}.snapshot.json`, kind: 'snapshot' },
     })
   }
@@ -42,7 +42,7 @@ async function writeSession(id: string, opts: {
 describe('TraceReader', () => {
   it('load() reads session directory and returns TraceFile', async () => {
     await writeSession('sess-abc', { label: 'my test', events: [
-      { id: 'e1', type: 'mark', ts: 10, source: 'agent', data: { label: 'start' } },
+      { id: 'e1', type: 'mark', timestamp: 10, source: 'agent', data: { label: 'start' } },
     ]})
     const trace = await new TraceReader(dir).load('sess-abc')
     expect(trace.session.id).toBe('sess-abc')
@@ -65,7 +65,7 @@ describe('TraceReader', () => {
 
   it('load() reads snapshot from assets/ dir via asset events', async () => {
     const snap: Snapshot = {
-      ts: 100, trigger: 'manual', url: 'http://localhost/', dom: '<html/>', scopes: [], globals: {},
+      timestamp: 100, trigger: 'manual', url: 'http://localhost/', dom: '<html/>', scopes: [], globals: {},
     }
     await writeSession('sess-snap', { snapshot: snap })
     const trace = await new TraceReader(dir).load('sess-snap')
@@ -107,9 +107,9 @@ describe('TraceReader', () => {
 
   it('filterEvents --url ignores non-network event types', async () => {
     await writeSession('sess-url', { events: [
-      { id: 'e1', type: 'mark', ts: 10, source: 'agent', data: { label: 'x' } },
-      { id: 'e2', type: 'network.request', ts: 20, source: 'cdp', data: { url: '/api/match', method: 'GET', headers: {} } },
-      { id: 'e3', type: 'network.request', ts: 30, source: 'cdp', data: { url: '/other', method: 'GET', headers: {} } },
+      { id: 'e1', type: 'mark', timestamp: 10, source: 'agent', data: { label: 'x' } },
+      { id: 'e2', type: 'network.request', timestamp: 20, source: 'cdp', data: { url: '/api/match', method: 'GET', headers: {} } },
+      { id: 'e3', type: 'network.request', timestamp: 30, source: 'cdp', data: { url: '/other', method: 'GET', headers: {} } },
     ]})
     const trace = await new TraceReader(dir).load('sess-url')
     const result = new TraceReader(dir).filterEvents(trace, { url: '/api/match' })
@@ -129,8 +129,8 @@ describe('TraceReader', () => {
 
   it('filterEvents() filters by type', async () => {
     await writeSession('sess-filter', { events: [
-      { id: 'e1', type: 'mark', ts: 10, source: 'agent', data: { label: 'x' } },
-      { id: 'e2', type: 'network.request', ts: 20, source: 'cdp', data: { url: '/api', method: 'GET', headers: {} } },
+      { id: 'e1', type: 'mark', timestamp: 10, source: 'agent', data: { label: 'x' } },
+      { id: 'e2', type: 'network.request', timestamp: 20, source: 'cdp', data: { url: '/api', method: 'GET', headers: {} } },
     ]})
     const trace = await new TraceReader(dir).load('sess-filter')
     const result = new TraceReader(dir).filterEvents(trace, { type: 'mark' })

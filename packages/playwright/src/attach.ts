@@ -32,10 +32,10 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
   // Untyped wrapper for generic CDP calls where the method is a runtime string
   const cdpSend = cdp.send.bind(cdp) as (method: string, params?: Record<string, unknown>) => Promise<unknown>
 
-  function ts(): number { return Date.now() - startedAt }
+  function timestamp(): number { return Date.now() - startedAt }
 
-  function emit(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }) {
-    void appendEvent(outDir, sessionId, { id: randomUUID(), ts: ts(), ...event } as TraceEvent)
+  function emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }) {
+    void appendEvent(outDir, sessionId, { id: randomUUID(), timestamp: timestamp(), ...event } as TraceEvent)
   }
 
   const plugins = opts.plugins ?? []
@@ -53,7 +53,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
           metadata: wopts.metadata, source: wopts.source ?? 'plugin',
         })
       },
-      timestamp: ts,
+      timestamp,
       async addSubscription(pluginName: string, spec: unknown) {
         const expr = `(() => { const p = window.__introspect_plugins__?.['${pluginName}']; return p ? p.watch(${JSON.stringify(spec)}) : null })()`
         const result = await cdp.send('Runtime.evaluate', { expression: expr, returnByValue: true }) as { result: { value: string } }
@@ -182,14 +182,14 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
       })
       const mergedSnap = { ...snap, scopes }
       await writeAsset({ directory: outDir, name: sessionId, kind: 'snapshot', content: JSON.stringify(mergedSnap), metadata: {
-        timestamp: ts(), trigger: 'js.error', url: mergedSnap.url, scopeCount: mergedSnap.scopes.length,
+        timestamp: timestamp(), trigger: 'js.error', url: mergedSnap.url, scopeCount: mergedSnap.scopes.length,
       } })
 
       for (const plugin of plugins) {
         if (!plugin.capture) continue
         try {
-          for (const r of await plugin.capture('js.error', ts()))
-            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, ext: r.ext, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
+          for (const r of await plugin.capture('js.error', timestamp()))
+            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, ext: r.ext, metadata: { timestamp: timestamp(), ...r.summary }, source: 'plugin' })
         } catch { /* non-fatal */ }
       }
     })())
@@ -224,7 +224,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
         const result = await cdp.send('Network.getResponseBody', { requestId: params.requestId }) as { body: string; base64Encoded: boolean }
         const body = result.base64Encoded ? Buffer.from(result.body, 'base64').toString('utf-8') : result.body
         const summary = summariseBody(body)
-        await writeAsset({ directory: outDir, name: sessionId, kind: 'body', id: responseEvent.id, content: body, metadata: { timestamp: ts(), summary } })
+        await writeAsset({ directory: outDir, name: sessionId, kind: 'body', id: responseEvent.id, content: body, metadata: { timestamp: timestamp(), summary } })
         await appendEvent(outDir, sessionId, { ...responseEvent, data: { ...responseEvent.data, bodySummary: summary } })
       } catch {
         await appendEvent(outDir, sessionId, responseEvent)
@@ -237,7 +237,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
     if (responseEvent) { pendingResponses.delete(params.requestId); void appendEvent(outDir, sessionId, responseEvent) }
   })
 
-  const proxiedPage = createPageProxy(page, (evt) => emit(evt))
+  const proxiedPage = createPageProxy(page, (event) => emit(event))
 
   return {
     page: proxiedPage,
@@ -251,13 +251,13 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
         url: await page.evaluate(() => location.href).catch(() => ''),
       })
       await writeAsset({ directory: outDir, name: sessionId, kind: 'snapshot', content: JSON.stringify(snap), metadata: {
-        timestamp: ts(), trigger: 'manual', url: snap.url, scopeCount: snap.scopes.length,
+        timestamp: timestamp(), trigger: 'manual', url: snap.url, scopeCount: snap.scopes.length,
       } })
       for (const plugin of plugins) {
         if (!plugin.capture) continue
         try {
-          for (const r of await plugin.capture('manual', ts()))
-            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, ext: r.ext, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
+          for (const r of await plugin.capture('manual', timestamp()))
+            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, ext: r.ext, metadata: { timestamp: timestamp(), ...r.summary }, source: 'plugin' })
         } catch { /* non-fatal */ }
       }
     },
@@ -282,8 +282,8 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
       for (const plugin of plugins) {
         if (!plugin.capture) continue
         try {
-          for (const r of await plugin.capture('detach', ts()))
-            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, ext: r.ext, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
+          for (const r of await plugin.capture('detach', timestamp()))
+            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, ext: r.ext, metadata: { timestamp: timestamp(), ...r.summary }, source: 'plugin' })
         } catch { /* non-fatal */ }
       }
 

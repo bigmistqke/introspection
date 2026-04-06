@@ -37,10 +37,10 @@ export function summariseBody(raw: string): BodySummary {
   return { keys, scalars, arrays, errorFields }
 }
 
-export async function initSessionDir(outDir: string, params: SessionInitParams): Promise<void> {
-  const sessionDir = join(outDir, params.id)
+export async function initSessionDir(outDir: string, parameters: SessionInitParams): Promise<void> {
+  const sessionDir = join(outDir, parameters.id)
   await mkdir(join(sessionDir, 'assets'), { recursive: true })
-  const meta: SessionMeta = { version: '2', id: params.id, startedAt: params.startedAt, label: params.label }
+  const meta: SessionMeta = { version: '2', id: parameters.id, startedAt: parameters.startedAt, label: parameters.label }
   await writeFile(join(sessionDir, 'meta.json'), JSON.stringify(meta, null, 2))
   await writeFile(join(sessionDir, 'events.ndjson'), '')
 }
@@ -69,7 +69,7 @@ export async function writeAsset(opts: {
   const event = {
     id: randomUUID().replace(/-/g, '').slice(0, 8),
     type: 'asset' as const,
-    ts: timestamp,
+    timestamp,
     source: (source ?? 'agent') as EventSource,
     data: { path, kind, ...rest },
   }

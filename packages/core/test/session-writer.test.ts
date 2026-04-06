@@ -32,8 +32,8 @@ describe('initSessionDir', () => {
 describe('appendEvent', () => {
   it('appends events as newline-terminated JSON lines', async () => {
     await initSessionDir(dir, initParams)
-    const e1: TraceEvent = { id: 'e1', type: 'mark', ts: 10, source: 'agent', data: { label: 'start' } }
-    const e2: TraceEvent = { id: 'e2', type: 'mark', ts: 20, source: 'agent', data: { label: 'end' } }
+    const e1: TraceEvent = { id: 'e1', type: 'mark', timestamp: 10, source: 'agent', data: { label: 'start' } }
+    const e2: TraceEvent = { id: 'e2', type: 'mark', timestamp: 20, source: 'agent', data: { label: 'end' } }
     await appendEvent(dir, 'sess-1', e1)
     await appendEvent(dir, 'sess-1', e2)
     const lines = (await readFile(join(dir, 'sess-1', 'events.ndjson'), 'utf-8')).trim().split('\n')
@@ -57,13 +57,13 @@ describe('writeAsset', () => {
     const path = await writeAsset({ directory: dir, name: 'sess-1', kind: 'snapshot', content: '{}', metadata: { timestamp: 50, trigger: 'js.error', url: '/login', scopeCount: 2 } })
     const lines = (await readFile(join(dir, 'sess-1', 'events.ndjson'), 'utf-8')).trim().split('\n').filter(Boolean)
     expect(lines).toHaveLength(1)
-    const evt = JSON.parse(lines[0])
-    expect(evt.type).toBe('asset')
-    expect(evt.ts).toBe(50)
-    expect(evt.data.path).toBe(path)
-    expect(evt.data.kind).toBe('snapshot')
-    expect(evt.data.trigger).toBe('js.error')
-    expect(evt.data.scopeCount).toBe(2)
+    const event = JSON.parse(lines[0])
+    expect(event.type).toBe('asset')
+    expect(event.timestamp).toBe(50)
+    expect(event.data.path).toBe(path)
+    expect(event.data.kind).toBe('snapshot')
+    expect(event.data.trigger).toBe('js.error')
+    expect(event.data.scopeCount).toBe(2)
   })
 
   it('generates unique paths for multiple assets of the same kind', async () => {

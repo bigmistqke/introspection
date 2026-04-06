@@ -4,7 +4,7 @@ export type EventSource = 'cdp' | 'agent' | 'playwright' | 'plugin'
 
 export interface BaseEvent {
   id: string
-  ts: number          // ms since test start
+  timestamp: number   // ms since test start
   source: EventSource
   initiator?: string  // id of event that caused this one (best-effort)
 }
@@ -109,7 +109,7 @@ export interface WatchHandle {
 export interface PluginContext {
   page: PluginPage
   cdpSession: { send(method: string, params?: Record<string, unknown>): Promise<unknown> }
-  emit(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }): void
+  emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): void
   writeAsset(opts: {
     kind: string
     content: string | Buffer
@@ -126,7 +126,7 @@ export interface IntrospectionPlugin {
   name: string
   script: string
   install(ctx: PluginContext): Promise<void>
-  capture?(trigger: 'js.error' | 'manual' | 'detach', ts: number): Promise<CaptureResult[]>
+  capture?(trigger: 'js.error' | 'manual' | 'detach', timestamp: number): Promise<CaptureResult[]>
 }
 
 // ─── Supporting types ────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ export interface BodySummary {
 // ─── Snapshot ────────────────────────────────────────────────────────────────
 
 export interface Snapshot {
-  ts: number
+  timestamp: number
   trigger: 'js.error' | 'manual'
   url: string
   dom: string

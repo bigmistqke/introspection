@@ -7,9 +7,9 @@ const trace: TraceFile = {
   session: { id: 'sess-1', startedAt: 1000, endedAt: 1800, label: 'checkout test' },
   snapshots: {},
   events: [
-    { id: 'e1', type: 'plugin.redux.action', ts: 100, source: 'plugin', data: { action: { type: 'CART/ADD' } } },
-    { id: 'e2', type: 'plugin.redux.action', ts: 200, source: 'plugin', data: { action: { type: 'CART/REMOVE' } } },
-    { id: 'e3', type: 'network.request',     ts: 300, source: 'cdp',    data: { url: '/api/checkout', method: 'POST', headers: {} } },
+    { id: 'e1', type: 'plugin.redux.action', timestamp: 100, source: 'plugin', data: { action: { type: 'CART/ADD' } } },
+    { id: 'e2', type: 'plugin.redux.action', timestamp: 200, source: 'plugin', data: { action: { type: 'CART/REMOVE' } } },
+    { id: 'e3', type: 'network.request',     timestamp: 300, source: 'cdp',    data: { url: '/api/checkout', method: 'POST', headers: {} } },
   ],
 }
 

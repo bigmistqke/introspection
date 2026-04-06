@@ -6,10 +6,10 @@ const trace: TraceFile = {
   version: '2',
   session: { id: 'sess-1', startedAt: 1000, endedAt: 3000, label: 'login test' },
   events: [
-    { id: 'e1', type: 'playwright.action', ts: 50, source: 'playwright', data: { method: 'goto', args: ['/login'] } },
-    { id: 'e2', type: 'network.request', ts: 100, source: 'cdp', data: { url: '/api/auth/login', method: 'POST', headers: {} } },
-    { id: 'e3', type: 'network.response', ts: 150, source: 'cdp', initiator: 'e2', data: { requestId: 'e2', url: '/api/auth/login', status: 401, headers: {} } },
-    { id: 'e4', type: 'js.error', ts: 200, source: 'cdp', data: { message: 'TypeError: Cannot read properties', stack: [] } },
+    { id: 'e1', type: 'playwright.action', timestamp: 50, source: 'playwright', data: { method: 'goto', args: ['/login'] } },
+    { id: 'e2', type: 'network.request', timestamp: 100, source: 'cdp', data: { url: '/api/auth/login', method: 'POST', headers: {} } },
+    { id: 'e3', type: 'network.response', timestamp: 150, source: 'cdp', initiator: 'e2', data: { requestId: 'e2', url: '/api/auth/login', status: 401, headers: {} } },
+    { id: 'e4', type: 'js.error', timestamp: 200, source: 'cdp', data: { message: 'TypeError: Cannot read properties', stack: [] } },
   ],
   snapshots: {},
 }
@@ -55,7 +55,7 @@ describe('buildSummary', () => {
     const noArgs: TraceFile = {
       ...trace,
       events: [
-        { id: 'e1', type: 'playwright.action', ts: 50, source: 'playwright', data: { method: 'reload', args: [] } },
+        { id: 'e1', type: 'playwright.action', timestamp: 50, source: 'playwright', data: { method: 'reload', args: [] } },
       ],
     }
     const out = buildSummary(noArgs)

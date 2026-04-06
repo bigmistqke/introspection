@@ -29,7 +29,7 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
       event => event.type === 'mark' && (event.data as { label: string }).label === opts.since
     )
     if (!mark) throw new Error(`no mark event with label "${opts.since}" found`)
-    lowerBound = Math.max(lowerBound, mark.ts)
+    lowerBound = Math.max(lowerBound, mark.timestamp)
   }
 
   const types = opts.type ? opts.type.split(',').map(type => type.trim()).filter(Boolean) : null
@@ -37,8 +37,8 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
   let result = trace.events.filter(event => {
     if (types && !types.includes(event.type)) return false
     if (opts.source && event.source !== opts.source) return false
-    if (event.ts <= lowerBound) return false
-    if (opts.before !== undefined && event.ts >= opts.before) return false
+    if (event.timestamp <= lowerBound) return false
+    if (opts.before !== undefined && event.timestamp >= opts.before) return false
     return true
   })
 
@@ -57,8 +57,8 @@ export function formatEvents(trace: TraceFile, opts: EventFilterOpts): string {
     try {
       const raw = runInNewContext(opts.filter!, { event: ev })
       return raw === undefined ? null : raw
-    } catch (err) {
-      return { error: String(err), event: ev }
+    } catch (error) {
+      return { error: String(error), event: ev }
     }
   })
   return JSON.stringify(results, null, 2)

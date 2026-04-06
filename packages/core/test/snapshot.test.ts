@@ -3,11 +3,11 @@ import { takeSnapshot } from '../src/snapshot.js'
 
 function makeMockCdp(overrides: Record<string, unknown> = {}) {
   return {
-    send: vi.fn().mockImplementation((method: string, params?: Record<string, unknown>) => {
+    send: vi.fn().mockImplementation((method: string, parameters?: Record<string, unknown>) => {
       if (method === 'DOM.getDocument') return Promise.resolve({ root: { nodeId: 1 } })
       if (method === 'DOM.getOuterHTML') return Promise.resolve({ outerHTML: '<html/>' })
       if (method === 'Runtime.evaluate') {
-        const expr = params?.expression as string
+        const expr = parameters?.expression as string
         if (expr === 'location.pathname') return Promise.resolve({ result: { value: '/home' } })
         return Promise.resolve({ result: { value: null } })
       }
@@ -71,11 +71,11 @@ describe('takeSnapshot', () => {
 
   it('populates globals', async () => {
     const mockCdp = {
-      send: vi.fn().mockImplementation((method: string, params?: Record<string, unknown>) => {
+      send: vi.fn().mockImplementation((method: string, parameters?: Record<string, unknown>) => {
         if (method === 'DOM.getDocument') return Promise.resolve({ root: { nodeId: 1 } })
         if (method === 'DOM.getOuterHTML') return Promise.resolve({ outerHTML: '' })
         if (method === 'Runtime.evaluate') {
-          const expr = params?.expression as string
+          const expr = parameters?.expression as string
           if (expr === 'location.pathname') return Promise.resolve({ result: { value: '/app' } })
           if (expr === 'localStorage') return Promise.resolve({ result: { value: { token: 'abc' } } })
           if (expr === 'sessionStorage') return Promise.resolve({ result: { value: {} } })

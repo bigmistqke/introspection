@@ -39,16 +39,16 @@ export class TraceReader {
     const assetEvents = events.filter((e): e is AssetEvent => e.type === 'asset')
 
     const snapshots: TraceFile['snapshots'] = []
-    for (const assetEvt of assetEvents) {
-      if (assetEvt.data.kind !== 'snapshot') continue
+    for (const assetEvent of assetEvents) {
+      if (assetEvent.data.kind !== 'snapshot') continue
       try {
-        const raw = await readFile(join(sessionDir, assetEvt.data.path), 'utf-8')
+        const raw = await readFile(join(sessionDir, assetEvent.data.path), 'utf-8')
         snapshots.push(JSON.parse(raw))
-      } catch (err: unknown) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+      } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       }
     }
-    snapshots.sort((a, b) => a.ts - b.ts)
+    snapshots.sort((a, b) => a.timestamp - b.timestamp)
 
     return {
       version: '2',
@@ -64,10 +64,10 @@ export class TraceReader {
 
   filterEvents(trace: TraceFile, opts: FilterOptions): TraceEvent[] {
     const NETWORK_URL_TYPES = new Set(['network.request', 'network.response', 'network.error'])
-    return trace.events.filter(evt => {
-      if (opts.type && evt.type !== opts.type) return false
-      if (opts.url && NETWORK_URL_TYPES.has(evt.type) && !(evt.data as { url: string }).url.includes(opts.url)) return false
-      if (opts.failed && evt.type === 'network.response' && (evt.data as { status: number }).status < 400) return false
+    return trace.events.filter(event => {
+      if (opts.type && event.type !== opts.type) return false
+      if (opts.url && NETWORK_URL_TYPES.has(event.type) && !(event.data as { url: string }).url.includes(opts.url)) return false
+      if (opts.failed && event.type === 'network.response' && (event.data as { status: number }).status < 400) return false
       return true
     })
   }
@@ -76,9 +76,9 @@ export class TraceReader {
     try {
       const entries = await readdir(this.dir, { withFileTypes: true })
       return entries.filter(entry => entry.isDirectory()).map(entry => entry.name)
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
-      throw err
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+      throw error
     }
   }
 }

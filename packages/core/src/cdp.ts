@@ -2,8 +2,8 @@ import { randomUUID } from 'crypto'
 import type { NetworkRequestEvent, NetworkResponseEvent, JsErrorEvent, StackFrame } from '@introspection/types'
 
 function makeId(): string { return `evt-${randomUUID().slice(0, 8)}` }
-function toTs(timestamp: unknown, startedAt: number): number {
-  return typeof timestamp === 'number' ? Math.round(timestamp * 1000 - startedAt) : 0
+function toTimestamp(value: unknown, startedAt: number): number {
+  return typeof value === 'number' ? Math.round(value * 1000 - startedAt) : 0
 }
 
 export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, startedAt: number): NetworkRequestEvent {
@@ -11,7 +11,7 @@ export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, started
   return {
     id: makeId(),
     type: 'network.request',
-    ts: toTs(raw.wallTime ?? raw.timestamp, startedAt),
+    timestamp: toTimestamp(raw.wallTime ?? raw.timestamp, startedAt),
     source: 'cdp',
     data: {
       cdpRequestId: raw.requestId as string,
@@ -24,19 +24,19 @@ export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, started
 }
 
 export function normaliseCdpNetworkResponse(raw: Record<string, unknown>, startedAt: number, cdpTimeOffset = 0): NetworkResponseEvent {
-  const res = (raw.response ?? {}) as Record<string, unknown>
+  const response = (raw.response ?? {}) as Record<string, unknown>
   return {
     id: makeId(),
     type: 'network.response',
-    ts: typeof raw.timestamp === 'number' ? Math.round(raw.timestamp * 1000 + cdpTimeOffset - startedAt) : 0,
+    timestamp: typeof raw.timestamp === 'number' ? Math.round(raw.timestamp * 1000 + cdpTimeOffset - startedAt) : 0,
     source: 'cdp',
     initiator: raw.requestId as string,
     data: {
       cdpRequestId: raw.requestId as string,
       requestId: raw.requestId as string,
-      url: res.url as string,
-      status: res.status as number,
-      headers: (res.headers ?? {}) as Record<string, string>,
+      url: response.url as string,
+      status: response.status as number,
+      headers: (response.headers ?? {}) as Record<string, string>,
     },
   }
 }
@@ -55,7 +55,7 @@ export function normaliseCdpJsError(raw: Record<string, unknown>, startedAt: num
   return {
     id: makeId(),
     type: 'js.error',
-    ts: toTs(raw.timestamp, startedAt),
+    timestamp: toTimestamp(raw.timestamp, startedAt),
     source: 'cdp',
     data: { message, stack },
   }

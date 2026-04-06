@@ -6,7 +6,7 @@ const TRACKED_METHODS = new Set([
   'uncheck', 'hover', 'dragAndDrop', 'evaluate', 'waitForURL', 'waitForSelector',
 ])
 
-type EmitFn = (event: Omit<PlaywrightActionEvent, 'id' | 'ts'>) => void
+type EmitFn = (event: Omit<PlaywrightActionEvent, 'id' | 'timestamp'>) => void
 
 export function createPageProxy(page: Page, emit: EmitFn): Page {
   return new Proxy(page, {

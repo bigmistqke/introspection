@@ -7,12 +7,12 @@ const trace: TraceFile = {
   test: { title: 't', file: 'f', status: 'passed', duration: 500 },
   snapshots: {},
   events: [
-    { id: 'e1', type: 'mark',                 ts: 50,  source: 'agent',      data: { label: 'before-add' } },
-    { id: 'e2', type: 'plugin.redux.action',   ts: 100, source: 'cdp',        data: { action: { type: 'CART/ADD' } } },
-    { id: 'e3', type: 'network.request',       ts: 200, source: 'cdp',        data: { url: '/api/cart', method: 'POST', headers: {} } },
-    { id: 'e4', type: 'plugin.redux.action',   ts: 300, source: 'cdp',        data: { action: { type: 'CART/REMOVE' } } },
-    { id: 'e5', type: 'playwright.action',     ts: 400, source: 'playwright', data: { method: 'click', args: ['button'] } },
-    { id: 'e6', type: 'webgl.uniform',         ts: 450, source: 'plugin',     data: { name: 'u_time', value: 1.5 } },
+    { id: 'e1', type: 'mark',                 timestamp: 50,  source: 'agent',      data: { label: 'before-add' } },
+    { id: 'e2', type: 'plugin.redux.action',   timestamp: 100, source: 'cdp',        data: { action: { type: 'CART/ADD' } } },
+    { id: 'e3', type: 'network.request',       timestamp: 200, source: 'cdp',        data: { url: '/api/cart', method: 'POST', headers: {} } },
+    { id: 'e4', type: 'plugin.redux.action',   timestamp: 300, source: 'cdp',        data: { action: { type: 'CART/REMOVE' } } },
+    { id: 'e5', type: 'playwright.action',     timestamp: 400, source: 'playwright', data: { method: 'click', args: ['button'] } },
+    { id: 'e6', type: 'webgl.uniform',         timestamp: 450, source: 'plugin',     data: { name: 'u_time', value: 1.5 } },
   ],
 }
 
@@ -135,11 +135,11 @@ describe('formatEvents — expression mode', () => {
   })
 
   it('expression returning an object produces array of objects', () => {
-    const out = formatEvents(trace, { type: 'plugin.redux.action' }, '({ ts: event.ts, action: event.data.action.type })')
+    const out = formatEvents(trace, { type: 'plugin.redux.action' }, '({ timestamp: event.timestamp, action: event.data.action.type })')
     const parsed = JSON.parse(out)
     expect(parsed).toEqual([
-      { ts: 100, action: 'CART/ADD' },
-      { ts: 300, action: 'CART/REMOVE' },
+      { timestamp: 100, action: 'CART/ADD' },
+      { timestamp: 300, action: 'CART/REMOVE' },
     ])
   })
 
