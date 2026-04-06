@@ -12,7 +12,6 @@ export function introspectFixture(opts: IntrospectFixtureOptions = {}) {
     introspect: [async ({ page }, use, testInfo) => {
       const handle = await attach(page, {
         testTitle: testInfo.title,
-        testFile: testInfo.file,
         workerIndex: testInfo.workerIndex,
         ...(opts.viteUrl ? { viteUrl: opts.viteUrl } : {}),
         ...(opts.outDir ? { outDir: opts.outDir } : {}),

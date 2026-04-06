@@ -7,8 +7,9 @@
 
   // ─── State ───────────────────────────────────────────────────────────────────
 
-  // Plain Map (not WeakMap) — getState() needs to iterate all active contexts
+  // Plain Map (not WeakMap) — getState() / captureCanvases() need to iterate all active contexts
   const contextIds = new Map<GL, string>()
+  const canvases = new Map<GL, HTMLCanvasElement | OffscreenCanvas>()
   const locationNames = new WeakMap<WebGLUniformLocation, string>()
   const textureIds = new WeakMap<WebGLTexture, number>()
   const textureCounters = new Map<GL, number>()
@@ -78,28 +79,51 @@
 
   // ─── Always-active interceptors ──────────────────────────────────────────────
 
+  function registerContext(gl: GL, canvas: HTMLCanvasElement | OffscreenCanvas): void {
+    const id = generateUUID()
+    contextIds.set(gl, id)
+    canvases.set(gl, canvas)
+    textureCounters.set(gl, 0)
+    canvas.addEventListener('webglcontextlost', () => {
+      push('webgl.context-lost', { contextId: id })
+      for (const key of lastUniformValue.keys()) {
+        if (key.startsWith(`${id}:`)) lastUniformValue.delete(key)
+      }
+    })
+    canvas.addEventListener('webglcontextrestored', () => {
+      push('webgl.context-restored', { contextId: id })
+    })
+    push('webgl.context-created', { contextId: id })
+  }
+
+  function forcePreserveDrawingBuffer(args: IArguments | unknown[]): unknown[] {
+    const contextType = args[0] as string
+    if (contextType === 'webgl' || contextType === 'webgl2') {
+      const attrs = (args[1] as WebGLContextAttributes | null | undefined) ?? {}
+      return [contextType, { ...attrs, preserveDrawingBuffer: true }, ...Array.from(args).slice(2)]
+    }
+    return Array.from(args)
+  }
+
   const origGetContext = HTMLCanvasElement.prototype.getContext
   HTMLCanvasElement.prototype.getContext = function (...args: Parameters<typeof origGetContext>) {
-    const ctx = origGetContext.apply(this, args)
-    if (ctx instanceof WebGLRenderingContext || ctx instanceof WebGL2RenderingContext) {
-      if (!contextIds.has(ctx)) {
-        const id = generateUUID()
-        contextIds.set(ctx, id)
-        textureCounters.set(ctx, 0)
-        ctx.canvas.addEventListener('webglcontextlost', () => {
-          push('webgl.context-lost', { contextId: id })
-          for (const key of lastUniformValue.keys()) {
-            if (key.startsWith(`${id}:`)) lastUniformValue.delete(key)
-          }
-        })
-        ctx.canvas.addEventListener('webglcontextrestored', () => {
-          push('webgl.context-restored', { contextId: id })
-        })
-        push('webgl.context-created', { contextId: id })
-      }
+    const ctx = origGetContext.apply(this, forcePreserveDrawingBuffer(args) as Parameters<typeof origGetContext>)
+    if ((ctx instanceof WebGLRenderingContext || ctx instanceof WebGL2RenderingContext) && !contextIds.has(ctx)) {
+      registerContext(ctx, this)
     }
     return ctx
   } as typeof origGetContext
+
+  if (typeof OffscreenCanvas !== 'undefined') {
+    const origOffscreen = OffscreenCanvas.prototype.getContext
+    OffscreenCanvas.prototype.getContext = function (...args: Parameters<typeof origOffscreen>) {
+      const ctx = origOffscreen.apply(this, forcePreserveDrawingBuffer(args) as Parameters<typeof origOffscreen>)
+      if ((ctx instanceof WebGLRenderingContext || ctx instanceof WebGL2RenderingContext) && !contextIds.has(ctx)) {
+        registerContext(ctx, this)
+      }
+      return ctx
+    } as typeof origOffscreen
+  }
 
   function patchGetUniformLocation(proto: WebGLRenderingContext): void {
     const orig = proto.getUniformLocation
@@ -290,6 +314,30 @@
     })
   }
 
+  // ─── Canvas capture ───────────────────────────────────────────────────────────
+
+  async function captureCanvases(): Promise<Array<{ contextId: string; dataUrl: string }>> {
+    const results: Array<{ contextId: string; dataUrl: string }> = []
+    for (const [gl, id] of contextIds.entries()) {
+      if (gl.isContextLost()) continue
+      const canvas = canvases.get(gl)
+      if (!canvas) continue
+      try {
+        if (canvas instanceof HTMLCanvasElement) {
+          results.push({ contextId: id, dataUrl: canvas.toDataURL('image/png') })
+        } else if (typeof OffscreenCanvas !== 'undefined' && canvas instanceof OffscreenCanvas) {
+          const blob = await canvas.convertToBlob({ type: 'image/png' })
+          const buf = await blob.arrayBuffer()
+          const bytes = new Uint8Array(buf)
+          let binary = ''
+          for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+          results.push({ contextId: id, dataUrl: 'data:image/png;base64,' + btoa(binary) })
+        }
+      } catch { /* non-fatal — skip this context */ }
+    }
+    return results
+  }
+
   // ─── Public API ───────────────────────────────────────────────────────────────
 
   window.__introspect_plugins__ = window.__introspect_plugins__ || {}
@@ -307,5 +355,6 @@
       uninstallLazy(sub.spec.event as string)
     },
     getState,
+    captureCanvases,
   }
 })()

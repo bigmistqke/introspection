@@ -97,7 +97,8 @@ export interface PluginPage {
 
 export interface CaptureResult {
   kind: string
-  content: string
+  content: string | Buffer
+  ext?: string
   summary: Record<string, unknown>
 }
 
@@ -180,7 +181,8 @@ export interface TraceFile {
 // ─── IntrospectHandle (returned by attach()) ──────────────────────────────────
 
 export interface DetachResult {
-  status: 'passed' | 'failed' | 'timedOut'
+  status: 'passed' | 'failed' | 'timedOut' | 'skipped'
+  duration?: number
   error?: string
 }
 

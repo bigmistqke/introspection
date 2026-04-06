@@ -201,10 +201,16 @@ test('capture() returns webgl-state asset with viewport and context info', async
   await handle.snapshot()  // triggers plugin.capture('manual')
   const events = await endSession(handle, outDir)
 
-  const asset = events.find((e: { type: string; data?: { kind: string } }) =>
+  const stateAsset = events.find((e: { type: string; data?: { kind: string } }) =>
     e.type === 'asset' && e.data?.kind === 'webgl-state')
-  expect(asset).toBeDefined()
-  expect(asset.source).toBe('plugin')
-  expect(typeof asset.data.contextId).toBe('string')
-  expect(asset.data.viewport).toHaveLength(4)
+  expect(stateAsset).toBeDefined()
+  expect(stateAsset.source).toBe('plugin')
+  expect(typeof stateAsset.data.contextId).toBe('string')
+  expect(stateAsset.data.viewport).toHaveLength(4)
+
+  const canvasAsset = events.find((e: { type: string; data?: { kind: string } }) =>
+    e.type === 'asset' && e.data?.kind === 'webgl-canvas')
+  expect(canvasAsset).toBeDefined()
+  expect(canvasAsset.source).toBe('plugin')
+  expect(typeof canvasAsset.data.contextId).toBe('string')
 })

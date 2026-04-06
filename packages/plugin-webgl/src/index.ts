@@ -90,10 +90,20 @@ export function webgl(): WebGLPlugin {
 
     async capture(_trigger: 'js.error' | 'manual' | 'detach', ts: number): Promise<CaptureResult[]> {
       if (!ctx) return []
+
       const snapshots = await ctx.page.evaluate(() => {
-        return (window.__introspect_plugins__ as { webgl?: { getState?(): unknown[] } })?.webgl?.getState?.() ?? []
+        return (window.__introspect_plugins__ as { webgl?: { getState?(): unknown[] } } | undefined)
+          ?.webgl?.getState?.() ?? []
       }) as WebGLStateSnapshot[]
-      return snapshots.map(snapshot => ({
+
+      const canvases = await ctx.page.evaluate(async () => {
+        const p = (window.__introspect_plugins__ as {
+          webgl?: { captureCanvases?(): Promise<Array<{ contextId: string; dataUrl: string }>> }
+        } | undefined)?.webgl
+        return p?.captureCanvases?.() ?? []
+      })
+
+      const results: CaptureResult[] = snapshots.map(snapshot => ({
         kind: 'webgl-state',
         content: JSON.stringify(snapshot),
         summary: {
@@ -104,6 +114,18 @@ export function webgl(): WebGLPlugin {
           timestamp: ts,
         },
       }))
+
+      for (const { contextId, dataUrl } of canvases) {
+        const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
+        results.push({
+          kind: 'webgl-canvas',
+          content: Buffer.from(base64, 'base64'),
+          ext: 'png',
+          summary: { contextId, timestamp: ts },
+        })
+      }
+
+      return results
     },
   }
 }

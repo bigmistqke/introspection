@@ -188,7 +188,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
         if (!plugin.capture) continue
         try {
           for (const r of await plugin.capture('js.error', ts()))
-            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
+            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, ext: r.ext, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
         } catch { /* non-fatal */ }
       }
     })()
@@ -214,7 +214,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
         if (!plugin.capture) continue
         try {
           for (const r of await plugin.capture('manual', ts()))
-            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
+            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, ext: r.ext, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
         } catch { /* non-fatal */ }
       }
     },
@@ -232,7 +232,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
         if (!plugin.capture) continue
         try {
           for (const r of await plugin.capture('detach', ts()))
-            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
+            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, ext: r.ext, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
         } catch { /* non-fatal */ }
       }
 
