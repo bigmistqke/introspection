@@ -8,12 +8,14 @@ import {
 } from '@introspection/core'
 import { createPageProxy } from './proxy.js'
 import { PluginRegistry } from './plugin-registry.js'
+import { createDebug } from './debug.js'
 
 export interface AttachOptions {
   outDir?: string
   testTitle?: string
   workerIndex?: number
   plugins?: IntrospectionPlugin[]
+  verbose?: boolean
 }
 
 export async function attach(page: Page, opts: AttachOptions = {}): Promise<IntrospectHandle> {
@@ -21,7 +23,9 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
   const outDir = opts.outDir ?? '.introspect'
   const testTitle = opts.testTitle ?? 'unknown test'
   const startedAt = Date.now()
+  const debug = createDebug('introspect', opts.verbose ?? false)
 
+  debug('attach', { sessionId, testTitle, outDir })
   await initSessionDir(outDir, { id: sessionId, startedAt, label: testTitle })
 
   const cdp = await page.context().newCDPSession(page)
@@ -69,6 +73,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
   await cdp.send('Runtime.enable')
   await cdp.send('Debugger.enable')
   await cdp.send('DOM.enable')
+  await cdp.send('Page.enable')
   await cdp.send('Debugger.setPauseOnExceptions', { state: 'uncaught' })
 
   // Push bridge — browser calls window.__introspect_push__(JSON.stringify({type, data}))
@@ -85,6 +90,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
 
   // Inject scripts (future navigations) + evaluate immediately (current page)
   for (const plugin of plugins) {
+    debug('installing plugin', plugin.name)
     await page.addInitScript({ content: plugin.script })
     await page.evaluate((s: string) => { new Function(s)() }, plugin.script).catch(() => {})
     await plugin.install(makePluginCtx(plugin))
@@ -103,17 +109,23 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
     })()
   })
 
-  let pendingSnapshot: { scopes: ScopeFrame[] } | null = null
+  // Tracks in-flight async handlers (e.g. error processing). detach() drains these
+  // before finalizing so no events are lost to a race with cleanup.
+  const pending = new Set<Promise<void>>()
+  function track(p: Promise<void>): void { pending.add(p); void p.finally(() => pending.delete(p)) }
 
   cdp.on('Debugger.paused', (params: {
     reason: string
-    callFrames?: Array<{ functionName: string; url: string; location: { lineNumber: number }; scopeChain: Array<{ type: string; object: { objectId?: string } }> }>
+    data?: Record<string, unknown>
+    callFrames?: Array<{ functionName: string; url: string; location: { lineNumber: number; columnNumber?: number }; scopeChain: Array<{ type: string; object: { objectId?: string } }> }>
   }) => {
     if (!['exception', 'promiseRejection'].includes(params.reason)) {
-      void cdp.send('Debugger.resume')
+      void cdp.send('Debugger.resume').catch(() => {})
       return
     }
-    void (async () => {
+    debug('Debugger.paused', params.reason, (params.callFrames?.[0]?.url ?? ''))
+    track((async () => {
+      // Collect scope locals while the debugger is still paused
       const scopes: ScopeFrame[] = []
       for (const frame of (params.callFrames ?? []).slice(0, 5)) {
         const locals: Record<string, unknown> = {}
@@ -132,13 +144,56 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
         }
         scopes.push({ frame: `${frame.functionName || '(anonymous)'} (${frame.url}:${frame.location.lineNumber + 1})`, locals })
       }
-      pendingSnapshot = { scopes }
-      await cdp.send('Debugger.resume')
-    })()
+
+      // Resume before any page.evaluate / CDP evaluate calls
+      await cdp.send('Debugger.resume').catch(() => {})
+
+      // Build a synthetic exceptionDetails compatible with normaliseCdpJsError
+      const syntheticParams = {
+        timestamp: Date.now(),
+        exceptionDetails: {
+          text: '',
+          exception: params.data ?? {},
+          stackTrace: {
+            callFrames: (params.callFrames ?? []).map(f => ({
+              functionName: f.functionName,
+              url: f.url,
+              lineNumber: f.location.lineNumber,
+              columnNumber: f.location.columnNumber ?? 0,
+            })),
+          },
+        },
+      }
+
+      const errorEvent = normaliseCdpJsError(syntheticParams as Record<string, unknown>, startedAt)
+      debug('js.error', errorEvent.data.message)
+      await appendEvent(outDir, sessionId, errorEvent)
+
+      const snap = await takeSnapshot({
+        cdpSession: { send: (method: string, p?: Record<string, unknown>) => cdp.send(method as never, p as never) },
+        trigger: 'js.error',
+        url: await page.evaluate(() => location.href).catch(() => ''),
+        callFrames: [],
+      })
+      const mergedSnap = { ...snap, scopes }
+      await writeAsset({ directory: outDir, name: sessionId, kind: 'snapshot', content: JSON.stringify(mergedSnap), metadata: {
+        timestamp: ts(), trigger: 'js.error', url: mergedSnap.url, scopeCount: mergedSnap.scopes.length,
+      } })
+
+      for (const plugin of plugins) {
+        if (!plugin.capture) continue
+        try {
+          for (const r of await plugin.capture('js.error', ts()))
+            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, ext: r.ext, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
+        } catch { /* non-fatal */ }
+      }
+    })())
   })
 
   cdp.on('Network.requestWillBeSent', (params) => {
-    emit(normaliseCdpNetworkRequest(params as never, startedAt))
+    const event = normaliseCdpNetworkRequest(params as never, startedAt)
+    debug('network.request', event.data.method, event.data.url)
+    emit(event)
   })
 
   const pendingResponses = new Map<string, ReturnType<typeof normaliseCdpNetworkResponse>>()
@@ -169,31 +224,6 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
     if (responseEvent) { pendingResponses.delete(params.requestId); void appendEvent(outDir, sessionId, responseEvent) }
   })
 
-  cdp.on('Runtime.exceptionThrown', (params) => {
-    void (async () => {
-      const captured = pendingSnapshot
-      pendingSnapshot = null
-      const snap = await takeSnapshot({
-        cdpSession: { send: (method: string, p?: Record<string, unknown>) => cdp.send(method as never, p as never) },
-        trigger: 'js.error',
-        url: await page.evaluate(() => location.href).catch(() => ''),
-        callFrames: [],
-      })
-      const mergedSnap = captured ? { ...snap, scopes: captured.scopes } : snap
-      await writeAsset({ directory: outDir, name: sessionId, kind: 'snapshot', content: JSON.stringify(mergedSnap), metadata: {
-        timestamp: ts(), trigger: 'js.error', url: mergedSnap.url, scopeCount: mergedSnap.scopes.length,
-      } })
-      emit(normaliseCdpJsError(params as never, startedAt))
-      for (const plugin of plugins) {
-        if (!plugin.capture) continue
-        try {
-          for (const r of await plugin.capture('js.error', ts()))
-            await writeAsset({ directory: outDir, name: sessionId, kind: r.kind, content: r.content, ext: r.ext, metadata: { timestamp: ts(), ...r.summary }, source: 'plugin' })
-        } catch { /* non-fatal */ }
-      }
-    })()
-  })
-
   const proxiedPage = createPageProxy(page, (evt) => emit(evt as never))
 
   return {
@@ -219,7 +249,15 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
       }
     },
     async detach(result?: DetachResult) {
+      debug('detach', result?.status)
       if (result) emit({ type: 'playwright.result', source: 'playwright', data: result })
+
+      // Drain any in-flight async handlers (e.g. error processing from Debugger.paused)
+      if (pending.size > 0) {
+        debug('draining', pending.size, 'pending task(s)')
+        await Promise.allSettled([...pending])
+        debug('drain complete')
+      }
 
       // Bulk unwatch
       for (const [, sub] of registry.all()) {
