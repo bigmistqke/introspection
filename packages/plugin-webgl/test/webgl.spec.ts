@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { mkdtemp, rm, readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
@@ -8,7 +8,7 @@ import type { IntrospectHandle } from '@introspection/types'
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
-async function makeSession(page: import('@playwright/test').Page) {
+async function makeSession(page: Page) {
   const outDir = await mkdtemp(join(tmpdir(), 'introspect-webgl-'))
   const plugin = webgl()
   const handle = await attach(page, { outDir, plugins: [plugin] })
@@ -17,15 +17,18 @@ async function makeSession(page: import('@playwright/test').Page) {
 
 async function endSession(handle: IntrospectHandle, outDir: string) {
   await handle.detach()
-  const [sessionId] = await readdir(outDir)
-  const raw = await readFile(join(outDir, sessionId, 'events.ndjson'), 'utf-8')
-  await rm(outDir, { recursive: true, force: true })
-  return raw.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+  try {
+    const [sessionId] = await readdir(outDir)
+    const raw = await readFile(join(outDir, sessionId, 'events.ndjson'), 'utf-8')
+    return raw.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+  } finally {
+    await rm(outDir, { recursive: true, force: true })
+  }
 }
 
 // Sets up a minimal linked WebGL program on the page.
 // Stores gl and prog on window._gl / window._prog for later evaluate() calls.
-async function setupGL(page: import('@playwright/test').Page) {
+async function setupGL(page: Page) {
   await page.evaluate(() => {
     const canvas = document.createElement('canvas')
     document.body.appendChild(canvas)
@@ -148,6 +151,6 @@ test('capture() returns webgl-state asset with viewport and context info', async
     e.type === 'asset' && e.data?.kind === 'webgl-state')
   expect(asset).toBeDefined()
   expect(asset.source).toBe('plugin')
-  expect(asset.data.contextId).toBeDefined()
-  expect(Array.isArray(asset.data.viewport)).toBe(true)
+  expect(typeof asset.data.contextId).toBe('string')
+  expect(asset.data.viewport).toHaveLength(4)
 })
