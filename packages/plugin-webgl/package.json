@@ -12,7 +12,7 @@
     "build": "tsup --config tsup.browser.config.ts && tsup --config tsup.node.config.ts",
     "test:unit": "vitest run",
     "test:integration": "playwright test",
-    "test": "pnpm run test:unit && pnpm run test:integration"
+    "test": "pnpm run test:unit"
   },
   "dependencies": {
     "@introspection/types": "workspace:*"
