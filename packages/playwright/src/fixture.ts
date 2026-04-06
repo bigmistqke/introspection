@@ -1,5 +1,5 @@
 import { test as base, expect } from '@playwright/test'
-import { attach } from '@introspection/playwright'
+import { attach } from './attach.js'
 import type { IntrospectHandle } from '@introspection/types'
 
 export interface IntrospectFixtureOptions {

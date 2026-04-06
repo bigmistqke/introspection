@@ -1,4 +1,4 @@
-import { test, expect } from '@introspection/playwright-fixture'
+import { test, expect } from '@introspection/playwright/fixture'
 
 test('shows validation error on invalid card number', async ({ page }) => {
   await page.route('/api/payment/validate', route =>

@@ -6,11 +6,15 @@
     ".": {
       "types": "./src/attach.ts",
       "import": "./dist/attach.js"
+    },
+    "./fixture": {
+      "types": "./src/fixture.ts",
+      "import": "./dist/fixture.js"
     }
   },
   "scripts": {
-    "build": "tsup src/attach.ts --format esm --dts",
-    "test": "vitest run"
+    "build": "tsup src/attach.ts src/fixture.ts --format esm --dts",
+    "test": "playwright test"
   },
   "dependencies": {
     "@introspection/core": "workspace:*",

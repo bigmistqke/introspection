@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@introspection/browser": "workspace:*",
-    "@introspection/playwright-fixture": "workspace:*",
+    "@introspection/playwright": "workspace:*",
     "@introspection/plugin-redux": "workspace:*",
     "@introspection/vite": "workspace:*",
     "introspect": "workspace:*",
