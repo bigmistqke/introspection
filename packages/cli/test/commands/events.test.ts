@@ -12,12 +12,13 @@ const trace: TraceFile = {
     { id: 'e3', type: 'network.request',       ts: 200, source: 'cdp',        data: { url: '/api/cart', method: 'POST', headers: {} } },
     { id: 'e4', type: 'plugin.redux.action',   ts: 300, source: 'cdp',        data: { action: { type: 'CART/REMOVE' } } },
     { id: 'e5', type: 'playwright.action',     ts: 400, source: 'playwright', data: { method: 'click', args: ['button'] } },
+    { id: 'e6', type: 'webgl.uniform',         ts: 450, source: 'plugin',     data: { name: 'u_time', value: 1.5 } },
   ],
 }
 
 describe('applyEventFilters', () => {
   it('returns all events when no flags given', () => {
-    expect(applyEventFilters(trace, {})).toHaveLength(5)
+    expect(applyEventFilters(trace, {})).toHaveLength(6)
   })
 
   it('--type filters to exact type match', () => {
@@ -41,6 +42,12 @@ describe('applyEventFilters', () => {
     expect(result.every(e => e.source === 'playwright')).toBe(true)
   })
 
+  it('--source plugin returns only plugin events', () => {
+    const result = applyEventFilters(trace, { source: 'plugin' })
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('e6')
+  })
+
   it('--source throws on unrecognised value', () => {
     expect(() => applyEventFilters(trace, { source: 'typo' }))
       .toThrow('unknown source "typo"')
@@ -48,7 +55,7 @@ describe('applyEventFilters', () => {
 
   it('--after keeps events with ts strictly greater than value', () => {
     const result = applyEventFilters(trace, { after: 100 })
-    expect(result.map(e => e.id)).toEqual(['e3', 'e4', 'e5'])
+    expect(result.map(e => e.id)).toEqual(['e3', 'e4', 'e5', 'e6'])
   })
 
   it('--before keeps events with ts strictly less than value', () => {
@@ -64,7 +71,7 @@ describe('applyEventFilters', () => {
   it('--since finds mark in full event list and filters by its ts', () => {
     const result = applyEventFilters(trace, { since: 'before-add' })
     // mark is at ts:50 — keep events with ts > 50
-    expect(result.map(e => e.id)).toEqual(['e2', 'e3', 'e4', 'e5'])
+    expect(result.map(e => e.id)).toEqual(['e2', 'e3', 'e4', 'e5', 'e6'])
   })
 
   it('--since works even when --type excludes mark events', () => {
@@ -75,7 +82,7 @@ describe('applyEventFilters', () => {
   it('--since and --after: Math.max(mark.ts, afterMs) wins', () => {
     // mark.ts=50, after=200 → lower bound is 200
     const result = applyEventFilters(trace, { since: 'before-add', after: 200 })
-    expect(result.map(e => e.id)).toEqual(['e4', 'e5'])
+    expect(result.map(e => e.id)).toEqual(['e4', 'e5', 'e6'])
   })
 
   it('--since throws when label not found', () => {
@@ -85,7 +92,7 @@ describe('applyEventFilters', () => {
 
   it('--last keeps only the last N events after other filters', () => {
     const result = applyEventFilters(trace, { last: 2 })
-    expect(result.map(e => e.id)).toEqual(['e4', 'e5'])
+    expect(result.map(e => e.id)).toEqual(['e5', 'e6'])
   })
 
   it('--last larger than result set returns all', () => {

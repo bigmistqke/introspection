@@ -2,7 +2,7 @@ import { runInNewContext } from 'vm'
 import type { TraceFile, TraceEvent } from '@introspection/types'
 import { formatTimeline } from './timeline.js'
 
-const VALID_SOURCES = new Set(['cdp', 'agent', 'playwright'])
+const VALID_SOURCES = new Set(['cdp', 'agent', 'playwright', 'plugin'])
 
 export interface EventFilterOpts {
   type?: string
@@ -15,7 +15,7 @@ export interface EventFilterOpts {
 
 export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): TraceEvent[] {
   if (opts.source !== undefined && !VALID_SOURCES.has(opts.source)) {
-    throw new Error(`unknown source "${opts.source}". Valid values: cdp, agent, playwright`)
+    throw new Error(`unknown source "${opts.source}". Valid values: cdp, agent, playwright, plugin`)
   }
   if (opts.last !== undefined && (!Number.isInteger(opts.last) || opts.last < 1)) {
     throw new Error('--last must be a positive integer')
