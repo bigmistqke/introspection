@@ -33,9 +33,7 @@ await handle.detach()
 
 WebGL contexts are detected by intercepting `HTMLCanvasElement.prototype.getContext`. This interceptor is **always active** — it runs unconditionally regardless of any subscriptions, because context tracking is required for all other instrumentation.
 
-Each context receives a stable ID. The counter is maintained **Node-side** and is monotonically increasing across the entire session, including page navigations. IDs never reset. This ensures `contextId` values in `events.ndjson` are unique and unambiguous even after a navigation destroys and recreates contexts.
-
-Assignment: when `getContext` fires, the browser-side script calls `__introspect_push__({ type: 'webgl.context-created', data: { index } })` where `index` is a simple counter within the current page context (resets on navigation). Node intercepts this raw push, maps `index` to a session-scoped stable ID (`ctx_0`, `ctx_1`, ...) using its own monotonic counter, and records `{ data: { contextId } }` in `events.ndjson`. The raw `{ index }` payload is internal and never written to the event stream.
+Each context receives a stable ID generated **browser-side** using `crypto.randomUUID()` at the moment `getContext` is called. The UUID is globally unique across the entire session including navigations — no Node-side mapping table, no coordination, no race conditions.
 
 Context loss and restoration are pushed as discrete events:
 
@@ -246,7 +244,7 @@ No runtime dependencies beyond `@introspection/types`.
 
 ## Key Design Decisions
 
-- **Context ID counter is Node-side and monotonic** — browser-side indices reset on navigation; Node maps them to stable session-scoped IDs (`ctx_0`, `ctx_1`, ...) that never repeat within a session.
+- **Context ID generated browser-side via `crypto.randomUUID()`** — globally unique across the session including navigations, no Node-side mapping table, no race between context-created and subsequent events.
 - **`getContext` and `getUniformLocation` always intercepted** — required for context tracking and name resolution regardless of subscriptions. Low overhead (rare calls).
 - **Unknown uniform name fallback is `"<unknown:N>"`** — event is never suppressed; the numeric location is surfaced for debuggability.
 - **Location map cleared on context loss** — locations from a lost context are invalid; the map is rebuilt from `getUniformLocation` calls after restoration.
