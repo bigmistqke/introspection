@@ -16,6 +16,11 @@ describe('queryBody', () => {
     expect(out).not.toContain('Bob')
   })
 
+  it('returns raw text for non-JSON input', () => {
+    const out = queryBody('plain text response body', {})
+    expect(out).toBe('plain text response body')
+  })
+
   it('returns error message for invalid path', () => {
     const out = queryBody(rawBody, { path: '$.nonexistent' })
     expect(out).toContain('no match')

@@ -50,6 +50,16 @@ test('proxied page still performs the original action', async ({ page }) => {
   await handle.detach()
 })
 
+test('non-tracked methods pass through without emitting events', async ({ page }) => {
+  const handle = await attach(page, { outDir: dir })
+  await handle.page.waitForTimeout(10)
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const actions = events.filter((e: { type: string }) => e.type === 'playwright.action')
+  expect(actions).toHaveLength(0)
+})
+
 test('function args in evaluate are sanitized to [function]', async ({ page }) => {
   const handle = await attach(page, { outDir: dir })
   await handle.page.evaluate(() => 'hello')

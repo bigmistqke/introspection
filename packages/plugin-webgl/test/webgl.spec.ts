@@ -157,6 +157,43 @@ test('watch() with RegExp name filter only matches matching uniforms', async ({ 
   expect(uniforms[0].data.name).toBe('u_time')
 })
 
+test('texture-bind watch emits events on gl.bindTexture()', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+  await plugin.watch({ event: 'texture-bind' })
+
+  await page.evaluate(() => {
+    const { _gl: gl } = window as unknown as { _gl: WebGLRenderingContext }
+    const tex = gl.createTexture()
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, tex)
+  })
+
+  const events = await endSession(handle, outDir)
+  const bind = events.find((e: { type: string }) => e.type === 'webgl.texture-bind')
+  expect(bind).toBeDefined()
+  expect(bind.source).toBe('plugin')
+  expect(bind.data.unit).toBe(0)
+})
+
+test('multiple canvases produce events with distinct contextIds', async ({ page }) => {
+  const { outDir, handle } = await makeSession(page)
+
+  await page.evaluate(() => {
+    const c1 = document.createElement('canvas')
+    const c2 = document.createElement('canvas')
+    document.body.appendChild(c1)
+    document.body.appendChild(c2)
+    c1.getContext('webgl')
+    c2.getContext('webgl')
+  })
+
+  const events = await endSession(handle, outDir)
+  const created = events.filter((e: { type: string }) => e.type === 'webgl.context-created')
+  expect(created).toHaveLength(2)
+  expect(created[0].data.contextId).not.toBe(created[1].data.contextId)
+})
+
 test('capture() returns webgl-state asset with viewport and context info', async ({ page }) => {
   const { outDir, plugin, handle } = await makeSession(page)
   await setupGL(page)

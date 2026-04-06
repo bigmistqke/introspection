@@ -97,6 +97,28 @@ describe('TraceReader', () => {
     expect(body).toBe('{"ok":true}')
   })
 
+  it('throws on malformed JSON line in events.ndjson', async () => {
+    const sessionDir = join(dir, 'sess-bad')
+    await mkdir(sessionDir, { recursive: true })
+    await writeFile(join(sessionDir, 'meta.json'), JSON.stringify({ version: '2', id: 'sess-bad', startedAt: 1000 }))
+    await writeFile(join(sessionDir, 'events.ndjson'), '{"id":"e1","type":"mark"}\nnot valid json\n')
+    await expect(new TraceReader(dir).load('sess-bad')).rejects.toThrow()
+  })
+
+  it('filterEvents --url ignores non-network event types', async () => {
+    await writeSession('sess-url', { events: [
+      { id: 'e1', type: 'mark', ts: 10, source: 'agent', data: { label: 'x' } },
+      { id: 'e2', type: 'network.request', ts: 20, source: 'cdp', data: { url: '/api/match', method: 'GET', headers: {} } },
+      { id: 'e3', type: 'network.request', ts: 30, source: 'cdp', data: { url: '/other', method: 'GET', headers: {} } },
+    ]})
+    const trace = await new TraceReader(dir).load('sess-url')
+    const result = new TraceReader(dir).filterEvents(trace, { url: '/api/match' })
+    // mark event passes through (not a network type), plus the matching request
+    expect(result).toHaveLength(2)
+    expect(result[0].type).toBe('mark')
+    expect(result[1].type).toBe('network.request')
+  })
+
   it('throws if session directory does not exist', async () => {
     await expect(new TraceReader(dir).load('nonexistent')).rejects.toThrow()
   })

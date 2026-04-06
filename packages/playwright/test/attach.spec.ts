@@ -91,6 +91,89 @@ test('Runtime.exceptionThrown appends js.error event', async ({ page }) => {
   expect(err.data.message).toContain('oops')
 })
 
+test('network response body is captured as an asset', async ({ page }) => {
+  const handle = await attach(page, { outDir: dir })
+  await page.route('**/*', route => {
+    if (route.request().url().includes('/api/data')) {
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{"users":[{"id":1}]}' })
+    } else {
+      route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' })
+    }
+  })
+  await page.goto('http://localhost:9999/')
+  await page.evaluate(() => fetch('/api/data'))
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const response = events.find((e: { type: string; data?: { url: string } }) =>
+    e.type === 'network.response' && e.data?.url?.includes('/api/data'))
+  expect(response).toBeDefined()
+  const bodyAsset = events.find((e: { type: string; data?: { kind: string } }) =>
+    e.type === 'asset' && e.data?.kind === 'body')
+  expect(bodyAsset).toBeDefined()
+})
+
+test('malformed plugin push is silently discarded', async ({ page }) => {
+  const plugin: IntrospectionPlugin = {
+    name: 'test', script: '', install: async () => {},
+  }
+  const handle = await attach(page, { outDir: dir, plugins: [plugin] })
+
+  await page.evaluate(() => {
+    ;(window as unknown as Record<string, Function>).__introspect_push__('not valid json{{{')
+  })
+  await new Promise(r => setTimeout(r, 50))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  // Only playwright.result from detach, no malformed event
+  const nonResult = events.filter((e: { type: string }) =>
+    e.type !== 'playwright.result' && e.type !== 'mark')
+  expect(nonResult).toHaveLength(0)
+})
+
+test('plugin subscriptions survive navigation', async ({ page }) => {
+  let savedCtx: PluginContext
+  const pushes: string[] = []
+  const plugin: IntrospectionPlugin = {
+    name: 'test',
+    // Browser script that registers a plugin with a watch function
+    script: `
+      window.__introspect_plugins__ = window.__introspect_plugins__ || {};
+      window.__introspect_plugins__.test = {
+        watch(spec) {
+          const id = Math.random().toString(36).slice(2);
+          // Push an event immediately to confirm subscription is active
+          window.__introspect_push__(JSON.stringify({ type: 'test.subscribed', data: { id } }));
+          return id;
+        },
+        unwatch(id) {}
+      };
+    `,
+    async install(ctx) { savedCtx = ctx },
+  }
+
+  await page.route('**/*', route =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body>page</body></html>' })
+  )
+
+  const handle = await attach(page, { outDir: dir, plugins: [plugin] })
+  await handle.page.goto('http://localhost:9999/')
+  await savedCtx!.addSubscription('test', { event: 'something' })
+  await new Promise(r => setTimeout(r, 50))
+
+  // Navigate again — subscriptions should be re-applied on load
+  await handle.page.goto('http://localhost:9999/other')
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const subscribed = events.filter((e: { type: string }) => e.type === 'test.subscribed')
+  // At least 2: one from initial addSubscription, one from re-apply after navigation
+  expect(subscribed.length).toBeGreaterThanOrEqual(2)
+})
+
 test('does not create a .socket file inside session directory', async ({ page }) => {
   const handle = await attach(page, { outDir: dir })
   const entries = await readdir(dir)

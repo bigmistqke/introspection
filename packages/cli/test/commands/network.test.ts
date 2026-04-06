@@ -45,6 +45,20 @@ describe('formatNetworkTable', () => {
     expect(out).toContain('/api/auth')
   })
 
+  it('shows ? for method when response has no matching request', () => {
+    const orphanEvents: TraceFile['events'] = [
+      { id: 'evt-1', type: 'network.response', ts: 50, source: 'cdp', data: { cdpRequestId: 'orphan', requestId: 'orphan', url: '/api/orphan', status: 200, headers: {} } },
+    ]
+    const out = formatNetworkTable(orphanEvents, {})
+    expect(out).toContain('?')
+    expect(out).toContain('/api/orphan')
+  })
+
+  it('returns empty message when no events match', () => {
+    const out = formatNetworkTable(trace.events, { url: '/nonexistent' })
+    expect(out).toBe('(no matching network events)')
+  })
+
   it('network.error rows appear without --failed flag', () => {
     const out = formatNetworkTable(trace.events, {})
     expect(out).toContain('ERR')

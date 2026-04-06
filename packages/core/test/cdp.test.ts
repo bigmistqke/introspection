@@ -74,6 +74,38 @@ describe('CDP event normalisation', () => {
     expect(evt.ts).toBe(0)
   })
 
+  it('normalises with missing request object', () => {
+    const raw = { requestId: 'req-x', timestamp: 50 }
+    const evt = normaliseCdpNetworkRequest(raw, 0)
+    expect(evt.type).toBe('network.request')
+    expect(evt.data.url).toBeUndefined()
+    expect(evt.data.method).toBeUndefined()
+  })
+
+  it('normalises with missing response object', () => {
+    const raw = { requestId: 'req-x', timestamp: 50 }
+    const evt = normaliseCdpNetworkResponse(raw, 0)
+    expect(evt.type).toBe('network.response')
+    expect(evt.data.url).toBeUndefined()
+    expect(evt.data.status).toBeUndefined()
+  })
+
+  it('truncates stack frames to 5 max is handled by consumer', () => {
+    const frames = Array.from({ length: 8 }, (_, i) => ({
+      functionName: `fn${i}`, url: 'app.js', lineNumber: i, columnNumber: 0,
+    }))
+    const raw = { timestamp: 100, exceptionDetails: { text: 'Error', stackTrace: { callFrames: frames } } }
+    const evt = normaliseCdpJsError(raw, 0)
+    // cdp.ts doesn't truncate — it passes all frames through
+    expect(evt.data.stack).toHaveLength(8)
+  })
+
+  it('handles null exception with fallback to details.text', () => {
+    const raw = { timestamp: 100, exceptionDetails: { text: 'Uncaught Error', exception: null } }
+    const evt = normaliseCdpJsError(raw, 0)
+    expect(evt.data.message).toBe('Uncaught Error')
+  })
+
   it('prefers exception.description over details.text', () => {
     const raw = {
       timestamp: 500,

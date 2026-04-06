@@ -37,6 +37,31 @@ describe('buildSummary', () => {
     expect(out).toContain('goto')
   })
 
+  it('omits sections when there are no actions, failures, or errors', () => {
+    const clean: TraceFile = {
+      version: '2',
+      session: { id: 'sess-2', startedAt: 1000, endedAt: 2000, label: 'clean test' },
+      events: [],
+      snapshots: {},
+    }
+    const out = buildSummary(clean)
+    expect(out).toContain('clean test')
+    expect(out).not.toContain('Actions taken')
+    expect(out).not.toContain('Failed network')
+    expect(out).not.toContain('JS errors')
+  })
+
+  it('formats action with no args using empty string', () => {
+    const noArgs: TraceFile = {
+      ...trace,
+      events: [
+        { id: 'e1', type: 'playwright.action', ts: 50, source: 'playwright', data: { method: 'reload', args: [] } },
+      ],
+    }
+    const out = buildSummary(noArgs)
+    expect(out).toContain('reload()')
+  })
+
   it('shows "ongoing" when session has no endedAt', () => {
     const ongoing: TraceFile = { ...trace, session: { ...trace.session, endedAt: undefined } }
     expect(buildSummary(ongoing)).toContain('ongoing')

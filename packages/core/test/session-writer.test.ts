@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, readFile, readdir } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { initSessionDir, appendEvent, writeAsset, finalizeSession } from '../src/session-writer.js'
+import { initSessionDir, appendEvent, writeAsset, finalizeSession, summariseBody } from '../src/session-writer.js'
 import type { TraceEvent } from '@introspection/types'
 
 let dir: string
@@ -89,6 +89,53 @@ describe('writeAsset', () => {
     const events = ndjson.trim().split('\n').map(l => JSON.parse(l))
     const asset = events.find((e: { type: string }) => e.type === 'asset')
     expect(asset.source).toBe('plugin')
+  })
+})
+
+describe('summariseBody', () => {
+  it('returns empty summary for primitive arrays', () => {
+    const result = summariseBody('[1,2,3]')
+    expect(result.keys).toEqual([])
+    expect(result.arrays).toEqual({})
+  })
+
+  it('returns empty summary for non-JSON input', () => {
+    const result = summariseBody('not json at all')
+    expect(result.keys).toEqual([])
+  })
+
+  it('returns empty summary for JSON null', () => {
+    const result = summariseBody('null')
+    expect(result.keys).toEqual([])
+  })
+
+  it('extracts itemKeys from nested object arrays', () => {
+    const result = summariseBody('{"users":[{"id":1,"name":"Alice"}]}')
+    expect(result.arrays.users.length).toBe(1)
+    expect(result.arrays.users.itemKeys).toEqual(['id', 'name'])
+  })
+
+  it('extracts empty itemKeys from primitive arrays in objects', () => {
+    const result = summariseBody('{"tags":["a","b","c"]}')
+    expect(result.arrays.tags.length).toBe(3)
+    expect(result.arrays.tags.itemKeys).toEqual([])
+  })
+
+  it('extracts error fields matching ERROR_KEYS', () => {
+    const result = summariseBody('{"error":"bad request","code":400,"name":"test"}')
+    expect(result.errorFields.error).toBe('bad request')
+    expect(result.errorFields.code).toBe(400)
+    expect(result.errorFields).not.toHaveProperty('name')
+  })
+})
+
+describe('writeAsset (Buffer)', () => {
+  it('writes Buffer content to asset file', async () => {
+    await initSessionDir(dir, initParams)
+    const buf = Buffer.from('binary content here')
+    const path = await writeAsset({ directory: dir, name: 'sess-1', kind: 'raw', content: buf, metadata: { timestamp: 0 } })
+    const content = await readFile(join(dir, 'sess-1', path))
+    expect(content.toString()).toBe('binary content here')
   })
 })
 
