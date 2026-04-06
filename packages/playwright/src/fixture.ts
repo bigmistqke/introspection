@@ -21,6 +21,7 @@ export function introspectFixture(opts: IntrospectFixtureOptions = {}) {
       const status = (knownStatuses as readonly string[]).includes(testInfo.status ?? '')
         ? testInfo.status as typeof knownStatuses[number]
         : 'failed' as const
+      if (status !== 'passed' && status !== 'skipped') await handle.snapshot()
       await handle.detach({ status, duration: testInfo.duration, error: testInfo.error?.message })
     }, { auto: true }],
   })

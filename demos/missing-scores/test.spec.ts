@@ -35,6 +35,7 @@ test('leaderboard shows scores', async ({ page }) => {
   await page.goto(APP_URL)
   await page.waitForTimeout(300)
 
+  await handle.snapshot()
   await handle.detach()
 
   await expect(page.locator('.score-entry').first()).toBeVisible()

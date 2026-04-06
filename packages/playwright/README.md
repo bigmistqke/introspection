@@ -137,6 +137,8 @@ test('example', async ({ page, introspect }) => {
 
 The `introspect` fixture value is the full `IntrospectHandle`. The fixture is auto-used (`{ auto: true }`), so it activates for every test even without destructuring it.
 
+On test failure or timeout, the fixture automatically calls `handle.snapshot()` before `detach()`, so DOM state and scope locals are always captured when a test fails.
+
 ---
 
 ## Exports
