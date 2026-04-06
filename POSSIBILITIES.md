@@ -168,6 +168,7 @@ Using the trace as input to an LLM.
 
 Things that make the existing system nicer to use.
 
+- **`introspect plugin add <name>`** — detects the project's package manager (via `nypm` or `package-manager-detector` from unjs) and installs the corresponding `@introspection/plugin-*` package. `introspect plugin ls` lists known plugins with install status. Build this once the plugin packages exist on npm — the CLI scaffolding is trivial, the interesting work is the plugin system itself.
 - **`introspect init`** — interactive setup wizard. Detects framework (React, Vue, Svelte), test runner. Installs `@introspection/playwright` and writes a minimal `playwright.config.ts` fixture.
 - **`introspect doctor`** — validates setup. Checks that `@introspection/playwright` is installed, traces are being written to `.introspect/`, and the session directory looks healthy.
 - **Live mode dashboard** — `introspect watch` tails `events.ndjson` in real time as a test runs. Like `tail -f` but structured and filterable.
