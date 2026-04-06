@@ -2,6 +2,8 @@
 
 Imagined debugging sessions — the AI investigator, the commands it runs, what introspection reveals, and how it gets to the answer. Each scenario is designed to show a different slice of the system.
 
+> **2.0 status:** Scenarios that use `network.*`, `js.error`, `playwright.action`, `mark`, `asset`, `dom`, `snapshot`, `body`, `eval`, `events` — all real and working. Scenarios that reference `plugin.redux.action`, `plugin.react.commit`, `plugin.webgl.frame`, `plugin.xstate.*`, `a11y.*`, `sw.*`, `introspect redux`, `introspect webgl`, `introspect gql`, `introspect a11y` — aspirational. These event types and commands don't exist yet; they describe what a future plugin layer would enable.
+
 ---
 
 ## 1. The Login Loop

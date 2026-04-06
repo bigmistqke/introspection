@@ -8,9 +8,9 @@ const trace: TraceFile = {
   snapshots: {},
   events: [
     { id: 'e1', type: 'mark',                 ts: 50,  source: 'agent',      data: { label: 'before-add' } },
-    { id: 'e2', type: 'plugin.redux.action',   ts: 100, source: 'plugin',     data: { action: { type: 'CART/ADD' } } },
+    { id: 'e2', type: 'plugin.redux.action',   ts: 100, source: 'cdp',        data: { action: { type: 'CART/ADD' } } },
     { id: 'e3', type: 'network.request',       ts: 200, source: 'cdp',        data: { url: '/api/cart', method: 'POST', headers: {} } },
-    { id: 'e4', type: 'plugin.redux.action',   ts: 300, source: 'plugin',     data: { action: { type: 'CART/REMOVE' } } },
+    { id: 'e4', type: 'plugin.redux.action',   ts: 300, source: 'cdp',        data: { action: { type: 'CART/REMOVE' } } },
     { id: 'e5', type: 'playwright.action',     ts: 400, source: 'playwright', data: { method: 'click', args: ['button'] } },
   ],
 }
@@ -36,9 +36,9 @@ describe('applyEventFilters', () => {
   })
 
   it('--source filters by source field', () => {
-    const result = applyEventFilters(trace, { source: 'plugin' })
-    expect(result).toHaveLength(2)
-    expect(result.every(e => e.source === 'plugin')).toBe(true)
+    const result = applyEventFilters(trace, { source: 'playwright' })
+    expect(result).toHaveLength(1)
+    expect(result.every(e => e.source === 'playwright')).toBe(true)
   })
 
   it('--source throws on unrecognised value', () => {

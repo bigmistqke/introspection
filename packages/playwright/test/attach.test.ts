@@ -123,14 +123,13 @@ describe('attach()', () => {
     expect(err.data.message).toBe('TypeError: oops')
   })
 
-  it('creates eval socket inside session directory', async () => {
+  it('does not create a .socket file inside session directory', async () => {
     const { existsSync } = await import('fs')
     const { page } = makeFakePage()
     const handle = await attach(page, { outDir: dir })
     const entries = await readdir(dir)
     const socketPath = join(dir, entries[0], '.socket')
-    expect(existsSync(socketPath)).toBe(true)
-    await handle.detach()
     expect(existsSync(socketPath)).toBe(false)
+    await handle.detach()
   })
 })

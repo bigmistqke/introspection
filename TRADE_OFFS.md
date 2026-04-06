@@ -1,5 +1,7 @@
 # Capture Strategy Trade-offs
 
+> **2.0 status:** The library uses **approach A (Real CDP)** exclusively, via `page.context().newCDPSession(page)` in Playwright. Approaches B and C were evaluated and deferred — they remain relevant context for future directions (cross-browser support, framework-level capture, standalone dev-mode tracing).
+
 Three approaches to capturing browser data for introspection. Not mutually exclusive — the right answer is probably a combination.
 
 ---
@@ -124,8 +126,8 @@ Can't see below JavaScript. Network-level events (preloads, SW fetches, native b
 
 The approaches are complementary, not competing.
 
-### CDP + Vite instrumentation (recommended path)
-Use CDP (via Playwright) for network and runtime events — it's accurate and reliable for those. Use Vite instrumentation for application-level signals: component lifecycle, state management, call-site attribution. The current plugin system (`plugin-redux`, `plugin-react`) is already doing this manually; instrumentation automates it.
+### CDP + build-time instrumentation (future path)
+Use CDP (via Playwright) for network and runtime events — it's accurate and reliable for those. Use build-time instrumentation for application-level signals: component lifecycle, state management, call-site attribution. A future plugin design would sit on top of the 2.0 CDP core and add these signals without requiring Vite specifically.
 
 ### Chobitsu + Vite instrumentation (standalone path)
 Drop the Playwright dependency entirely. Chobitsu handles network/error capture; Vite instrumentation handles application signals. Loses accurate request timing and service worker capture. Gains: works with any test runner, works in development sessions, no Playwright required.
@@ -138,13 +140,13 @@ Use CDP where Playwright is available (tests), fall back to chobitsu where it is
 ## Decision Factors
 
 **If the primary use case is Playwright test debugging:**
-CDP is the right choice for network/runtime. Accurate timing, complete coverage, no JS interference. Vite instrumentation adds application context on top.
+CDP is the right choice — and what 2.0 uses. Accurate timing, complete coverage, no JS interference. Build-time instrumentation can add application context on top in a future plugin layer.
 
 **If you want the library to work outside of Playwright tests:**
 Chobitsu unlocks that. A dev server session, a Cypress test, a Vitest browser test — all become first-class citizens. The trade-off is losing sub-JS network visibility.
 
 **If you want zero-config framework integration:**
-Vite instrumentation is the only path. Auto-detecting Redux/Zustand/React and injecting capture without any user configuration is only possible at the transform layer.
+Build-time instrumentation is the only path. Auto-detecting Redux/Zustand/React and injecting capture without any user configuration is only possible at the transform layer. Not in 2.0 — see POSSIBILITIES.md for the future plugin design.
 
 **If you're building toward a standalone server:**
-Chobitsu + Vite instrumentation gets you there. The standalone server receives WebSocket events from the browser; it doesn't need to speak CDP at all. Playwright becomes optional — useful when you have it, not required.
+Chobitsu + build-time instrumentation gets you there. The standalone server receives events from the browser without speaking CDP at all. Playwright becomes optional — useful when you have it, not required. Not in 2.0.

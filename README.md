@@ -1,149 +1,95 @@
 # @introspection
 
-A Playwright/Vite tracing library that captures structured, AI-readable trace files from end-to-end tests. Each test run produces a `TraceFile` containing a chronological event log (network, JS errors, DOM snapshots, user interactions, plugin data) that can be queried offline with the `introspect` CLI or evaluated live against a running Vite dev session.
+A CDP-based tracing library for Playwright tests. Captures structured, AI-readable event streams from end-to-end tests — network requests, JS errors, DOM snapshots, Playwright actions — written to disk as NDJSON for offline querying with the `introspect` CLI.
+
+No Vite required. No browser-side agent. Attach directly to a Playwright `Page` via CDP.
 
 ---
 
 ## Installation
 
 ```bash
-# Core packages
-pnpm add -D @introspection/vite        # Vite plugin (WebSocket hub + trace writer)
 pnpm add -D @introspection/playwright  # attach(page) → IntrospectHandle
-pnpm add -D @introspection/types       # shared TypeScript interfaces
-
-# Optional: in-page plugin host
-pnpm add -D @introspection/browser
-
-# Optional: framework plugins
-pnpm add -D @introspection/plugin-redux
-pnpm add -D @introspection/plugin-react
-
-# CLI (install once, globally or as a dev dep)
-pnpm add -D introspect
+pnpm add -D introspect                 # CLI for querying traces
 ```
 
 ---
 
 ## Quick start
 
-### `vite.config.ts`
-
 ```ts
-import { defineConfig } from 'vite'
-import { introspection } from '@introspection/vite'
-
-export default defineConfig({
-  plugins: [
-    introspection({
-      outDir: '.introspect',          // default
-      capture: {
-        responseBody: { maxSize: '50kb' },
-      },
-    }),
-  ],
-})
-```
-
-### Playwright test
-
-```ts
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 import { attach } from '@introspection/playwright'
 
 test('add item to cart', async ({ page }) => {
-  const { page: p, mark, detach } = await attach(page)
+  const { page: p, mark, detach } = await attach(page, { testTitle: 'add item to cart' })
 
   await p.goto('/')
   mark('before-add')
   await p.getByRole('button', { name: 'Add to cart' }).click()
-  await expect(p.getByText('1 item')).toBeVisible()
 
   await detach()
 })
 ```
 
-`attach(page)` opens a CDP session, forwards all browser events to the Vite plugin over WebSocket, and returns a proxy-wrapped `page` that also records Playwright actions. `detach()` flushes the trace to `<outDir>/<test-title>.json`.
+`attach(page)` opens a CDP session, captures network events, JS errors, and DOM snapshots, and returns a proxy-wrapped `page` that also records Playwright actions. All events are written directly to `.introspect/<session-id>/events.ndjson` as they arrive. `detach()` finalizes the session.
 
 ---
 
 ## CLI reference
 
-Run `introspect <command> [options]` against the trace files in `.introspect/`.
+Run `introspect <command>` against session files in `.introspect/`.
 
 | Command | Description | Key flags |
 |---|---|---|
-| `summary` | Test status, actions, failed requests, JS errors | `--trace <name>` |
-| `timeline` | Chronological event log | `--trace <name>` |
-| `errors` | JS errors with stack traces | `--trace <name>` |
-| `vars` | Scope chain and globals from error snapshot | `--trace <name>` |
-| `network` | Network requests table | `--trace <name>`, `--failed`, `--url <pattern>` |
-| `body <id>` | Response body (raw or JSONPath) | `--path <jsonpath>` |
-| `dom` | DOM snapshot from error | `--trace <name>` |
-| `eval <expr>` | Evaluate expression against live session | — |
+| `summary` | Session status, actions, failed requests, JS errors | `--session <id>` |
+| `timeline` | Chronological event log | `--session <id>`, `--type`, `--source` |
+| `errors` | JS errors with stack traces | `--session <id>` |
+| `snapshot` | Scope chain and globals from error snapshot | `--session <id>` |
+| `network` | Network requests table | `--session <id>`, `--failed`, `--url <pattern>` |
+| `body <eventId>` | Response body (raw or JSONPath) | `--path <jsonpath>` |
+| `dom` | DOM snapshot from error | `--session <id>` |
+| `events [expr]` | Filter and transform events | `--type`, `--source`, `--since`, `--last` |
+| `eval <expr>` | Evaluate JS expression against session | `--session <id>` |
+| `list` | List all recorded sessions | — |
 
 ---
 
-## Plugin: Redux
-
-Pass `createReduxPlugin(store)` in the `plugins` array of your Vite config. The plugin monkey-patches `store.dispatch` to emit a `plugin.redux.action` event for every dispatched action, and includes the full Redux state in snapshots.
+## `attach()` options
 
 ```ts
-import { createReduxPlugin } from '@introspection/plugin-redux'
-import { store } from './src/store'
-
-introspection({ plugins: [createReduxPlugin(store)] })
+interface AttachOptions {
+  outDir?: string       // default: '.introspect'
+  testTitle?: string    // included in session metadata
+  workerIndex?: number  // Playwright worker index
+}
 ```
-
-Each event includes the action object and an array of top-level state keys whose values changed (`changedKeys`).
 
 ---
 
-## Plugin: React
-
-Pass `createReactPlugin()` in the `plugins` array. It installs itself as a React DevTools hook (`__REACT_DEVTOOLS_GLOBAL_HOOK__`) and emits a `plugin.react.commit` event on every fiber commit, listing the component names involved.
+## `IntrospectHandle`
 
 ```ts
-import { createReactPlugin } from '@introspection/plugin-react'
-
-introspection({ plugins: [createReactPlugin()] })
-```
-
-The on-error snapshot includes a `mountedComponents` array with all currently mounted component names.
-
----
-
-## Live eval
-
-When `vite dev` is running with the introspection plugin, `introspect eval` connects to `.introspect/.socket` and evaluates a JavaScript expression against the live session context. The context exposes:
-
-- `events` — full `TraceEvent[]` array for the current session
-- `snapshot` — the most recent `OnErrorSnapshot`
-- `test` — `TraceTest` metadata
-
-```bash
-# List all failed request URLs
-introspect eval 'events.filter(e => e.type === "network.response" && e.data.status >= 400).map(e => e.data.url)'
-
-# Inspect the Redux state captured at error time
-introspect eval 'snapshot.plugins.redux.state'
-
-# Find all React commits that included a specific component
-introspect eval 'events.filter(e => e.type === "plugin.react.commit" && e.data.components.includes("CheckoutForm")).map(e => e.ts)'
+interface IntrospectHandle {
+  page: Page                                          // proxy-wrapped Page — use instead of original
+  mark(label: string, data?: Record<string, unknown>): void
+  snapshot(): Promise<void>                           // capture DOM + scope manually
+  detach(result?: DetachResult): Promise<void>
+}
 ```
 
 ---
 
-## Config reference
+## Session directory layout
 
-`IntrospectionConfig` (passed to the `introspection()` Vite plugin):
+```
+.introspect/
+  <session-id>/
+    meta.json              ← { id, startedAt, endedAt?, label }
+    events.ndjson          ← one event per line (network, JS errors, actions, assets)
+    assets/
+      <uuid>.body.json        ← full response bodies
+      <uuid>.snapshot.json    ← on-error or manual DOM+scope snapshots
+```
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `plugins` | `IntrospectionPlugin[]` | `[]` | Framework plugins (Redux, React, custom) |
-| `outDir` | `string` | `'.introspect'` | Output directory for trace files and eval socket |
-| `capture.ignore` | `string[]` | — | Event types to suppress |
-| `capture.network.ignoreUrls` | `RegExp[]` | — | Skip network events matching these URLs |
-| `capture.network.ignoreHeaders` | `string[]` | — | Strip these headers from captured requests/responses |
-| `capture.responseBody.maxSize` | `string` | — | Max response body size to capture (e.g. `'50kb'`) |
-| `capture.responseBody.ignore` | `RegExp[]` | — | Skip body capture for Content-Types or URLs matching these patterns |
+All events are appended to `events.ndjson` as they arrive. Assets (response bodies, snapshots) are written to `assets/` with a corresponding `asset` event in the stream pointing to the file.

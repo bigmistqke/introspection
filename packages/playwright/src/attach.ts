@@ -4,7 +4,7 @@ import type { TraceEvent, IntrospectHandle, DetachResult, ScopeFrame } from '@in
 import {
   initSessionDir, appendEvent, writeAsset, summariseBody, finalizeSession,
   normaliseCdpNetworkRequest, normaliseCdpNetworkResponse, normaliseCdpJsError,
-  takeSnapshot, createEvalSocket,
+  takeSnapshot,
 } from '@introspection/core'
 import { createPageProxy } from './proxy.js'
 import { join } from 'path'
@@ -121,11 +121,6 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
     })()
   })
 
-  const evalSocket = createEvalSocket(
-    join(outDir, sessionId, '.socket'),
-    join(outDir, sessionId, 'events.ndjson'),
-  )
-
   const proxiedPage = createPageProxy(page, (evt) => emit(evt as never))
 
   return {
@@ -146,7 +141,6 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
     async detach(result?: DetachResult) {
       if (result) emit({ type: 'playwright.result', source: 'playwright', data: result })
       await finalizeSession(outDir, sessionId, Date.now())
-      await evalSocket.shutdown()
       try { await cdp.detach() } catch { /* non-fatal */ }
     },
   }

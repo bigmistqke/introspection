@@ -13,6 +13,7 @@ export function formatTimeline(trace: TraceFile, opts?: { type?: string; source?
     else if (e.type === 'js.error') detail += ` ${e.data.message}`
     else if (e.type === 'mark') detail += ` "${e.data.label}"`
     else if (e.type === 'playwright.action') detail += ` ${e.data.method}(${e.data.args[0] ?? ''})`
+    else if (e.type === 'asset') detail += ` ${e.data.kind} ${e.data.path}`
     return `[${ts}] ${src} ${detail}`
   }).join('\n')
 }

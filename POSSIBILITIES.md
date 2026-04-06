@@ -6,7 +6,7 @@ A jam doc — every direction the library could grow. Not prioritised, not commi
 
 ## Framework / State Management Plugins
 
-More plugins following the same `IntrospectionPlugin` shape. Browser-side hooks into app internals; server-side snapshots into the trace.
+> **2.0 status:** No plugin system exists yet. Future plugins will hook into app internals browser-side and write events/assets into the session via a yet-to-be-designed plugin API built on `@introspection/core`. The table below captures what each plugin would expose.
 
 | Plugin | What it captures |
 |--------|-----------------|
@@ -168,14 +168,13 @@ Using the trace as input to an LLM.
 
 Things that make the existing system nicer to use.
 
-- **`introspect init`** — interactive setup wizard. Detects framework (React, Vue, Svelte), Vite config, test runner. Writes the minimal config and installs the right plugins automatically.
-- **Zero-config mode** — `introspection()` with no arguments infers sensible defaults: detect Redux/React/Zustand from `node_modules`, auto-register their plugins.
-- **`introspect doctor`** — validates setup. Checks that the Vite plugin is configured, the socket file exists, test traces are being written, source maps are resolving correctly.
-- **Live mode dashboard** — `introspect watch` streams events from the live socket in real time as a test runs. Like `tail -f` but for structured introspection events.
+- **`introspect init`** — interactive setup wizard. Detects framework (React, Vue, Svelte), test runner. Installs `@introspection/playwright` and writes a minimal `playwright.config.ts` fixture.
+- **`introspect doctor`** — validates setup. Checks that `@introspection/playwright` is installed, traces are being written to `.introspect/`, and the session directory looks healthy.
+- **Live mode dashboard** — `introspect watch` tails `events.ndjson` in real time as a test runs. Like `tail -f` but structured and filterable.
 - **Mark API sugar** — `introspect.time('label')` starts a timer; `introspect.timeEnd('label')` emits a `mark` event with the duration. Lightweight perf instrumentation from test code.
 - **Conditional capture** — capture config driven by environment variables. `INTROSPECT_LEVEL=verbose` turns on response bodies; `INTROSPECT_LEVEL=minimal` captures only errors and actions. Good for CI vs. local.
 - **Redaction profiles** — named presets for `capture.network.ignoreHeaders` and `responseBody` — e.g. `redaction: 'pci'` automatically strips card numbers, CVVs, auth tokens.
-- **Plugin DX: auto-detect context** — for `plugin-webgl`, instead of requiring `plugin.track(gl)`, optionally patch `HTMLCanvasElement.prototype.getContext` globally so any context is captured automatically (opt-in via `autotrack: true`).
+- **Plugin DX: auto-detect context** — for a future WebGL plugin, instead of requiring `plugin.track(gl)`, optionally patch `HTMLCanvasElement.prototype.getContext` globally so any context is captured automatically (opt-in via `autotrack: true`).
 
 ---
 
@@ -183,7 +182,9 @@ Things that make the existing system nicer to use.
 
 Infrastructure that enables future capabilities.
 
-- **Bidirectional plugin events** — server → browser RPCs via the typed RPC protocol. Let the Vite plugin ask the browser "give me the current Redux state" on demand, not just on error.
+- **Live query cache in `TraceReader`** — currently every CLI query reloads and re-parses the full `events.ndjson` from disk. For large sessions this is wasteful on repeated queries. A simple mtime-based cache in `TraceReader` (parse once, invalidate when the file changes) would make rapid successive queries cheap. This is the right moment to add it if session files grow large enough to feel slow.
+  - *Why not a Unix domain socket server?* We had one (`eval-socket.ts`) but removed it. The socket added IPC overhead, required a persistent server process tied to the test runner lifetime, and serialised concurrent reads that don't actually conflict (ndjson is append-only, readers never mutate). For a dev tool with infrequent queries the reload-per-query cost is negligible. The socket's only real advantage was as a "liveness signal" (its presence meant a session was active) — but `meta.json` missing `endedAt` is a simpler, cleaner signal. If the cache lands and query latency still matters, a socket server becomes worth reconsidering.
+- **Bidirectional plugin events** — Node → browser RPCs. Let the test process ask the browser "give me the current Redux state" on demand, not just on error. Would require a browser-side agent (CDP `Runtime.evaluate` or injected script) and a protocol design on top of the 2.0 core.
 - **Streaming trace writes** — write events incrementally to the trace file as they happen, not only at test end. Survive Playwright crashes without losing data.
 - **Trace compression** — gzip the trace files. For long tests with high-frequency events (WebGL frames, Redux actions), traces can be large.
 - **Sampling** — for high-frequency event types (WebGL frames, RAF jank), emit only every Nth event or aggregate over a window. Config: `capture.sample: { 'plugin.webgl.frame': 10 }`.
@@ -209,7 +210,7 @@ Infrastructure that enables future capabilities.
 
 - **Trace as test** — `introspect assert 'events.filter(e => e.type === "js.error").length === 0'` — exit non-zero if the expression is falsy. Write assertions against the trace, not just the app.
 - **Replay** — feed a trace back to a fresh browser session to reproduce the exact sequence of events. Time-travel debugging as a CLI command.
-- **Plugin hot-reload** — swap plugin config during a running test session without restarting Vite.
+- **Plugin hot-reload** — swap plugin config during a running test session without restarting the test runner.
 - **Multi-page / iframe tracking** — attach to multiple pages or frames in the same test. Events tagged with `pageId`.
 - **Electron support** — attach to Electron's main and renderer processes separately.
 - **React Native / Expo** — Metro bundler plugin, CDP over USB/ADB.
