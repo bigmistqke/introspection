@@ -194,6 +194,63 @@ test('multiple canvases produce events with distinct contextIds', async ({ page 
   expect(created[0].data.contextId).not.toBe(created[1].data.contextId)
 })
 
+test('captureCanvas() writes a webgl-canvas asset without a webgl-state asset', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+  await setupGL(page)
+
+  await plugin.captureCanvas()
+
+  // Read events directly before detach (which would also write state via capture('detach'))
+  const [sessionId] = await readdir(outDir)
+  const raw = await readFile(join(outDir, sessionId, 'events.ndjson'), 'utf-8')
+  await endSession(handle, outDir)
+  const events = raw.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+
+  const canvasAsset = events.find((e: { type: string; data?: { kind: string } }) =>
+    e.type === 'asset' && e.data?.kind === 'webgl-canvas')
+  expect(canvasAsset).toBeDefined()
+  expect(canvasAsset.source).toBe('plugin')
+  expect(typeof canvasAsset.data.contextId).toBe('string')
+
+  const stateAsset = events.find((e: { type: string; data?: { kind: string } }) =>
+    e.type === 'asset' && e.data?.kind === 'webgl-state')
+  expect(stateAsset).toBeUndefined()
+})
+
+test('captureCanvas({ contextId }) captures only the matching canvas', async ({ page }) => {
+  const { outDir, plugin, handle } = await makeSession(page)
+
+  await page.evaluate(() => {
+    for (let i = 0; i < 2; i++) {
+      const c = document.createElement('canvas')
+      document.body.appendChild(c)
+      c.getContext('webgl')
+    }
+  })
+
+  // First capture all to discover contextIds from context-created events
+  await plugin.captureCanvas()
+
+  const [sessionId] = await readdir(outDir)
+  const eventsPath = join(outDir, sessionId, 'events.ndjson')
+  const raw = await readFile(eventsPath, 'utf-8')
+  const events = raw.trim().split('\n').filter(Boolean).map((l: string) => JSON.parse(l))
+  const created = events.filter((e: { type: string }) => e.type === 'webgl.context-created')
+  expect(created.length).toBeGreaterThanOrEqual(2)
+
+  const targetId = created[0].data.contextId as string
+
+  // Now capture only one context by ID
+  await plugin.captureCanvas({ contextId: targetId })
+
+  const raw2 = await readFile(eventsPath, 'utf-8')
+  await endSession(handle, outDir)
+  const events2 = raw2.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+  const filtered = events2.filter((e: { type: string; data?: { kind: string; contextId?: string } }) =>
+    e.type === 'asset' && e.data?.kind === 'webgl-canvas' && e.data.contextId === targetId)
+  expect(filtered.length).toBe(2)  // once from captureCanvas(), once from captureCanvas({ contextId })
+})
+
 test('capture() returns webgl-state asset with viewport and context info', async ({ page }) => {
   const { outDir, plugin, handle } = await makeSession(page)
   await setupGL(page)

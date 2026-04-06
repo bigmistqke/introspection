@@ -49,6 +49,7 @@ export interface WebGLStateSnapshot {
 
 export interface WebGLPlugin extends IntrospectionPlugin {
   watch(opts: WebGLWatchOpts): Promise<WatchHandle>
+  captureCanvas(opts?: { contextId?: string }): Promise<void>
 }
 
 export function webgl(): WebGLPlugin {
@@ -86,6 +87,27 @@ export function webgl(): WebGLPlugin {
         }
       }
       return ctx.addSubscription('webgl', spec)
+    },
+
+    async captureCanvas(opts?: { contextId?: string }): Promise<void> {
+      if (!ctx) throw new Error('webgl plugin: captureCanvas() called before install()')
+      const canvases = await ctx.page.evaluate(async () => {
+        const p = (window.__introspect_plugins__ as {
+          webgl?: { captureCanvases?(): Promise<Array<{ contextId: string; dataUrl: string }>> }
+        } | undefined)?.webgl
+        return p?.captureCanvases?.() ?? []
+      })
+      const ts = ctx.timestamp()
+      for (const { contextId, dataUrl } of canvases) {
+        if (opts?.contextId !== undefined && contextId !== opts.contextId) continue
+        const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
+        await ctx.writeAsset({
+          kind: 'webgl-canvas',
+          content: Buffer.from(base64, 'base64'),
+          ext: 'png',
+          metadata: { timestamp: ts, contextId },
+        })
+      }
     },
 
     async capture(_trigger: 'js.error' | 'manual' | 'detach', ts: number): Promise<CaptureResult[]> {

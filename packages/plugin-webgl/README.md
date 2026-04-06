@@ -40,6 +40,19 @@ Returns a `WebGLPlugin` instance. Pass it to `attach()` via `opts.plugins`. A si
 
 ---
 
+## `plugin.captureCanvas(opts?)`
+
+Captures all WebGL canvases as PNG assets immediately, without capturing the full GL state. Useful when you want a pixel snapshot at a specific moment without the overhead of serializing uniforms, textures, and blend state.
+
+```ts
+await plugin.captureCanvas()                          // all contexts
+await plugin.captureCanvas({ contextId: 'abc123' })   // one specific context
+```
+
+Writes one `webgl-canvas` PNG asset per matching context and emits an `asset` event for each. Does not trigger `getState()`.
+
+---
+
 ## `plugin.watch(opts)`
 
 Subscribes to a WebGL event. Returns a `Promise<WatchHandle>` — the subscription is established asynchronously in the browser. Subscriptions are automatically re-applied after navigation.
