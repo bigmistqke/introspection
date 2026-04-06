@@ -3,7 +3,7 @@ import { mkdtemp, rm, mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { TraceReader } from '../src/trace-reader.js'
-import type { OnErrorSnapshot } from '@introspection/types'
+import type { Snapshot } from '@introspection/types'
 
 let dir: string
 beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'trace-reader-test-')) })
@@ -14,7 +14,7 @@ async function writeSession(id: string, opts: {
   startedAt?: number
   endedAt?: number
   events?: object[]
-  snapshot?: OnErrorSnapshot
+  snapshot?: Snapshot
 } = {}) {
   const sessionDir = join(dir, id)
   await mkdir(sessionDir, { recursive: true })
@@ -64,7 +64,7 @@ describe('TraceReader', () => {
   })
 
   it('load() reads snapshot from assets/ dir via asset events', async () => {
-    const snap: OnErrorSnapshot = {
+    const snap: Snapshot = {
       ts: 100, trigger: 'manual', url: 'http://localhost/', dom: '<html/>', scopes: [], globals: {},
     }
     await writeSession('sess-snap', { snapshot: snap })

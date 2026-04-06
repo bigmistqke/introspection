@@ -1,9 +1,7 @@
-import type { TraceFile, AssetEvent } from '@introspection/types'
+import type { TraceFile } from '@introspection/types'
 
 export function formatDom(trace: TraceFile): string {
-  const assetEvents = trace.events.filter((e): e is AssetEvent => e.type === 'asset' && e.data.kind === 'snapshot')
-  const preferred = assetEvents.find(e => e.data.trigger === 'js.error') ?? assetEvents[0]
-  const snapshot = preferred ? trace.snapshots?.[preferred.data.path.replace(/\.snapshot\.json$/, '')] : undefined
+  const snapshot = trace.snapshots.find(s => s.trigger === 'js.error') ?? trace.snapshots[0]
   if (!snapshot?.dom) return '(no DOM snapshot available)'
   return snapshot.dom
 }

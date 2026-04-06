@@ -38,17 +38,17 @@ export class TraceReader {
 
     const assetEvents = events.filter((e): e is AssetEvent => e.type === 'asset')
 
-    const snapshots: TraceFile['snapshots'] = {}
+    const snapshots: TraceFile['snapshots'] = []
     for (const assetEvt of assetEvents) {
       if (assetEvt.data.kind !== 'snapshot') continue
       try {
         const raw = await readFile(join(sessionDir, 'assets', assetEvt.data.path), 'utf-8')
-        const key = assetEvt.data.path.replace(/\.snapshot\.json$/, '')
-        snapshots[key] = JSON.parse(raw)
+        snapshots.push(JSON.parse(raw))
       } catch (err: unknown) {
         if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
       }
     }
+    snapshots.sort((a, b) => a.ts - b.ts)
 
     return {
       version: '2',

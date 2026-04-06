@@ -152,7 +152,7 @@ export interface BodySummary {
 
 // ─── Snapshot ────────────────────────────────────────────────────────────────
 
-export interface OnErrorSnapshot {
+export interface Snapshot {
   ts: number
   trigger: 'js.error' | 'manual'
   url: string
@@ -175,7 +175,7 @@ export interface TraceFile {
   version: '2'
   session: Omit<SessionMeta, 'version'>
   events: TraceEvent[]
-  snapshots: { [key: string]: OnErrorSnapshot | undefined }
+  snapshots: Snapshot[]
 }
 
 // ─── IntrospectHandle (returned by attach()) ──────────────────────────────────

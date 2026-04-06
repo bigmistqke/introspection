@@ -1,4 +1,4 @@
-import type { OnErrorSnapshot, ScopeFrame } from '@introspection/types'
+import type { Snapshot, ScopeFrame } from '@introspection/types'
 
 interface CdpSession {
   send(method: string, params?: Record<string, unknown>): Promise<unknown>
@@ -14,12 +14,12 @@ interface CallFrame {
 
 interface TakeSnapshotOptions {
   cdpSession: CdpSession
-  trigger: OnErrorSnapshot['trigger']
+  trigger: Snapshot['trigger']
   url: string
   callFrames?: CallFrame[]
 }
 
-export async function takeSnapshot(options: TakeSnapshotOptions): Promise<Omit<OnErrorSnapshot, 'plugins'>> {
+export async function takeSnapshot(options: TakeSnapshotOptions): Promise<Omit<Snapshot, 'plugins'>> {
   const { cdpSession, trigger, url, callFrames = [] } = options
 
   let dom = ''
