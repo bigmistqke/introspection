@@ -1,164 +1,76 @@
 # @introspection
 
-A CDP-based tracing library for Playwright tests. Captures structured, AI-readable event streams from end-to-end tests — network requests, JS errors, DOM snapshots, Playwright actions — written to disk as NDJSON for offline querying with the `introspect` CLI.
+When an end-to-end test fails, the usual debugging loop is: read the error, guess what the app was doing, add more logs or breakpoints, re-run. This gets expensive fast — especially when failures are flaky, hard to reproduce, or happen deep in a render or network chain.
 
-No Vite required. No browser-side agent. Attach directly to a Playwright `Page` via CDP.
+Introspection gives every Playwright test a structured, append-only event log: network requests and responses, JS errors with scope locals, DOM snapshots, and Playwright actions — all written to disk as NDJSON. When something goes wrong, you can query the trace instead of re-running the test.
+
+The log is also designed to be consumed by AI assistants. Run `introspect summary` and paste the output into a conversation; the model has the full execution context to reason about.
 
 ---
 
-## Installation
+## How it works
 
-```bash
-pnpm add -D @introspection/playwright  # attach(page) → IntrospectHandle
-pnpm add -D introspect                 # CLI for querying traces
-```
+`attach(page)` opens a CDP session alongside the Playwright test. It listens for CDP events (network, debugger, DOM) and translates them into a normalized event stream. A proxy-wrapped `page` object records Playwright actions into the same stream. Everything is appended to `events.ndjson` as it arrives — no batching, no end-of-test flush required.
+
+On uncaught JS errors the debugger pauses, collects scope locals from the call stack, then resumes. The snapshot (DOM + scopes + globals) is written to `assets/` with a pointer in the event stream.
+
+Plugins inject a browser-side script to intercept domain-specific APIs (e.g. WebGL calls) and push structured events back through a CDP binding into the same stream.
+
+---
+
+## Packages
+
+| Package | Description |
+|---|---|
+| [`@introspection/playwright`](packages/playwright/README.md) | Attach tracing to a Playwright page — the main integration point |
+| [`@introspection/plugin-webgl`](packages/plugin-webgl/README.md) | Browser-side WebGL interceptor: track uniforms, draws, textures, capture canvas PNGs |
+| [`introspect`](packages/cli/README.md) | CLI for querying traces: summary, timeline, errors, network, dom, body, eval |
+| [`@introspection/core`](packages/core/README.md) | CDP normalizers, session I/O, snapshot utilities (used internally) |
+| [`@introspection/types`](packages/types/README.md) | Shared TypeScript types for events, plugins, and session format |
 
 ---
 
 ## Quick start
 
+```bash
+pnpm add -D @introspection/playwright introspect
+```
+
 ```ts
-import { test } from '@playwright/test'
 import { attach } from '@introspection/playwright'
 
-test('add item to cart', async ({ page }) => {
-  const handle = await attach(page, { testTitle: 'add item to cart' })
+test('checkout flow', async ({ page }) => {
+  const handle = await attach(page, { testTitle: 'checkout flow' })
 
-  await handle.page.goto('/')
-  handle.mark('before-add')
-  await handle.page.getByRole('button', { name: 'Add to cart' }).click()
+  await handle.page.goto('/cart')
+  await handle.page.getByRole('button', { name: 'Checkout' }).click()
 
   await handle.detach()
 })
 ```
 
-`attach(page)` opens a CDP session, captures network events, JS errors, and DOM snapshots, and returns a proxy-wrapped `page` that also records Playwright actions. All events are written directly to `.introspect/<session-id>/events.ndjson` as they arrive. `detach()` drains any in-flight handlers and finalizes the session.
-
----
-
-## `attach()` options
-
-```ts
-interface AttachOptions {
-  outDir?: string                  // default: '.introspect'
-  testTitle?: string               // included in session metadata
-  workerIndex?: number             // Playwright worker index
-  plugins?: IntrospectionPlugin[]  // browser-side plugins (e.g. webgl())
-  verbose?: boolean                // log lifecycle events to stderr
-}
-```
-
----
-
-## `IntrospectHandle`
-
-```ts
-interface IntrospectHandle {
-  page: Page                                          // proxy-wrapped Page — use instead of original
-  mark(label: string, data?: Record<string, unknown>): void
-  snapshot(): Promise<void>                           // capture DOM + scope manually
-  detach(result?: DetachResult): Promise<void>
-}
-```
-
----
-
-## Plugins
-
-Plugins inject a browser-side script and receive CDP session access on the Node side. They emit events into the same NDJSON stream and can write typed assets on snapshot/error/detach.
-
-### `@introspection/plugin-webgl`
-
-Intercepts WebGL calls to track uniforms, draw calls, texture binds, and GL context state. On snapshot it serializes the full GL state and captures each canvas as a PNG.
+After the test runs, query the session:
 
 ```bash
-pnpm add -D @introspection/plugin-webgl
+introspect summary
+introspect errors
+introspect network --failed
 ```
 
-```ts
-import { attach } from '@introspection/playwright'
-import { webgl } from '@introspection/plugin-webgl'
-
-test('shader renders correctly', async ({ page }) => {
-  const plugin = webgl()
-  const handle = await attach(page, { plugins: [plugin] })
-
-  await handle.page.goto('/canvas-demo')
-
-  // Watch specific uniforms or draw calls
-  await plugin.watch({ event: 'uniform', name: 'u_time', valueChanged: true })
-  await plugin.watch({ event: 'draw' })
-
-  // ...interact with the page...
-
-  await handle.snapshot()   // captures GL state + canvas PNG
-  await handle.detach()
-})
-```
-
-**Watch options:**
-
-| event | options | emits |
-|---|---|---|
-| `uniform` | `name?: string \| RegExp`, `valueChanged?: boolean`, `contextId?` | `webgl.uniform` |
-| `draw` | `primitive?`, `contextId?` | `webgl.draw-arrays` / `webgl.draw-elements` |
-| `texture-bind` | `unit?`, `contextId?` | `webgl.texture-bind` |
-
-Each `plugin.watch(...)` returns a `WatchHandle` with an `unwatch()` method. Subscriptions are automatically re-applied after navigation.
-
-**Captured assets** (on `snapshot()`, `js.error`, and `detach`):
-
-- `webgl-state.json` — uniforms, bound textures, viewport, blend/depth state
-- `webgl-canvas.png` — pixel content of each WebGL canvas
+See [`@introspection/playwright`](packages/playwright/README.md) for the full API including plugins, fixtures, and options.
 
 ---
 
-## Fixture helper
+## Session format
 
-For automatic attach/detach per test with test result propagation:
-
-```ts
-// playwright.config.ts or a fixtures file
-import { introspectFixture } from '@introspection/playwright'
-
-export const { test, expect } = introspectFixture({ outDir: '.introspect' })
-```
-
-The fixture attaches on test start, passes `handle` as a fixture, and calls `detach({ status, duration, error })` automatically on completion.
-
----
-
-## CLI reference
-
-Run `introspect <command>` against session files in `.introspect/`.
-
-| Command | Description | Key flags |
-|---|---|---|
-| `summary` | Session status, actions, failed requests, JS errors | `--session <id>` |
-| `timeline` | Chronological event log | `--session <id>`, `--type`, `--source` |
-| `errors` | JS errors with stack traces | `--session <id>` |
-| `snapshot` | Scope chain and globals from error snapshot | `--session <id>` |
-| `network` | Network requests table | `--session <id>`, `--failed`, `--url <pattern>` |
-| `body <eventId>` | Response body (raw or JSONPath) | `--path <jsonpath>` |
-| `dom` | DOM snapshot from error | `--session <id>` |
-| `events [expr]` | Filter and transform events | `--type`, `--source`, `--since`, `--last` |
-| `eval <expr>` | Evaluate JS expression against session | `--session <id>` |
-| `list` | List all recorded sessions | — |
-
----
-
-## Session directory layout
+Each test produces a session directory:
 
 ```
 .introspect/
   <session-id>/
-    meta.json              ← { id, startedAt, endedAt?, label }
-    events.ndjson          ← one event per line (network, JS errors, actions, assets, plugin events)
-    assets/
-      <uuid>.body.json        ← full response bodies
-      <uuid>.snapshot.json    ← on-error or manual DOM+scope snapshots
-      <uuid>.webgl-state.json ← GL uniform/texture/viewport state (plugin-webgl)
-      <uuid>.webgl-canvas.png ← canvas pixel capture (plugin-webgl)
+    meta.json        ← id, startedAt, endedAt, label
+    events.ndjson    ← one JSON event per line
+    assets/          ← response bodies, DOM snapshots, plugin captures
 ```
 
-All events are appended to `events.ndjson` as they arrive. Assets are written to `assets/` with a corresponding `asset` event in the stream pointing to the file.
+Events are plain JSON objects with a `type`, `source`, `ts` (ms since test start), and `data`. The format is stable and easy to parse or stream into an LLM context.
