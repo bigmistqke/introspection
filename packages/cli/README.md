@@ -96,16 +96,15 @@ introspect network [--session <id>] [--failed] [--url <pattern>]
 
 ### `body <eventId>`
 
-Full response body for a network response event. Supports JSONPath and jq queries.
+Full response body for a network response event. Supports JSONPath queries.
 
 ```
-introspect body <eventId> [--path <jsonpath>] [--jq <expr>]
+introspect body <eventId> [--path <jsonpath>]
 ```
 
 | Flag | Description |
 |---|---|
 | `--path <jsonpath>` | JSONPath expression (e.g. `$.users[0].name`) |
-| `--jq <expr>` | jq expression |
 
 `eventId` is the `id` field from a `network.response` event in `events.ndjson`.
 
@@ -113,7 +112,7 @@ introspect body <eventId> [--path <jsonpath>] [--jq <expr>]
 
 ### `dom`
 
-Formatted DOM tree from the most recent snapshot.
+Raw outer HTML from the most recent snapshot. Snapshots are taken on JS errors and `handle.snapshot()` calls.
 
 ```
 introspect dom [--session <id>]

@@ -58,7 +58,6 @@ program.command('dom').option('--session <id>').action(async (opts) => {
 program.command('body <eventId>')
   .option('--session <id>')
   .option('--path <jsonpath>')
-  .option('--jq <expr>')
   .action(async (eventId, opts) => {
     const r = new TraceReader(program.opts().dir as string)
     let sessionId = opts.session
