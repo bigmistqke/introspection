@@ -1,17 +1,13 @@
 import { test, expect } from '@playwright/test'
-import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { attach } from '@introspection/playwright'
 import { webgl } from '@introspection/plugin-webgl'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const html = readFileSync(join(__dirname, 'app.html'), 'utf-8')
-
-const APP_URL = 'http://demo.test'
 
 test('scene renders after data load', async ({ page }) => {
-  await page.route(`${APP_URL}/api/scene/1`, route =>
+  await page.route('**/api/scene/1', route =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -21,20 +17,17 @@ test('scene renders after data load', async ({ page }) => {
       }),
     })
   )
-  await page.route(`${APP_URL}/`, route =>
-    route.fulfill({ body: html, contentType: 'text/html' })
-  )
 
   const plugin = webgl()
   const handle = await attach(page, {
     outDir: join(__dirname, '.introspect'),
-    label: 'black-canvas',
+    testTitle: 'black-canvas',
     plugins: [plugin],
   })
 
   await plugin.watch({ event: 'draw' })
 
-  await page.goto(APP_URL)
+  await page.goto('/')
   await page.waitForTimeout(500)
 
   await handle.snapshot()
@@ -51,7 +44,6 @@ test('scene renders after data load', async ({ page }) => {
 
   await handle.detach()
 
-  // Canvas center should not be black (RGB all zero) if geometry loaded correctly
   const [r, g, b] = centerPixel
   expect(r > 0 || g > 0 || b > 0).toBe(true)
 })

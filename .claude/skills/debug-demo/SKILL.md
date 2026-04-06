@@ -22,17 +22,17 @@ Then launch a general-purpose agent with this prompt (substituting `<DEMO_DIR>` 
 
 You are debugging a failing Playwright test. Your working directory is `<DEMO_DIR>`.
 
-**You are not allowed to read any source files** — not `app.html`, not `test.spec.ts`, not any `.ts` or `.js` files in the demo or packages. Your only window into what happened is the `introspect` CLI.
+**You are not allowed to read any source files** — not `index.ts`, not `test.spec.ts`, not any `.ts` or `.js` files in the demo or packages. Your only window into what happened is the `introspect` CLI.
 
 ## Your task
 
 1. Run the test to generate a trace: `pnpm test`
 2. If no `.introspect/` directory is produced, introspection is not yet wired up. Add it yourself using the packages documented below.
 3. Use `introspect` to investigate. Run `pnpm exec introspect --help` to discover available commands, then explore the trace to find the root cause.
-4. Identify the root cause from trace evidence alone — do not read `app.html` until you have a confident hypothesis
-5. Fix the bug (you may read `app.html` only after you have a confident hypothesis)
+4. Identify the root cause from trace evidence alone — do not read `index.ts` until you have a confident hypothesis
+5. Fix the bug (you may read `index.ts` only after you have a confident hypothesis)
 6. Verify the fix: run `pnpm test` again
-7. Revert everything: restore `app.html` to its original buggy state, and if you added instrumentation to `test.spec.ts`, remove it too
+7. Revert everything: restore `index.ts` to its original buggy state, and if you added instrumentation to `test.spec.ts`, remove it too
 8. Log the rapport path `<RAPPORT_PATH>` in your final response
 
 All `introspect` commands accept `--dir .introspect` to point at the trace directory.
@@ -62,7 +62,7 @@ Every entry must follow this format:
 
 Mark any tool use that is **not** the introspect CLI with `non-CLI tool` and the reason. This makes it visible when the introspect workflow was insufficient.
 
-**Every file edit or write must also get its own rapport entry.** This includes: adding instrumentation to `test.spec.ts`, editing `app.html` to apply a fix, reverting files. Use the same format — tool is `Edit` or `Write`, non-CLI tool, reason is why the source change was needed at that moment.
+**Every file edit or write must also get its own rapport entry.** This includes: adding instrumentation to `test.spec.ts`, editing `index.ts` to apply a fix, reverting files. Use the same format — tool is `Edit` or `Write`, non-CLI tool, reason is why the source change was needed at that moment.
 
 ---
 

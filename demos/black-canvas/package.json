@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "test": "playwright test"
   },
   "devDependencies": {
@@ -11,6 +12,7 @@
     "@introspection/plugin-webgl": "workspace:*",
     "introspect": "workspace:*",
     "@playwright/test": "^1.40.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vite": "^5.0.0"
   }
 }

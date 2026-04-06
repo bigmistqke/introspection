@@ -4,8 +4,10 @@ export default defineConfig({
   testDir: '.',
   use: {
     headless: true,
+    baseURL: 'http://localhost:5184',
     launchOptions: {
       args: ['--enable-webgl', '--use-gl=swiftshader'],
     },
   },
+  webServer: { command: 'vite', url: 'http://localhost:5184', reuseExistingServer: !process.env.CI },
 })
