@@ -1,91 +1,37 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-
-// Mock @introspection/vite/snapshot
-const mockTakeSnapshot = vi.fn().mockResolvedValue({
-  ts: 1, trigger: 'manual', url: 'http://localhost/', dom: '', scopes: [], globals: {}, plugins: {},
-})
-vi.mock('@introspection/vite/snapshot', () => ({
-  takeSnapshot: (...args: unknown[]) => mockTakeSnapshot(...args),
-}))
-
-// Mock @bigmistqke/rpc/websocket — factory must use only vi.fn() (no module-level variable refs)
-vi.mock('@bigmistqke/rpc/websocket', () => ({
-  rpc: vi.fn(),
-  expose: vi.fn(),
-}))
-
-// Mock ws — add addEventListener to satisfy WebSocketLike
-const mockWsClose = vi.fn()
-vi.mock('ws', () => ({
-  default: class MockWS {
-    readyState = 1
-    close = mockWsClose
-    once(event: string, cb: () => void) {
-      if (event === 'open') Promise.resolve().then(cb)
-      else if (event === 'close') mockWsClose.mockImplementationOnce(() => cb())
-    }
-    on() {}
-    addEventListener() {}
-  },
-}))
-
+import { mkdtemp, rm, readFile, readdir } from 'fs/promises'
+import { join } from 'path'
+import { tmpdir } from 'os'
 import { attach } from '../src/attach.js'
-import { rpc, expose } from '@bigmistqke/rpc/websocket'
+
+let dir: string
+beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'introspect-pw-')) })
+afterEach(async () => { await rm(dir, { recursive: true, force: true }) })
+
+function makeFakePage() {
+  const cdpListeners: Record<string, (params: unknown) => void> = {}
+  const mockCdp = {
+    send: vi.fn().mockResolvedValue({}),
+    on: vi.fn((event: string, cb: (params: unknown) => void) => { cdpListeners[event] = cb }),
+    detach: vi.fn().mockResolvedValue(undefined),
+  }
+  return {
+    page: {
+      context: () => ({ newCDPSession: vi.fn().mockResolvedValue(mockCdp) }),
+      click: vi.fn().mockResolvedValue(undefined),
+      fill: vi.fn().mockResolvedValue(undefined),
+      goto: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockResolvedValue('http://localhost/'),
+    } as never,
+    cdp: mockCdp,
+    trigger: (event: string, params: unknown) => cdpListeners[event]?.(params),
+  }
+}
 
 describe('attach()', () => {
-  let serverProxy: Record<string, ReturnType<typeof vi.fn>>
-
-  beforeEach(() => {
-    serverProxy = {
-      startSession: vi.fn().mockResolvedValue(undefined),
-      event: vi.fn().mockResolvedValue(undefined),
-      endSession: vi.fn().mockResolvedValue(undefined),
-      requestSnapshot: vi.fn().mockResolvedValue(undefined),
-    }
-    vi.mocked(rpc).mockReturnValue(serverProxy as any)
-    mockWsClose.mockReset()
-    mockTakeSnapshot.mockResolvedValue({
-      ts: 1, trigger: 'manual', url: 'http://localhost/', dom: '', scopes: [], globals: {}, plugins: {},
-    })
-  })
-
-  afterEach(() => { vi.clearAllMocks() })
-
-  function makeFakePage() {
-    const cdpListeners: Record<string, (params: unknown) => void> = {}
-    const addInitScriptCalls: Array<{ content?: string }> = []
-    const mockCdp = {
-      send: vi.fn().mockResolvedValue({}),
-      on: vi.fn((event: string, cb: (params: unknown) => void) => { cdpListeners[event] = cb }),
-      detach: vi.fn().mockResolvedValue(undefined),
-    }
-    return {
-      page: {
-        context: () => ({ newCDPSession: vi.fn().mockResolvedValue(mockCdp) }),
-        click: vi.fn().mockResolvedValue(undefined),
-        fill: vi.fn().mockResolvedValue(undefined),
-        goto: vi.fn().mockResolvedValue(undefined),
-        evaluate: vi.fn().mockResolvedValue('http://localhost/'),
-        addInitScript: vi.fn((script: { content?: string }) => { addInitScriptCalls.push(script); return Promise.resolve() }),
-      },
-      cdp: mockCdp,
-      addInitScriptCalls,
-      triggerCdpEvent(event: string, params: unknown) { cdpListeners[event]?.(params) },
-    }
-  }
-
-  const baseOpts = {
-    viteUrl: 'ws://localhost:9999/__introspection',
-    sessionId: 'test-sess',
-    testTitle: 'my test',
-    testFile: 'foo.spec.ts',
-    workerIndex: 0,
-    outDir: '/tmp/introspect',
-  }
-
-  it('returns an IntrospectHandle with page, mark, snapshot, detach', async () => {
+  it('returns IntrospectHandle with page, mark, snapshot, detach', async () => {
     const { page } = makeFakePage()
-    const handle = await attach(page as never, baseOpts)
+    const handle = await attach(page, { outDir: dir, testTitle: 'test' })
     expect(handle.page).toBeDefined()
     expect(typeof handle.mark).toBe('function')
     expect(typeof handle.snapshot).toBe('function')
@@ -93,93 +39,98 @@ describe('attach()', () => {
     await handle.detach()
   })
 
-  it('calls startSession with correct params', async () => {
+  it('creates session directory with meta.json and events.ndjson', async () => {
     const { page } = makeFakePage()
-    await attach(page as never, { ...baseOpts, sessionId: 'sess-abc', testTitle: 'test title' })
-    expect(serverProxy.startSession).toHaveBeenCalledWith({
-      id: 'sess-abc', startedAt: expect.any(Number), label: 'test title',
-    })
+    const handle = await attach(page, { outDir: dir, testTitle: 'my test' })
+    await handle.detach()
+    const entries = await readdir(dir)
+    expect(entries.length).toBe(1) // one session dir
+    const sessionDir = join(dir, entries[0])
+    const meta = JSON.parse(await readFile(join(sessionDir, 'meta.json'), 'utf-8'))
+    expect(meta.label).toBe('my test')
+    expect(meta.endedAt).toBeDefined()
+    const ndjson = await readFile(join(sessionDir, 'events.ndjson'), 'utf-8')
+    expect(typeof ndjson).toBe('string')
   })
 
-  it('mark() fires an event with type mark', async () => {
+  it('mark() appends a mark event to events.ndjson', async () => {
     const { page } = makeFakePage()
-    const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-mark' })
+    const handle = await attach(page, { outDir: dir })
     handle.mark('step 1', { extra: true })
-    expect(serverProxy.event).toHaveBeenCalledWith(
-      'sess-mark',
-      expect.objectContaining({ type: 'mark', data: expect.objectContaining({ label: 'step 1' }) }),
-    )
-  })
-
-  it('snapshot() calls requestSnapshot with manual trigger', async () => {
-    const { page } = makeFakePage()
-    const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-snap' })
-    await handle.snapshot()
-    expect(serverProxy.requestSnapshot).toHaveBeenCalledWith('sess-snap', 'manual')
-  })
-
-  it('expose is called with a takeSnapshot function', async () => {
-    const { page } = makeFakePage()
-    await attach(page as never, baseOpts)
-    expect(vi.mocked(expose)).toHaveBeenCalled()
-    const methods = vi.mocked(expose).mock.calls[0][0] as any
-    expect(typeof methods.takeSnapshot).toBe('function')
-  })
-
-  it('detach() calls endSession, cdp.detach, and closes WS', async () => {
-    const { page, cdp } = makeFakePage()
-    const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-detach' })
+    await new Promise(r => setTimeout(r, 10)) // let async write settle
     await handle.detach()
-    expect(serverProxy.endSession).toHaveBeenCalledWith(
-      'sess-detach', '/tmp/introspect', 0,
-    )
-    expect(cdp.detach).toHaveBeenCalledOnce()
-    expect(mockWsClose).toHaveBeenCalledOnce()
+    const entries = await readdir(dir)
+    const ndjson = await readFile(join(dir, entries[0], 'events.ndjson'), 'utf-8')
+    const events = ndjson.trim().split('\n').map(l => JSON.parse(l))
+    const mark = events.find((e: { type: string }) => e.type === 'mark')
+    expect(mark).toBeDefined()
+    expect(mark.data.label).toBe('step 1')
   })
 
-  it('detach() emits playwright.result event then calls endSession', async () => {
+  it('detach() writes playwright.result event when result is passed', async () => {
     const { page } = makeFakePage()
-    const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-end' })
-    await handle.detach({ status: 'failed', duration: 500, error: 'oops' })
-    const resultEvt = vi.mocked(serverProxy.event).mock.calls.find(
-      ([, evt]) => (evt as { type: string }).type === 'playwright.result'
-    )
-    expect(resultEvt).toBeDefined()
-    expect((resultEvt![1] as { data: Record<string, unknown> }).data.status).toBe('failed')
-    expect(serverProxy.endSession).toHaveBeenCalled()
+    const handle = await attach(page, { outDir: dir })
+    await handle.detach({ status: 'failed', error: 'assertion failed' })
+    const entries = await readdir(dir)
+    const ndjson = await readFile(join(dir, entries[0], 'events.ndjson'), 'utf-8')
+    const events = ndjson.trim().split('\n').map(l => JSON.parse(l))
+    const result = events.find((e: { type: string }) => e.type === 'playwright.result')
+    expect(result).toBeDefined()
+    expect(result.data.status).toBe('failed')
   })
 
-  it('detach() without result emits no playwright.result event', async () => {
-    const { page } = makeFakePage()
-    const handle = await attach(page as never, { ...baseOpts, sessionId: 'sess-noend' })
+  it('Network.requestWillBeSent appends network.request event', async () => {
+    const { page, trigger } = makeFakePage()
+    const handle = await attach(page, { outDir: dir })
+    trigger('Network.requestWillBeSent', {
+      requestId: 'req-1',
+      request: { url: '/api/test', method: 'GET', headers: {} },
+      timestamp: 100,
+    })
+    await new Promise(r => setTimeout(r, 10))
     await handle.detach()
-    const resultEvt = vi.mocked(serverProxy.event).mock.calls.find(
-      ([, evt]) => (evt as { type: string }).type === 'playwright.result'
-    )
-    expect(resultEvt).toBeUndefined()
+    const entries = await readdir(dir)
+    const ndjson = await readFile(join(dir, entries[0], 'events.ndjson'), 'utf-8')
+    const events = ndjson.trim().split('\n').map(l => JSON.parse(l))
+    const req = events.find((e: { type: string }) => e.type === 'network.request')
+    expect(req).toBeDefined()
+    expect(req.data.url).toBe('/api/test')
   })
 
-  it('injects __INTROSPECT_SESSION_ID__ and __INTROSPECT_WS_URL__ into the page', async () => {
-    const { page, addInitScriptCalls } = makeFakePage()
-    await attach(page as never, { ...baseOpts, sessionId: 'sess-inject' })
-    expect(addInitScriptCalls.length).toBeGreaterThan(0)
-    const injected = addInitScriptCalls.map((c: { content?: string }) => c.content ?? '').join('')
-    expect(injected).toContain('sess-inject')
-    expect(injected).toContain('__INTROSPECT_SESSION_ID__')
-    expect(injected).toContain('__INTROSPECT_WS_URL__')
-  })
-
-  it('calls requestSnapshot when Runtime.exceptionThrown fires', async () => {
-    const { page, triggerCdpEvent } = makeFakePage()
-    await attach(page as never, { ...baseOpts, sessionId: 'sess-snap' })
-    triggerCdpEvent('Runtime.exceptionThrown', {
-      timestamp: 1000,
+  it('Runtime.exceptionThrown appends js.error event', async () => {
+    const { page, cdp, trigger } = makeFakePage()
+    cdp.send.mockImplementation((method: string) => {
+      if (method === 'DOM.getDocument') return Promise.resolve({ root: { nodeId: 1 } })
+      if (method === 'DOM.getOuterHTML') return Promise.resolve({ outerHTML: '<html/>' })
+      return Promise.resolve({})
+    })
+    const handle = await attach(page, { outDir: dir })
+    trigger('Runtime.exceptionThrown', {
+      timestamp: 200,
       exceptionDetails: {
-        text: 'Uncaught TypeError',
-        exception: { description: 'TypeError: Cannot read properties of undefined' },
+        text: 'TypeError',
+        exception: { description: 'TypeError: oops' },
         stackTrace: { callFrames: [] },
       },
     })
-    expect(serverProxy.requestSnapshot).toHaveBeenCalledWith('sess-snap', 'js.error')
+    await new Promise(r => setTimeout(r, 50))
+    await handle.detach()
+    const entries = await readdir(dir)
+    const ndjson = await readFile(join(dir, entries[0], 'events.ndjson'), 'utf-8')
+    const events = ndjson.trim().split('\n').map(l => JSON.parse(l))
+    const err = events.find((e: { type: string }) => e.type === 'js.error')
+    expect(err).toBeDefined()
+    expect(err.data.message).toBe('TypeError: oops')
+  })
+
+  it('creates eval socket inside session directory', async () => {
+    const { existsSync } = await import('fs')
+    const { page } = makeFakePage()
+    const handle = await attach(page, { outDir: dir })
+    const entries = await readdir(dir)
+    const socketPath = join(dir, entries[0], '.socket')
+    expect(existsSync(socketPath)).toBe(true)
+    await handle.detach()
+    expect(existsSync(socketPath)).toBe(false)
   })
 })

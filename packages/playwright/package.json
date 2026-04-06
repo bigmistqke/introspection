@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@bigmistqke/rpc": "^0.1.6",
+    "@introspection/core": "workspace:*",
     "@introspection/types": "workspace:*",
     "@introspection/vite": "workspace:*",
     "ws": "^8.17.0"
