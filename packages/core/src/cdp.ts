@@ -11,7 +11,7 @@ export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, started
   return {
     id: makeId(),
     type: 'network.request',
-    ts: toTs(raw.timestamp, startedAt),
+    ts: toTs(raw.wallTime ?? raw.timestamp, startedAt),
     source: 'cdp',
     data: {
       cdpRequestId: raw.requestId as string,
@@ -23,12 +23,12 @@ export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, started
   }
 }
 
-export function normaliseCdpNetworkResponse(raw: Record<string, unknown>, startedAt: number): NetworkResponseEvent {
+export function normaliseCdpNetworkResponse(raw: Record<string, unknown>, startedAt: number, cdpTimeOffset = 0): NetworkResponseEvent {
   const res = (raw.response ?? {}) as Record<string, unknown>
   return {
     id: makeId(),
     type: 'network.response',
-    ts: toTs(raw.timestamp, startedAt),
+    ts: typeof raw.timestamp === 'number' ? Math.round(raw.timestamp * 1000 + cdpTimeOffset - startedAt) : 0,
     source: 'cdp',
     initiator: raw.requestId as string,
     data: {

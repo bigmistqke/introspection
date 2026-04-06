@@ -193,7 +193,15 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
     })())
   })
 
+  // Offset to convert CDP monotonic timestamps (seconds since Chrome start) to wall-clock ms.
+  // Computed from the first request's wallTime field and stored for use with response timestamps.
+  let cdpTimeOffset = 0
+
   cdp.on('Network.requestWillBeSent', (params) => {
+    const p = params as { wallTime?: number; timestamp?: number }
+    if (cdpTimeOffset === 0 && typeof p.wallTime === 'number' && typeof p.timestamp === 'number') {
+      cdpTimeOffset = Math.round(p.wallTime * 1000 - p.timestamp * 1000)
+    }
     const event = normaliseCdpNetworkRequest(params as never, startedAt)
     debug('network.request', event.data.method, event.data.url)
     emit(event)
@@ -202,7 +210,7 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
   const pendingResponses = new Map<string, ReturnType<typeof normaliseCdpNetworkResponse>>()
 
   cdp.on('Network.responseReceived', (params) => {
-    pendingResponses.set((params as { requestId: string }).requestId, normaliseCdpNetworkResponse(params as never, startedAt))
+    pendingResponses.set((params as { requestId: string }).requestId, normaliseCdpNetworkResponse(params as never, startedAt, cdpTimeOffset))
   })
 
   cdp.on('Network.loadingFinished', (params: { requestId: string }) => {
