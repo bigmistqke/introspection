@@ -27,12 +27,13 @@ You are debugging a failing Playwright test. Your working directory is `<DEMO_DI
 ## Your task
 
 1. Run the test to generate a trace: `pnpm test`
-2. Use `introspect` to investigate. Run `pnpm exec introspect --help` to discover available commands, then explore the trace to find the root cause.
-3. Identify the root cause from trace evidence alone — do not read source files until you have a confident hypothesis
-4. Fix the bug (you may read `app.html` only after you have a confident hypothesis)
-5. Verify the fix: run `pnpm test` again
-6. Revert the fix: restore `app.html` to its original buggy state so the demo remains reusable
-7. Log the rapport path `<RAPPORT_PATH>` in your final response
+2. If no `.introspect/` directory is produced, introspection is not yet wired up. Add it yourself using the packages documented below.
+3. Use `introspect` to investigate. Run `pnpm exec introspect --help` to discover available commands, then explore the trace to find the root cause.
+4. Identify the root cause from trace evidence alone — do not read `app.html` until you have a confident hypothesis
+5. Fix the bug (you may read `app.html` only after you have a confident hypothesis)
+6. Verify the fix: run `pnpm test` again
+7. Revert everything: restore `app.html` to its original buggy state, and if you added instrumentation to `test.spec.ts`, remove it too
+8. Log the rapport path `<RAPPORT_PATH>` in your final response
 
 All `introspect` commands accept `--dir .introspect` to point at the trace directory.
 
