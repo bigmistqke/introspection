@@ -1,83 +1,117 @@
 ---
 name: introspect-plugin
-description: Use when writing a custom introspection plugin for a state manager or framework
+description: Use when writing a custom introspection plugin to capture framework-specific data alongside the standard trace
 ---
 
 # Writing a custom introspection plugin
 
-Plugins capture framework-specific data (state manager actions, component lifecycles, etc.) alongside the standard trace events.
+Plugins have two parts: a browser-side IIFE script that runs in the page, and a node-side object that coordinates with it via `PluginContext`.
 
 ## The IntrospectionPlugin interface
 
 ```ts
 interface IntrospectionPlugin {
-  name: string        // used as event type prefix: plugin.<name>.*
+  name: string        // identifies the plugin; used in event source fields
+  script: string      // browser IIFE — injected into every page on attach and navigation
 
-  browser?: {
-    // runs in the browser page — access window, DOM, framework internals
-    setup(agent: BrowserAgent): void
-    // called when an on-error snapshot is taken
-    snapshot(): Record<string, unknown>
-  }
-
-  server?: {
-    // runs in the Vite plugin — return null to drop event from trace
-    transformEvent(event: TraceEvent): TraceEvent | null
-    // called on snapshot — return additional server-side data
-    extendSnapshot(snapshot: OnErrorSnapshot): Record<string, unknown>
-  }
+  install(ctx: PluginContext): Promise<void>
+  capture?(trigger: 'js.error' | 'manual' | 'detach', ts: number): Promise<CaptureResult[]>
 }
 
-interface BrowserAgent {
-  emit(event: { type: `plugin.${string}`; data: Record<string, unknown> }): void
+interface PluginContext {
+  page: Page
+  cdpSession: { send(method: string, params?: Record<string, unknown>): Promise<unknown> }
+  emit(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }): void
+  writeAsset(opts: { kind: string; content: string | Buffer; ext?: string; metadata: Record<string, unknown> }): Promise<string>
+  timestamp(): number
+  addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
 }
 ```
 
-## Minimal example
+## Browser script
 
-A plugin that tracks a custom global counter (`window.__myAppCounter`):
+The `script` field is a self-contained IIFE that registers the plugin on `window.__introspect_plugins__['name']`. It must not import anything — bundle it before use (e.g. with tsup/esbuild targeting IIFE format).
 
 ```ts
-import type { IntrospectionPlugin } from '@introspection/types'
+// browser.ts — built to an IIFE, then imported as raw text
+(function () {
+  const push = (window as Window & { __introspect_push__?: (event: string) => void }).__introspect_push__
+  if (!push) return
 
-export function myCounterPlugin(): IntrospectionPlugin {
+  window.__introspect_plugins__ ??= {}
+  window.__introspect_plugins__['my-plugin'] = {
+    watch(spec: { threshold: number }) {
+      // set up browser-side observation
+      const id = setInterval(() => {
+        const value = (window as unknown as { __myCounter?: number }).__myCounter ?? 0
+        if (value >= spec.threshold) {
+          push(JSON.stringify({ type: 'plugin', source: 'plugin', data: { name: 'my-plugin', value } }))
+        }
+      }, 500)
+      return id  // return an ID so unwatch can clean up
+    },
+    unwatch(id: number) {
+      clearInterval(id)
+    },
+  }
+})()
+```
+
+## Node-side plugin object
+
+```ts
+import BROWSER_SCRIPT from '../dist/browser.iife.js'  // loaded as raw text by esbuild
+import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
+
+export function myPlugin(): IntrospectionPlugin {
+  let ctx: PluginContext | null = null
+
   return {
-    name: 'my-counter',
-    browser: {
-      setup(agent) {
-        let last = (window as any).__myAppCounter ?? 0
-        setInterval(() => {
-          const current = (window as any).__myAppCounter ?? 0
-          if (current !== last) {
-            agent.emit({ type: 'plugin.my-counter.change', data: { from: last, to: current } })
-            last = current
-          }
-        }, 500)
-      },
-      snapshot() {
-        return { counter: (window as any).__myAppCounter ?? 0 }
-      },
+    name: 'my-plugin',
+    script: BROWSER_SCRIPT,
+
+    async install(pluginCtx) {
+      ctx = pluginCtx
+    },
+
+    async capture(trigger, ts) {
+      if (!ctx) return []
+      const value = await ctx.page.evaluate(() =>
+        (window as unknown as { __myCounter?: number }).__myCounter ?? 0
+      )
+      return [{
+        kind: 'my-plugin-state',
+        content: JSON.stringify({ value }),
+        summary: { value, timestamp: ts },
+      }]
     },
   }
 }
 ```
 
-Register in `vite.config.ts`:
+## Build setup
+
+Use tsup or esbuild to produce the IIFE bundle separately from the node entry:
 
 ```ts
-introspection({ plugins: [myCounterPlugin()] })
+// tsup.browser.config.ts
+export default defineConfig({
+  entry: { browser: 'src/browser.ts' },
+  format: ['iife'],
+  globalName: '__unused',
+  outDir: 'dist',
+})
+
+// tsup.node.config.ts — loads the IIFE as raw text
+export default defineConfig({
+  entry: { index: 'src/index.ts' },
+  format: ['esm'],
+  esbuildOptions(opts) {
+    opts.loader = { ...opts.loader, '.iife.js': 'text' }
+  },
+})
 ```
 
-Events appear in traces as `plugin.my-counter.change` and show up in `introspect timeline`.
+## Reference implementation
 
-## Tips
-
-- **Naming:** use `plugin.<name>.<event>` — keep `<name>` short and consistent
-- **Frequency:** high-frequency events bloat traces; debounce or emit on meaningful changes only
-- **`transformEvent` returning `null`** drops the event — use this in `server` to filter noise
-- **`snapshot()` / `extendSnapshot()`** are called on error — keep them synchronous and cheap
-
-## Existing plugins as reference
-
-- `packages/plugin-react` — hooks `__REACT_DEVTOOLS_GLOBAL_HOOK__` to capture component tree
-- `packages/plugin-redux` — injects middleware to capture actions and state diffs
+`packages/plugin-webgl` is the canonical example. It shows: browser IIFE registration, subscription/unwatch via `addSubscription`, canvas capture as binary assets, and full GL state serialization on `capture()`.
