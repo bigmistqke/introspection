@@ -1,19 +1,21 @@
 import { test as base, expect } from '@playwright/test'
+import type { IntrospectionPlugin } from '@introspection/types'
 import { attach } from './attach.js'
 import type { IntrospectHandle } from '@introspection/types'
 
 export interface IntrospectFixtureOptions {
+  plugins: IntrospectionPlugin[]   // required
   viteUrl?: string
   outDir?: string
 }
 
-export function introspectFixture(opts: IntrospectFixtureOptions = {}) {
+export function introspectFixture(opts: IntrospectFixtureOptions) {
   const test = base.extend<{ introspect: IntrospectHandle }>({
     introspect: [async ({ page }, use, testInfo) => {
       const handle = await attach(page, {
         testTitle: testInfo.title,
         workerIndex: testInfo.workerIndex,
-        ...(opts.viteUrl ? { viteUrl: opts.viteUrl } : {}),
+        plugins: opts.plugins,
         ...(opts.outDir ? { outDir: opts.outDir } : {}),
       })
       await use(handle)
@@ -27,6 +29,3 @@ export function introspectFixture(opts: IntrospectFixtureOptions = {}) {
   })
   return { test, expect }
 }
-
-export const { test, expect: _expect } = introspectFixture()
-export { _expect as expect }
