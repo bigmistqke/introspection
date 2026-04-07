@@ -6,8 +6,8 @@ import { tmpdir } from 'os'
 import { attach } from '../src/attach.js'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 import { defaults } from '../src/plugins/defaults.js'
-import { network } from '../src/plugins/network.js'
-import { jsErrors } from '../src/plugins/js-errors.js'
+import { network } from '@introspection/plugin-network'
+import { jsErrors } from '@introspection/plugin-js-errors'
 
 let dir: string
 test.beforeEach(async () => {

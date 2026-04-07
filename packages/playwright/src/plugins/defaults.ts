@@ -1,7 +1,7 @@
 import type { IntrospectionPlugin } from '@introspection/types'
-import { network } from './network.js'
-import { jsErrors } from './js-errors.js'
-import type { JsErrorsOptions } from './js-errors.js'
+import { network } from '@introspection/plugin-network'
+import { jsErrors } from '@introspection/plugin-js-errors'
+import type { JsErrorsOptions } from '@introspection/plugin-js-errors'
 
 export interface DefaultsOptions {
   jsErrors?: JsErrorsOptions
