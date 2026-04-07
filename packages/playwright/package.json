@@ -10,6 +10,10 @@
     "./fixture": {
       "types": "./src/fixture.ts",
       "import": "./dist/fixture.js"
+    },
+    "./plugins/js-errors": {
+      "types": "./src/plugins/js-errors.ts",
+      "import": "./dist/plugins/js-errors.js"
     }
   },
   "scripts": {

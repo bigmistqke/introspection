@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { attach } from '@introspection/playwright'
+import { attach, defaults } from '@introspection/playwright'
 import { webgl } from '@introspection/plugin-webgl'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -11,7 +11,7 @@ test('animation plays at correct speed', async ({ page }) => {
   const handle = await attach(page, {
     outDir: join(__dirname, '.introspect'),
     testTitle: 'webgl-animation',
-    plugins: [plugin],
+    plugins: [...defaults(), plugin],
   })
 
   await plugin.watch({ event: 'uniform', name: 'u_time', valueChanged: true })

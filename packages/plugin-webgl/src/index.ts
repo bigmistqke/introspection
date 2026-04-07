@@ -1,7 +1,9 @@
 // Loaded as raw text by esbuild (tsup.node.config.ts sets loader['.iife.js'] = 'text').
 // The import path is relative to src/ and resolved at build time — not a runtime path.
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
-import type { IntrospectionPlugin, PluginContext, WatchHandle, CaptureResult } from '@introspection/types'
+import type { IntrospectionPlugin, PluginContext, WatchHandle } from '@introspection/types'
+// Side-effect import: brings the 'js.error' BusPayloadMap augmentation into scope
+import '@introspection/playwright/plugins/js-errors'
 
 declare global {
   interface Window {
@@ -53,101 +55,105 @@ export interface WebGLPlugin extends IntrospectionPlugin {
 }
 
 export function webgl(): WebGLPlugin {
-  let ctx: PluginContext | null = null
+  let pluginCtx: PluginContext | null = null
+
+  async function captureState(ctx: PluginContext): Promise<void> {
+    const captureTimestamp = ctx.timestamp()
+
+    const snapshots = await ctx.page.evaluate(() => {
+      return (window.__introspect_plugins__ as { webgl?: { getState?(): unknown[] } } | undefined)
+        ?.webgl?.getState?.() ?? []
+    }) as WebGLStateSnapshot[]
+
+    const canvases = await ctx.page.evaluate(async () => {
+      const plugin = (window.__introspect_plugins__ as {
+        webgl?: { captureCanvases?(): Promise<Array<{ contextId: string; dataUrl: string }>> }
+      } | undefined)?.webgl
+      return plugin?.captureCanvases?.() ?? []
+    })
+
+    for (const snapshot of snapshots) {
+      await ctx.writeAsset({
+        kind: 'webgl-state',
+        content: JSON.stringify(snapshot),
+        metadata: {
+          timestamp: captureTimestamp,
+          contextId: snapshot.contextId,
+          uniformCount: Object.keys(snapshot.uniforms).length,
+          boundTextureCount: snapshot.textures.length,
+          viewport: snapshot.viewport,
+        },
+      })
+    }
+
+    for (const { contextId, dataUrl } of canvases) {
+      const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
+      await ctx.writeAsset({
+        kind: 'webgl-canvas',
+        content: Buffer.from(base64, 'base64'),
+        ext: 'png',
+        metadata: { timestamp: captureTimestamp, contextId },
+      })
+    }
+  }
 
   return {
     name: 'webgl',
     script: BROWSER_SCRIPT,
 
-    async install(pluginCtx: PluginContext): Promise<void> {
-      ctx = pluginCtx
+    async install(ctx: PluginContext): Promise<void> {
+      pluginCtx = ctx
+
+      ctx.bus.on('manual', async () => { await captureState(ctx) })
+      ctx.bus.on('js.error', async () => { await captureState(ctx) })
+      ctx.bus.on('detach', async () => { await captureState(ctx) })
     },
 
     async watch(opts: WebGLWatchOpts): Promise<WatchHandle> {
-      if (!ctx) throw new Error('webgl plugin: watch() called before install()')
-      let spec: Record<string, unknown>
+      if (!pluginCtx) throw new Error('webgl plugin: watch() called before install()')
+      let specification: Record<string, unknown>
       if (opts.event === 'uniform') {
-        spec = {
+        specification = {
           event: 'uniform',
           ...(opts.contextId !== undefined && { contextId: opts.contextId }),
           ...(opts.name !== undefined && { name: serialiseName(opts.name) }),
           ...(opts.valueChanged !== undefined && { valueChanged: opts.valueChanged }),
         }
       } else if (opts.event === 'draw') {
-        spec = {
+        specification = {
           event: 'draw',
           ...(opts.contextId !== undefined && { contextId: opts.contextId }),
           ...(opts.primitive !== undefined && { primitive: opts.primitive }),
         }
       } else {
-        spec = {
+        specification = {
           event: 'texture-bind',
           ...(opts.contextId !== undefined && { contextId: opts.contextId }),
           ...((opts as TextureBindWatchOpts).unit !== undefined && { unit: (opts as TextureBindWatchOpts).unit }),
         }
       }
-      return ctx.addSubscription('webgl', spec)
+      return pluginCtx.addSubscription('webgl', specification)
     },
 
     async captureCanvas(opts?: { contextId?: string }): Promise<void> {
-      if (!ctx) throw new Error('webgl plugin: captureCanvas() called before install()')
-      const canvases = await ctx.page.evaluate(async () => {
+      if (!pluginCtx) throw new Error('webgl plugin: captureCanvas() called before install()')
+      const captureTimestamp = pluginCtx.timestamp()
+      const canvases = await pluginCtx.page.evaluate(async () => {
         const plugin = (window.__introspect_plugins__ as {
           webgl?: { captureCanvases?(): Promise<Array<{ contextId: string; dataUrl: string }>> }
         } | undefined)?.webgl
         return plugin?.captureCanvases?.() ?? []
       })
-      const timestamp = ctx.timestamp()
       for (const { contextId, dataUrl } of canvases) {
         if (opts?.contextId !== undefined && contextId !== opts.contextId) continue
         const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-        await ctx.writeAsset({
+        await pluginCtx.writeAsset({
           kind: 'webgl-canvas',
           content: Buffer.from(base64, 'base64'),
           ext: 'png',
-          metadata: { timestamp, contextId },
+          metadata: { timestamp: captureTimestamp, contextId },
         })
       }
-    },
-
-    async capture(_trigger: 'js.error' | 'manual' | 'detach', timestamp: number): Promise<CaptureResult[]> {
-      if (!ctx) return []
-
-      const snapshots = await ctx.page.evaluate(() => {
-        return (window.__introspect_plugins__ as { webgl?: { getState?(): unknown[] } } | undefined)
-          ?.webgl?.getState?.() ?? []
-      }) as WebGLStateSnapshot[]
-
-      const canvases = await ctx.page.evaluate(async () => {
-        const plugin = (window.__introspect_plugins__ as {
-          webgl?: { captureCanvases?(): Promise<Array<{ contextId: string; dataUrl: string }>> }
-        } | undefined)?.webgl
-        return plugin?.captureCanvases?.() ?? []
-      })
-
-      const results: CaptureResult[] = snapshots.map(snapshot => ({
-        kind: 'webgl-state',
-        content: JSON.stringify(snapshot),
-        summary: {
-          contextId: snapshot.contextId,
-          uniformCount: Object.keys(snapshot.uniforms).length,
-          boundTextureCount: snapshot.textures.length,
-          viewport: snapshot.viewport,
-          timestamp,
-        },
-      }))
-
-      for (const { contextId, dataUrl } of canvases) {
-        const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-        results.push({
-          kind: 'webgl-canvas',
-          content: Buffer.from(base64, 'base64'),
-          ext: 'png',
-          summary: { contextId, timestamp },
-        })
-      }
-
-      return results
     },
   }
 }
