@@ -8,9 +8,6 @@ import { createPageProxy } from './proxy.js'
 import { PluginRegistry } from './plugin-registry.js'
 import { createDebug } from './debug.js'
 
-export { defaults } from './plugins/defaults.js'
-export type { DefaultsOptions } from './plugins/defaults.js'
-
 export interface AttachOptions {
   outDir?: string
   testTitle?: string

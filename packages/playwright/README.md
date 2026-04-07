@@ -11,9 +11,12 @@ pnpm add -D @introspection/playwright
 ## Usage
 
 ```ts
-import { attach } from '@introspection/playwright'
+import { attach, defaults } from '@introspection/playwright'
 
-const handle = await attach(page, { testTitle: 'my test' })
+const handle = await attach(page, {
+  testTitle: 'my test',
+  plugins: defaults(),    // network capture + JS error capture
+})
 
 await handle.page.goto('/')
 handle.mark('step', { extra: 'data' })
@@ -42,6 +45,31 @@ Opens a CDP session on the page and begins recording. Enables Network, Runtime, 
 | `workerIndex` | `number` | — | Playwright worker index (informational) |
 | `plugins` | `IntrospectionPlugin[]` | `[]` | Browser-side plugins to install |
 | `verbose` | `boolean` | `false` | Log lifecycle events to stderr |
+
+---
+
+## Built-in plugins
+
+### `network()`
+
+Captures all network requests and responses as `network.request` / `network.response` events. Response bodies are written as sidecar assets.
+
+### `jsErrors(opts?)`
+
+Captures uncaught JS exceptions and unhandled promise rejections. On each error, pauses the debugger to collect scope locals, writes a DOM snapshot, and emits a `js.error` event.
+
+```ts
+jsErrors({ pauseOnExceptions: 'all' })   // catch caught exceptions too (default: 'uncaught')
+```
+
+### `defaults(opts?)`
+
+Returns `[network(), jsErrors(opts?.jsErrors)]`. Drop-in for standard behaviour:
+
+```ts
+attach(page, { plugins: defaults() })
+attach(page, { plugins: defaults({ jsErrors: { pauseOnExceptions: 'all' } }) })
+```
 
 ---
 
@@ -144,6 +172,7 @@ On test failure or timeout, the fixture automatically calls `handle.snapshot()` 
 ## Exports
 
 ```ts
-import { attach } from '@introspection/playwright'
-import { introspectFixture, test, expect } from '@introspection/playwright/fixture'
+import { attach, network, jsErrors, defaults } from '@introspection/playwright'
+import type { AttachOptions, JsErrorsOptions, DefaultsOptions, BusPayloadMap, BusTrigger } from '@introspection/playwright'
+import { introspectFixture } from '@introspection/playwright/fixture'
 ```
