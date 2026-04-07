@@ -48,23 +48,17 @@ Opens a CDP session on the page and begins recording. CDP domains are enabled by
 
 ---
 
-## Built-in plugins
+## Plugins
 
-### `network()`
+Plugins are separate packages that depend only on `@introspection/types` and `@introspection/core` — they are host-agnostic. See each plugin's README for details:
 
-Captures all network requests and responses as `network.request` / `network.response` events. Response bodies are written as sidecar assets.
-
-### `jsErrors(opts?)`
-
-Captures uncaught JS exceptions and unhandled promise rejections. On each error, pauses the debugger to collect scope locals, writes a DOM snapshot, and emits a `js.error` event.
-
-```ts
-jsErrors({ pauseOnExceptions: 'all' })   // catch caught exceptions too (default: 'uncaught')
-```
+- [`@introspection/plugin-network`](../plugin-network/README.md) — `network()` — HTTP requests, responses, bodies
+- [`@introspection/plugin-js-errors`](../plugin-js-errors/README.md) — `jsErrors(opts?)` — exceptions with scope locals and DOM snapshots
+- [`@introspection/plugin-webgl`](../plugin-webgl/README.md) — `webgl()` — WebGL state, uniforms, draw calls, canvas PNGs
 
 ### `defaults(opts?)`
 
-Returns `[network(), jsErrors(opts?.jsErrors)]`. Drop-in for standard behaviour:
+Convenience factory that returns `[network(), jsErrors(opts?.jsErrors)]`:
 
 ```ts
 attach(page, { plugins: defaults() })

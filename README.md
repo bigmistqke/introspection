@@ -23,10 +23,31 @@ Plugins inject a browser-side script to intercept domain-specific APIs (e.g. Web
 | Package | Description |
 |---|---|
 | [`@introspection/playwright`](packages/playwright/README.md) | Attach tracing to a Playwright page — the main integration point |
-| [`@introspection/plugin-webgl`](packages/plugin-webgl/README.md) | Browser-side WebGL interceptor: track uniforms, draws, textures, capture canvas PNGs |
 | [`introspect`](packages/cli/README.md) | CLI for querying traces: summary, timeline, errors, network, dom, body, eval |
-| [`@introspection/core`](packages/core/README.md) | CDP normalizers, session I/O, snapshot utilities (used internally) |
+| [`@introspection/core`](packages/core/README.md) | CDP normalizers, session I/O, event bus, snapshot utilities (used internally) |
 | [`@introspection/types`](packages/types/README.md) | Shared TypeScript types for events, plugins, and session format |
+
+## Plugins
+
+Every capability is a plugin. If you don't wire it up, it won't log. Pass the plugins you want to `attach()` via the required `plugins` option.
+
+| Plugin | Package | What it captures |
+|---|---|---|
+| `network()` | [`@introspection/plugin-network`](packages/plugin-network/README.md) | HTTP requests, responses, and response bodies |
+| `jsErrors()` | [`@introspection/plugin-js-errors`](packages/plugin-js-errors/README.md) | Uncaught exceptions and unhandled rejections with scope locals and DOM snapshots |
+| `webgl()` | [`@introspection/plugin-webgl`](packages/plugin-webgl/README.md) | WebGL state, uniforms, draw calls, textures, and canvas PNGs |
+
+`defaults()` from `@introspection/playwright` returns `[network(), jsErrors()]` — the standard set for most tests. Add domain-specific plugins alongside:
+
+```ts
+import { attach, defaults } from '@introspection/playwright'
+import { webgl } from '@introspection/plugin-webgl'
+
+const plugin = webgl()
+const handle = await attach(page, { plugins: [...defaults(), plugin] })
+```
+
+Plugins only depend on `@introspection/types` and `@introspection/core` — they are host-agnostic and can be reused with any CDP provider, not just Playwright.
 
 ---
 
