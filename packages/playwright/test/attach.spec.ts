@@ -5,6 +5,9 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { attach } from '../src/attach.js'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
+import { defaults } from '../src/plugins/defaults.js'
+import { network } from '../src/plugins/network.js'
+import { jsErrors } from '../src/plugins/js-errors.js'
 
 let dir: string
 test.beforeEach(async () => {
@@ -17,11 +20,11 @@ test.afterEach(async () => {
 async function readEvents(outDir: string) {
   const entries = await readdir(outDir)
   const ndjson = await readFile(join(outDir, entries[0], 'events.ndjson'), 'utf-8')
-  return ndjson.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+  return ndjson.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
 }
 
 test('creates session directory with meta.json and events.ndjson', async ({ page }) => {
-  const handle = await attach(page, { outDir: dir, testTitle: 'my test' })
+  const handle = await attach(page, { outDir: dir, testTitle: 'my test', plugins: [] })
   await handle.detach()
   const entries = await readdir(dir)
   expect(entries.length).toBe(1)
@@ -34,27 +37,27 @@ test('creates session directory with meta.json and events.ndjson', async ({ page
 })
 
 test('mark() appends a mark event to events.ndjson', async ({ page }) => {
-  const handle = await attach(page, { outDir: dir })
+  const handle = await attach(page, { outDir: dir, plugins: [] })
   handle.mark('step 1', { extra: true })
   await new Promise(r => setTimeout(r, 50))
   await handle.detach()
   const events = await readEvents(dir)
-  const mark = events.find((e: { type: string }) => e.type === 'mark')
+  const mark = events.find((event: { type: string }) => event.type === 'mark')
   expect(mark).toBeDefined()
   expect(mark.data.label).toBe('step 1')
 })
 
 test('detach() writes playwright.result event when result is passed', async ({ page }) => {
-  const handle = await attach(page, { outDir: dir })
+  const handle = await attach(page, { outDir: dir, plugins: [] })
   await handle.detach({ status: 'failed', error: 'assertion failed' })
   const events = await readEvents(dir)
-  const result = events.find((e: { type: string }) => e.type === 'playwright.result')
-  expect(result).toBeDefined()
-  expect(result.data.status).toBe('failed')
+  const resultEvent = events.find((event: { type: string }) => event.type === 'playwright.result')
+  expect(resultEvent).toBeDefined()
+  expect(resultEvent.data.status).toBe('failed')
 })
 
 test('network request appends network.request event', async ({ page }) => {
-  const handle = await attach(page, { outDir: dir })
+  const handle = await attach(page, { outDir: dir, plugins: [network()] })
   await page.route('**/*', route => {
     if (route.request().url().includes('/api/test')) {
       route.fulfill({ status: 200, body: 'ok' })
@@ -67,9 +70,9 @@ test('network request appends network.request event', async ({ page }) => {
   await new Promise(r => setTimeout(r, 100))
   await handle.detach()
   const events = await readEvents(dir)
-  const req = events.find((e: { type: string; data?: { url: string } }) =>
-    e.type === 'network.request' && e.data?.url?.includes('/api/test'))
-  expect(req).toBeDefined()
+  const networkRequest = events.find((event: { type: string; data?: { url: string } }) =>
+    event.type === 'network.request' && event.data?.url?.includes('/api/test'))
+  expect(networkRequest).toBeDefined()
 })
 
 test('Runtime.exceptionThrown appends js.error event', async ({ page }) => {
@@ -77,7 +80,7 @@ test('Runtime.exceptionThrown appends js.error event', async ({ page }) => {
     route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body></body></html>' })
   )
   await page.goto('http://localhost:9999/')
-  const handle = await attach(page, { outDir: dir })
+  const handle = await attach(page, { outDir: dir, plugins: [jsErrors()] })
   // Use addScriptTag so the error happens in a proper browsing context
   await page.evaluate(() => {
     setTimeout(() => { throw new TypeError('oops') }, 0)
@@ -86,13 +89,13 @@ test('Runtime.exceptionThrown appends js.error event', async ({ page }) => {
   await new Promise(r => setTimeout(r, 500))
   await handle.detach()
   const events = await readEvents(dir)
-  const err = events.find((e: { type: string }) => e.type === 'js.error')
-  expect(err).toBeDefined()
-  expect(err.data.message).toContain('oops')
+  const errorEvent = events.find((event: { type: string }) => event.type === 'js.error')
+  expect(errorEvent).toBeDefined()
+  expect(errorEvent.data.message).toContain('oops')
 })
 
 test('network response body is captured as an asset', async ({ page }) => {
-  const handle = await attach(page, { outDir: dir })
+  const handle = await attach(page, { outDir: dir, plugins: [network()] })
   await page.route('**/*', route => {
     if (route.request().url().includes('/api/data')) {
       route.fulfill({ status: 200, contentType: 'application/json', body: '{"users":[{"id":1}]}' })
@@ -106,11 +109,11 @@ test('network response body is captured as an asset', async ({ page }) => {
   await handle.detach()
 
   const events = await readEvents(dir)
-  const response = events.find((e: { type: string; data?: { url: string } }) =>
-    e.type === 'network.response' && e.data?.url?.includes('/api/data'))
+  const response = events.find((event: { type: string; data?: { url: string } }) =>
+    event.type === 'network.response' && event.data?.url?.includes('/api/data'))
   expect(response).toBeDefined()
-  const bodyAsset = events.find((e: { type: string; data?: { kind: string } }) =>
-    e.type === 'asset' && e.data?.kind === 'body')
+  const bodyAsset = events.find((event: { type: string; data?: { kind: string } }) =>
+    event.type === 'asset' && event.data?.kind === 'body')
   expect(bodyAsset).toBeDefined()
 })
 
@@ -128,8 +131,8 @@ test('malformed plugin push is silently discarded', async ({ page }) => {
 
   const events = await readEvents(dir)
   // Only playwright.result from detach, no malformed event
-  const nonResult = events.filter((e: { type: string }) =>
-    e.type !== 'playwright.result' && e.type !== 'mark')
+  const nonResult = events.filter((event: { type: string }) =>
+    event.type !== 'playwright.result' && event.type !== 'mark')
   expect(nonResult).toHaveLength(0)
 })
 
@@ -169,13 +172,13 @@ test('plugin subscriptions survive navigation', async ({ page }) => {
   await handle.detach()
 
   const events = await readEvents(dir)
-  const subscribed = events.filter((e: { type: string }) => e.type === 'test.subscribed')
+  const subscribed = events.filter((event: { type: string }) => event.type === 'test.subscribed')
   // At least 2: one from initial addSubscription, one from re-apply after navigation
   expect(subscribed.length).toBeGreaterThanOrEqual(2)
 })
 
 test('does not create a .socket file inside session directory', async ({ page }) => {
-  const handle = await attach(page, { outDir: dir })
+  const handle = await attach(page, { outDir: dir, plugins: [] })
   const entries = await readdir(dir)
   const socketPath = join(dir, entries[0], '.socket')
   expect(existsSync(socketPath)).toBe(false)
@@ -197,7 +200,7 @@ test('push event from browser appears in events.ndjson with source: plugin', asy
   await handle.detach()
 
   const events = await readEvents(dir)
-  const pushed = events.find((e: { type: string }) => e.type === 'webgl.uniform')
+  const pushed = events.find((event: { type: string }) => event.type === 'webgl.uniform')
   expect(pushed).toBeDefined()
   expect(pushed.source).toBe('plugin')
   expect(pushed.data.name).toBe('u_time')
@@ -215,25 +218,34 @@ test('ctx.writeAsset produces an asset event with source: plugin in events.ndjso
   await handle.detach()
 
   const events = await readEvents(dir)
-  const asset = events.find((e: { type: string }) => e.type === 'asset')
+  const asset = events.find((event: { type: string }) => event.type === 'asset')
   expect(asset).toBeDefined()
   expect(asset.source).toBe('plugin')
   expect(asset.data.kind).toBe('webgl-state')
 })
 
-test('detach() triggers plugin.capture("detach") and writes resulting assets', async ({ page }) => {
+test('bus "detach" handler is called and can write assets', async ({ page }) => {
+  let detachCalled = false
   const plugin: IntrospectionPlugin = {
-    name: 'test', script: '', install: async () => {},
-    async capture(trigger) {
-      if (trigger !== 'detach') return []
-      return [{ kind: 'webgl-state', content: '{"detached":true}', summary: { contextId: 'ctx_0' } }]
+    name: 'test',
+    async install(ctx) {
+      ctx.bus.on('detach', async () => {
+        detachCalled = true
+        await ctx.writeAsset({
+          kind: 'webgl-state',
+          content: '{"detached":true}',
+          metadata: { timestamp: ctx.timestamp() },
+        })
+      })
     },
   }
-  await attach(page, { outDir: dir, plugins: [plugin] }).then(h => h.detach())
+  const handle = await attach(page, { outDir: dir, plugins: [plugin] })
+  await handle.detach()
 
+  expect(detachCalled).toBe(true)
   const events = await readEvents(dir)
-  const asset = events.find((e: { type: string; data?: { kind: string } }) =>
-    e.type === 'asset' && e.data?.kind === 'webgl-state')
+  const asset = events.find((event: { type: string; data?: { kind: string } }) =>
+    event.type === 'asset' && event.data?.kind === 'webgl-state')
   expect(asset).toBeDefined()
   expect(asset.source).toBe('plugin')
 })
