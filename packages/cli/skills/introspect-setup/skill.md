@@ -19,13 +19,13 @@ pnpm add -D @introspection/plugin-webgl
 
 ```ts
 import { test } from '@playwright/test'
-import { attach } from '@introspection/playwright'
+import { attach, defaults } from '@introspection/playwright'
 
 test('my test', async ({ page }) => {
   const handle = await attach(page, {
     outDir: '.introspect',   // default — where session traces are written
-    label: 'my test',        // optional human-readable name
-    // plugins: [webgl()],   // optional plugins
+    testTitle: 'my test',    // optional human-readable name
+    plugins: defaults(),     // network capture + JS error capture
   })
 
   await page.goto('/')
@@ -44,7 +44,7 @@ test('my test', async ({ page }) => {
 import { webgl } from '@introspection/plugin-webgl'
 
 const plugin = webgl()
-const handle = await attach(page, { plugins: [plugin] })
+const handle = await attach(page, { plugins: [...defaults(), plugin] })
 
 await plugin.watch({ event: 'uniform', name: 'u_time', valueChanged: true })
 await plugin.watch({ event: 'draw' })

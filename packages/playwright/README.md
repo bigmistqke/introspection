@@ -28,13 +28,13 @@ Use `handle.page` (the proxy-wrapped page) instead of the original — it record
 
 ---
 
-## `attach(page, opts?)`
+## `attach(page, opts)`
 
 ```ts
-function attach(page: Page, opts?: AttachOptions): Promise<IntrospectHandle>
+function attach(page: Page, opts: AttachOptions): Promise<IntrospectHandle>
 ```
 
-Opens a CDP session on the page and begins recording. Enables Network, Runtime, Debugger, DOM, and Page CDP domains.
+Opens a CDP session on the page and begins recording. CDP domains are enabled by the plugins passed in `opts.plugins`.
 
 ### Options
 
@@ -43,7 +43,7 @@ Opens a CDP session on the page and begins recording. Enables Network, Runtime, 
 | `outDir` | `string` | `'.introspect'` | Directory to write session files |
 | `testTitle` | `string` | `'unknown test'` | Label stored in session metadata |
 | `workerIndex` | `number` | — | Playwright worker index (informational) |
-| `plugins` | `IntrospectionPlugin[]` | `[]` | Browser-side plugins to install |
+| `plugins` | `IntrospectionPlugin[]` | **required** | Plugins to install — use `defaults()` for standard behaviour |
 | `verbose` | `boolean` | `false` | Log lifecycle events to stderr |
 
 ---
@@ -95,11 +95,11 @@ handle.mark('before-submit', { userId: 42 })
 
 ### `handle.snapshot()`
 
-Captures a DOM snapshot and globals snapshot via CDP, writes it to `assets/`, and triggers `plugin.capture('manual')` on each plugin. The asset event appears in `events.ndjson`.
+Captures a DOM snapshot and globals snapshot via CDP, writes it to `assets/`, and emits `'manual'` on the bus so plugins can react. The asset event appears in `events.ndjson`.
 
 ### `handle.detach(result?)`
 
-Drains any in-flight async handlers, calls `plugin.capture('detach')` on each plugin, finalizes the session (writes `endedAt` to `meta.json`), and detaches the CDP session.
+Emits `'detach'` on the bus (awaiting all handlers), finalizes the session (writes `endedAt` to `meta.json`), and detaches the CDP session.
 
 Pass an optional result to emit a `playwright.result` event:
 
@@ -142,7 +142,8 @@ For automatic attach/detach with test result propagation:
 ```ts
 // fixtures.ts
 import { introspectFixture } from '@introspection/playwright/fixture'
-export const { test, expect } = introspectFixture({ outDir: '.introspect' })
+import { defaults } from '@introspection/playwright'
+export const { test, expect } = introspectFixture({ outDir: '.introspect', plugins: defaults() })
 ```
 
 ```ts
@@ -156,12 +157,12 @@ test('example', async ({ page, introspect }) => {
 })
 ```
 
-`introspectFixture(opts?)` options:
+`introspectFixture(opts)` options:
 
 | Option | Type | Description |
 |---|---|---|
+| `plugins` | `IntrospectionPlugin[]` | **required** — plugins to install, e.g. `defaults()` |
 | `outDir` | `string` | Session output directory |
-| `viteUrl` | `string` | Base URL passed through to attach |
 
 The `introspect` fixture value is the full `IntrospectHandle`. The fixture is auto-used (`{ auto: true }`), so it activates for every test even without destructuring it.
 

@@ -179,20 +179,37 @@ interface OnErrorSnapshot {
 ```ts
 interface IntrospectionPlugin {
   name: string
-  script: string   // browser-side IIFE injected as an init script on every navigation
+  script?: string  // browser-side IIFE injected as an init script on every navigation (optional)
   install(ctx: PluginContext): Promise<void>
 }
 ```
 
+### `BusPayloadMap` and `BusTrigger`
+
+`BusPayloadMap` is an augmentable interface — declare module merging lets plugins add their own triggers:
+
+```ts
+interface BusPayloadMap {
+  'manual': { trigger: 'manual'; timestamp: number }
+  'detach': { trigger: 'detach'; timestamp: number }
+  // plugins extend this via: declare module '@introspection/types' { interface BusPayloadMap { ... } }
+}
+
+type BusTrigger = keyof BusPayloadMap
+```
+
 ### `PluginContext`
 
-Passed to `plugin.install()`. Provides access to the page, CDP session, and session writer.
+Passed to `plugin.install()`. Provides access to the page, CDP session, event bus, and session writer.
 
 ```ts
 interface PluginContext {
   page: PluginPage   // minimal page abstraction: evaluate()
-  cdpSession: { send(method: string, params?: Record<string, unknown>): Promise<unknown> }
-  emit(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }): void
+  cdpSession: {
+    send(method: string, params?: Record<string, unknown>): Promise<unknown>
+    on(event: string, handler: (params: unknown) => void): void  // subscribe to raw CDP events
+  }
+  emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): void
   writeAsset(opts: {
     kind: string
     content: string | Buffer
@@ -202,10 +219,18 @@ interface PluginContext {
   }): Promise<string>   // returns relative asset path
   timestamp(): number   // ms since session start
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
+  bus: {
+    on<T extends BusTrigger>(trigger: T, handler: (payload: BusPayloadMap[T]) => void | Promise<void>): void
+    emit<T extends BusTrigger>(trigger: T, payload: BusPayloadMap[T]): Promise<void>
+  }
 }
 ```
 
 `addSubscription` installs a browser-side watch by calling `window.__introspect_plugins__[pluginName].watch(spec)` and registers the subscription for automatic re-apply after navigation. Returns a `WatchHandle` with `unwatch()`.
+
+`cdpSession.on()` subscribes to raw CDP events (e.g. `Network.requestWillBeSent`) from within `install()`. This is how built-in plugins like `network()` and `jsErrors()` wire themselves up.
+
+`bus` provides a typed async event bus scoped to the session. `bus.on()` registers a handler. `bus.emit()` runs all registered handlers concurrently and resolves only after all settle. Use `bus.on('manual', ...)` to react to `handle.snapshot()` calls, `bus.on('detach', ...)` for teardown capture, and `bus.on('js.error', ...)` (augmented by `jsErrors()`) for error captures.
 
 ### `WatchHandle`
 

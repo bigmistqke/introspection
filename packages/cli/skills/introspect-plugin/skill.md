@@ -12,18 +12,25 @@ Plugins have two parts: a browser-side IIFE script that runs in the page, and a 
 ```ts
 interface IntrospectionPlugin {
   name: string        // identifies the plugin; used in event source fields
-  script: string      // browser IIFE — injected into every page on attach and navigation
+  script?: string     // browser IIFE — injected into every page on attach and navigation (optional)
 
   install(ctx: PluginContext): Promise<void>
 }
 
 interface PluginContext {
   page: Page
-  cdpSession: { send(method: string, params?: Record<string, unknown>): Promise<unknown> }
-  emit(event: Omit<TraceEvent, 'id' | 'ts'> & { id?: string; ts?: number }): void
+  cdpSession: {
+    send(method: string, params?: Record<string, unknown>): Promise<unknown>
+    on(event: string, handler: (params: unknown) => void): void  // subscribe to raw CDP events
+  }
+  emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): void
   writeAsset(opts: { kind: string; content: string | Buffer; ext?: string; metadata: Record<string, unknown> }): Promise<string>
   timestamp(): number
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
+  bus: {
+    on<T extends BusTrigger>(trigger: T, handler: (payload: BusPayloadMap[T]) => void | Promise<void>): void
+    emit<T extends BusTrigger>(trigger: T, payload: BusPayloadMap[T]): Promise<void>
+  }
 }
 ```
 
@@ -72,7 +79,7 @@ export function myPlugin(): IntrospectionPlugin {
     async install(pluginCtx) {
       ctx = pluginCtx
 
-      ctx.bus.on('js.error', async (trigger, ts) => {
+      ctx.bus.on('js.error', async () => {
         if (!ctx) return
         const value = await ctx.page.evaluate(() =>
           (window as unknown as { __myCounter?: number }).__myCounter ?? 0
@@ -80,7 +87,7 @@ export function myPlugin(): IntrospectionPlugin {
         await ctx.writeAsset({
           kind: 'my-plugin-state',
           content: JSON.stringify({ value }),
-          metadata: { timestamp: ts, value },
+          metadata: { timestamp: ctx.timestamp(), value },
         })
       })
     },
