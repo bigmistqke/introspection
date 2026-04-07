@@ -181,11 +181,8 @@ interface IntrospectionPlugin {
   name: string
   script: string   // browser-side IIFE injected as an init script on every navigation
   install(ctx: PluginContext): Promise<void>
-  capture?(trigger: 'js.error' | 'manual' | 'detach', ts: number): Promise<CaptureResult[]>
 }
 ```
-
-`capture` is called by the session recorder on JS errors, manual snapshots, and detach. Return an array of assets to write; return `[]` to skip.
 
 ### `PluginContext`
 
@@ -209,17 +206,6 @@ interface PluginContext {
 ```
 
 `addSubscription` installs a browser-side watch by calling `window.__introspect_plugins__[pluginName].watch(spec)` and registers the subscription for automatic re-apply after navigation. Returns a `WatchHandle` with `unwatch()`.
-
-### `CaptureResult`
-
-```ts
-interface CaptureResult {
-  kind: string               // asset kind, e.g. 'webgl-state'
-  content: string | Buffer
-  ext?: string               // file extension; defaults to 'json'
-  summary: Record<string, unknown>   // metadata stored in the asset event
-}
-```
 
 ### `WatchHandle`
 

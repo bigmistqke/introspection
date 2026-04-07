@@ -15,7 +15,6 @@ interface IntrospectionPlugin {
   script: string      // browser IIFE — injected into every page on attach and navigation
 
   install(ctx: PluginContext): Promise<void>
-  capture?(trigger: 'js.error' | 'manual' | 'detach', ts: number): Promise<CaptureResult[]>
 }
 
 interface PluginContext {
@@ -72,18 +71,18 @@ export function myPlugin(): IntrospectionPlugin {
 
     async install(pluginCtx) {
       ctx = pluginCtx
-    },
 
-    async capture(trigger, ts) {
-      if (!ctx) return []
-      const value = await ctx.page.evaluate(() =>
-        (window as unknown as { __myCounter?: number }).__myCounter ?? 0
-      )
-      return [{
-        kind: 'my-plugin-state',
-        content: JSON.stringify({ value }),
-        summary: { value, timestamp: ts },
-      }]
+      ctx.bus.on('js.error', async (trigger, ts) => {
+        if (!ctx) return
+        const value = await ctx.page.evaluate(() =>
+          (window as unknown as { __myCounter?: number }).__myCounter ?? 0
+        )
+        await ctx.writeAsset({
+          kind: 'my-plugin-state',
+          content: JSON.stringify({ value }),
+          metadata: { timestamp: ts, value },
+        })
+      })
     },
   }
 }
@@ -114,4 +113,4 @@ export default defineConfig({
 
 ## Reference implementation
 
-`packages/plugin-webgl` is the canonical example. It shows: browser IIFE registration, subscription/unwatch via `addSubscription`, canvas capture as binary assets, and full GL state serialization on `capture()`.
+`packages/plugin-webgl` is the canonical example. It shows: browser IIFE registration, subscription/unwatch via `addSubscription`, canvas capture as binary assets, and GL state serialization triggered via `ctx.bus.on(trigger, handler)` inside `install()`.

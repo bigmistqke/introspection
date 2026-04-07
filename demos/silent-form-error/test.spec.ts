@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { attach } from '@introspection/playwright'
+import { attach, defaults } from '@introspection/playwright'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -17,6 +17,7 @@ test('shows validation error on invalid card number', async ({ page }) => {
   const handle = await attach(page, {
     outDir: join(__dirname, '.introspect'),
     testTitle: 'silent-form-error',
+    plugins: defaults(),
   })
 
   await page.goto('/')

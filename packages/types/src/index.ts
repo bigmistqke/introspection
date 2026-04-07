@@ -109,13 +109,6 @@ export interface PluginPage {
   evaluate<T, A>(fn: (arg: A) => T, arg: A): Promise<T>
 }
 
-export interface CaptureResult {
-  kind: string
-  content: string | Buffer
-  ext?: string
-  summary: Record<string, unknown>
-}
-
 export interface WatchHandle {
   unwatch(): Promise<void>
 }
