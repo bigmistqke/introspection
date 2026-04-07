@@ -23,21 +23,14 @@ Plugins inject a browser-side script to intercept domain-specific APIs (e.g. Web
 | Package | Description |
 |---|---|
 | [`@introspection/playwright`](packages/playwright/README.md) | Attach tracing to a Playwright page — the main integration point |
-| [`introspect`](packages/cli/README.md) | CLI for querying traces: summary, timeline, errors, network, dom, body, eval |
+| [`@introspection/plugin-network`](packages/plugin-network/README.md) | Plugin: HTTP requests, responses, and response bodies |
+| [`@introspection/plugin-js-errors`](packages/plugin-js-errors/README.md) | Plugin: uncaught exceptions and unhandled rejections with scope locals and DOM snapshots |
+| [`@introspection/plugin-webgl`](packages/plugin-webgl/README.md) | Plugin: WebGL state, uniforms, draw calls, textures, and canvas PNGs |
+| [`introspect`](packages/cli/README.md) | CLI for querying traces: summary, errors, network, dom, body, eval |
 | [`@introspection/core`](packages/core/README.md) | CDP normalizers, session I/O, event bus, snapshot utilities (used internally) |
 | [`@introspection/types`](packages/types/README.md) | Shared TypeScript types for events, plugins, and session format |
 
-## Plugins
-
-Every capability is a plugin. If you don't wire it up, it won't log. Pass the plugins you want to `attach()` via the required `plugins` option.
-
-| Plugin | Package | What it captures |
-|---|---|---|
-| `network()` | [`@introspection/plugin-network`](packages/plugin-network/README.md) | HTTP requests, responses, and response bodies |
-| `jsErrors()` | [`@introspection/plugin-js-errors`](packages/plugin-js-errors/README.md) | Uncaught exceptions and unhandled rejections with scope locals and DOM snapshots |
-| `webgl()` | [`@introspection/plugin-webgl`](packages/plugin-webgl/README.md) | WebGL state, uniforms, draw calls, textures, and canvas PNGs |
-
-`defaults()` from `@introspection/playwright` returns `[network(), jsErrors()]` — the standard set for most tests. Add domain-specific plugins alongside:
+Every capability is a plugin. If you don't wire it up, it won't log. Pass the plugins you want to `attach()` via the required `plugins` option. `defaults()` from `@introspection/playwright` returns `[network(), jsErrors()]` — the standard set for most tests. Add domain-specific plugins alongside:
 
 ```ts
 import { attach, defaults } from '@introspection/playwright'
