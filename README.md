@@ -10,7 +10,7 @@ The log is also designed to be consumed by AI assistants. Run `introspect summar
 
 ## How it works
 
-`attach(page)` opens a CDP session alongside the Playwright test. It listens for CDP events (network, debugger, DOM) and translates them into a normalized event stream. A proxy-wrapped `page` object records Playwright actions into the same stream. Everything is appended to `events.ndjson` as it arrives — no batching, no end-of-test flush required.
+`attach(page, { plugins })` opens a CDP session alongside the Playwright test. Plugins (like `network()` and `jsErrors()`, bundled together as `defaults()`) subscribe to CDP events and translate them into a normalized event stream. A proxy-wrapped `page` object records Playwright actions into the same stream. Everything is appended to `events.ndjson` as it arrives — no batching, no end-of-test flush required.
 
 On uncaught JS errors the debugger pauses, collects scope locals from the call stack, then resumes. The snapshot (DOM + scopes + globals) is written to `assets/` with a pointer in the event stream.
 
@@ -37,10 +37,10 @@ pnpm add -D @introspection/playwright introspect
 ```
 
 ```ts
-import { attach } from '@introspection/playwright'
+import { attach, defaults } from '@introspection/playwright'
 
 test('checkout flow', async ({ page }) => {
-  const handle = await attach(page, { testTitle: 'checkout flow' })
+  const handle = await attach(page, { testTitle: 'checkout flow', plugins: defaults() })
 
   await handle.page.goto('/cart')
   await handle.page.getByRole('button', { name: 'Checkout' }).click()
