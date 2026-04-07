@@ -98,7 +98,18 @@ export interface PluginContext {
 
 `bus` provides a lightweight async event bus scoped to the session. `bus.emit()` is async and resolves only after all registered handlers for that trigger have settled (see decision 7).
 
-`BusPayloadMap` defines the closed set of triggers and their payloads. `BusTrigger` is `keyof BusPayloadMap`. Adding a new trigger requires adding an entry to `BusPayloadMap`.
+`BusPayloadMap` is an interface — it supports TypeScript declaration merging. The core library declares the built-in triggers (`'manual'`, `'detach'`). Built-in plugins like `jsErrors()` augment it from within the package. External plugins augment it from their own packages:
+
+```ts
+// @introspection/plugin-websocket
+declare module '@introspection/playwright' {
+  interface BusPayloadMap {
+    'ws.frame': { trigger: 'ws.frame'; direction: 'send' | 'receive'; data: string }
+  }
+}
+```
+
+`BusTrigger` is `keyof BusPayloadMap` — it grows automatically as the map is augmented.
 
 ### 6. `handle.snapshot()` emits `'manual'` on the bus
 
@@ -201,11 +212,12 @@ export interface PluginContext {
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
 }
 
-// After
+// After — BusPayloadMap is an augmentable interface.
+// Core declares 'manual' and 'detach'. jsErrors() augments with 'js.error'.
+// External plugins augment from their own packages.
 export interface BusPayloadMap {
-  'manual':   { trigger: 'manual';   timestamp: number }
-  'detach':   { trigger: 'detach';   timestamp: number }
-  'js.error': { trigger: 'js.error'; timestamp: number }
+  'manual': { trigger: 'manual'; timestamp: number }
+  'detach': { trigger: 'detach'; timestamp: number }
 }
 
 export type BusTrigger = keyof BusPayloadMap
