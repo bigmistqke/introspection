@@ -13,7 +13,8 @@
     "test": "playwright test"
   },
   "dependencies": {
-    "@introspection/types": "workspace:*"
+    "@introspection/types": "workspace:*",
+    "@introspection/plugin-js-errors": "workspace:*"
   },
   "devDependencies": {
     "@introspection/playwright": "workspace:*",
