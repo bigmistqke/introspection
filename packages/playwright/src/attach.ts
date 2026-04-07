@@ -16,6 +16,8 @@ export interface AttachOptions {
   workerIndex?: number
   plugins?: IntrospectionPlugin[]
   verbose?: boolean
+  /** Whether to pause on all exceptions (including caught) or only uncaught ones. Default: 'uncaught' */
+  pauseOnExceptions?: 'all' | 'uncaught'
 }
 
 export async function attach(page: Page, opts: AttachOptions = {}): Promise<IntrospectHandle> {
@@ -76,7 +78,8 @@ export async function attach(page: Page, opts: AttachOptions = {}): Promise<Intr
   await cdp.send('Debugger.enable')
   await cdp.send('DOM.enable')
   await cdp.send('Page.enable')
-  await cdp.send('Debugger.setPauseOnExceptions', { state: 'uncaught' })
+  const pauseState = opts.pauseOnExceptions ?? 'uncaught'
+  await cdp.send('Debugger.setPauseOnExceptions', { state: pauseState })
 
   // Push bridge — browser calls window.__introspect_push__(JSON.stringify({type, data}))
   if (plugins.length > 0) {
