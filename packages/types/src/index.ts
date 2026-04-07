@@ -87,6 +87,20 @@ export type TraceEvent =
   | AssetEvent
   | PluginEvent
 
+// ─── Bus ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Augmentable map of bus trigger names to their payload shapes.
+ * Core declares 'manual' and 'detach'. Plugins augment this interface
+ * from their own packages using declaration merging.
+ */
+export interface BusPayloadMap {
+  'manual': { trigger: 'manual'; timestamp: number }
+  'detach': { trigger: 'detach'; timestamp: number }
+}
+
+export type BusTrigger = keyof BusPayloadMap
+
 // ─── Plugin system ────────────────────────────────────────────────────────────
 
 /** Minimal page abstraction. Playwright's Page satisfies this structurally. */
@@ -108,7 +122,11 @@ export interface WatchHandle {
 
 export interface PluginContext {
   page: PluginPage
-  cdpSession: { send(method: string, params?: Record<string, unknown>): Promise<unknown> }
+  cdpSession: {
+    send(method: string, params?: Record<string, unknown>): Promise<unknown>
+    /** Subscribe to a raw CDP event. Call inside install(). */
+    on(event: string, handler: (params: unknown) => void): void
+  }
   emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): void
   writeAsset(opts: {
     kind: string
@@ -120,13 +138,22 @@ export interface PluginContext {
   timestamp(): number
   /** Installs a browser-side watch and registers it for navigation recovery. */
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
+  /** Typed async event bus scoped to this session. */
+  bus: {
+    on<T extends BusTrigger>(
+      trigger: T,
+      handler: (payload: BusPayloadMap[T]) => void | Promise<void>
+    ): void
+    emit<T extends BusTrigger>(trigger: T, payload: BusPayloadMap[T]): Promise<void>
+  }
 }
 
 export interface IntrospectionPlugin {
   name: string
-  script: string
+  /** Browser-side IIFE script. Optional — not all plugins have browser-side code. */
+  script?: string
   install(ctx: PluginContext): Promise<void>
-  capture?(trigger: 'js.error' | 'manual' | 'detach', timestamp: number): Promise<CaptureResult[]>
+  // capture() removed — use ctx.bus.on(trigger, handler) inside install()
 }
 
 // ─── Supporting types ────────────────────────────────────────────────────────
