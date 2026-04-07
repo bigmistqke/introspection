@@ -85,8 +85,11 @@ export interface PluginContext {
 
   // NEW
   bus: {
-    on(trigger: BusTrigger, handler: () => Promise<void>): void
-    emit(trigger: BusTrigger): Promise<void>
+    on<T extends BusTrigger>(
+      trigger: T,
+      handler: (payload: BusPayloadMap[T]) => void | Promise<void>
+    ): void
+    emit<T extends BusTrigger>(trigger: T, payload: BusPayloadMap[T]): Promise<void>
   }
 }
 ```
@@ -95,7 +98,7 @@ export interface PluginContext {
 
 `bus` provides a lightweight async event bus scoped to the session. `bus.emit()` is async and resolves only after all registered handlers for that trigger have settled (see decision 7).
 
-`BusTrigger` is the union `'manual' | 'detach' | 'js.error'` (and any string a future plugin declares).
+`BusPayloadMap` defines the closed set of triggers and their payloads. `BusTrigger` is `keyof BusPayloadMap`. Adding a new trigger requires adding an entry to `BusPayloadMap`.
 
 ### 6. `handle.snapshot()` emits `'manual'` on the bus
 
@@ -199,7 +202,13 @@ export interface PluginContext {
 }
 
 // After
-export type BusTrigger = 'manual' | 'detach' | 'js.error' | (string & {})
+export interface BusPayloadMap {
+  'manual':   { trigger: 'manual';   timestamp: number }
+  'detach':   { trigger: 'detach';   timestamp: number }
+  'js.error': { trigger: 'js.error'; timestamp: number }
+}
+
+export type BusTrigger = keyof BusPayloadMap
 
 export interface PluginContext {
   page: PluginPage
@@ -218,8 +227,11 @@ export interface PluginContext {
   timestamp(): number
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
   bus: {                                                           // NEW
-    on(trigger: BusTrigger, handler: () => Promise<void>): void
-    emit(trigger: BusTrigger): Promise<void>
+    on<T extends BusTrigger>(
+      trigger: T,
+      handler: (payload: BusPayloadMap[T]) => void | Promise<void>
+    ): void
+    emit<T extends BusTrigger>(trigger: T, payload: BusPayloadMap[T]): Promise<void>
   }
 }
 ```
