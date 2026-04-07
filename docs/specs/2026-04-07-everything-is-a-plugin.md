@@ -53,6 +53,19 @@ The optional `capture?(trigger, timestamp)` method on `IntrospectionPlugin` is r
 
 This unifies the two existing code paths (push-style bus events and pull-style `capture()` calls) into one. It also removes the need for `attach()` to iterate plugins and call `capture()` at specific moments — the bus handles dispatch.
 
+Individual plugins may still expose their own capture methods as part of their specific return type. These are plugin-specific affordances, not part of the general contract. For example:
+
+```ts
+export interface WebGLPlugin extends IntrospectionPlugin {
+  captureCanvas(opts?: { contextId?: string }): Promise<void>
+  watch(opts: WatchOptions): Promise<WatchHandle>
+}
+
+export function webgl(): WebGLPlugin { ... }
+```
+
+Internally, `captureCanvas()` reuses the same logic as `ctx.bus.on('manual', ...)` — it writes assets and emits events — but is callable imperatively from test code. The `IntrospectionPlugin` interface stays minimal; richer plugins expose richer types.
+
 ### 5. `PluginContext` gains `cdpSession.on()` and `bus`
 
 `PluginContext` is extended with two new capabilities:
@@ -160,7 +173,7 @@ export interface IntrospectionPlugin {
 // After
 export interface IntrospectionPlugin {
   name: string
-  script: string
+  script?: string          // optional — not all plugins have browser-side code
   install(ctx: PluginContext): Promise<void>
   // capture removed — use ctx.bus.on(trigger, handler) inside install()
 }
