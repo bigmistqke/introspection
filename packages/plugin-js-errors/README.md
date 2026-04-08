@@ -44,7 +44,7 @@ jsErrors({ pauseOnExceptions: 'uncaught' }) // default — only uncaught
 | `js.error` | Uncaught exception or unhandled promise rejection |
 | `asset` (snapshot) | DOM + scope locals snapshot at the point of the error |
 
-Scope collection captures up to 5 call frames, 3 scope levels per frame, and 20 properties per scope. The debugger resumes before any evaluate calls to avoid deadlocks.
+Scope collection captures locals from the call stack. The debugger resumes before any evaluate calls to avoid deadlocks.
 
 ## Bus augmentation
 

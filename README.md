@@ -14,7 +14,7 @@ The log is also designed to be consumed by AI assistants. Run `introspect summar
 
 On uncaught JS errors the debugger pauses, collects scope locals from the call stack, then resumes. The snapshot (DOM + scopes + globals) is written to `assets/` with a pointer in the event stream.
 
-Plugins inject a browser-side script to intercept domain-specific APIs (e.g. WebGL calls) and push structured events back through a CDP binding into the same stream.
+Plugins inject a browser-side script to intercept domain-specific APIs (e.g. WebGL calls) and push structured events into the same stream.
 
 ---
 

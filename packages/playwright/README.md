@@ -77,7 +77,7 @@ A `Proxy`-wrapped version of the original Playwright `Page`. Use this for all te
 
 All other `Page` methods pass through unmodified.
 
-Function arguments (e.g. in `evaluate`) are serialized as `'[function]'`; unserializable objects become `'[unserializable]'`.
+Function arguments and unserializable objects are replaced with placeholder strings in the event log.
 
 ### `handle.mark(label, data?)`
 
@@ -125,7 +125,7 @@ interface DetachResult {
 | `playwright.action` | `playwright` | Tracked page method calls (see above) |
 | `asset` | `cdp` / `plugin` | Response bodies, DOM snapshots, plugin captures |
 
-On uncaught JS errors the debugger pauses to collect scope locals (up to 5 frames, 3 scope levels, 20 properties each), then resumes before writing the snapshot and error event.
+On uncaught JS errors the debugger pauses to collect scope locals from the call stack, then resumes before writing the snapshot and error event.
 
 ---
 

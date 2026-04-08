@@ -85,7 +85,7 @@ data: { label: string; extra?: Record<string, unknown> }
 
 #### `playwright.action`
 
-Emitted for tracked page proxy method calls. Function arguments are serialized as `'[function]'`; unserializable objects as `'[unserializable]'`.
+Emitted for tracked page proxy method calls. Function arguments and unserializable objects are replaced with placeholder strings.
 
 ```ts
 data: { method: string; args: unknown[] }
@@ -154,7 +154,7 @@ interface BodySummary {
   keys: string[]
   scalars: Record<string, string | number | boolean | null>
   arrays: Record<string, { length: number; itemKeys: string[] }>
-  errorFields: Record<string, unknown>   // values of keys: error, message, code, status, detail
+  errorFields: Record<string, unknown>   // values of common error-related keys
 }
 ```
 

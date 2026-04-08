@@ -114,11 +114,11 @@ Converts `Network.responseReceived` → `NetworkResponseEvent`.
 }
 ```
 
-`bodyRef` is populated later (by `Network.loadingFinished`) once the body is written to assets. `bodySummary` is a shallow parse of the response JSON.
+`bodyRef` is populated once the body is written to assets. `bodySummary` is a shallow parse of the response JSON.
 
 #### `normaliseCdpJsError(params, startedAt)`
 
-Converts a synthetic `exceptionDetails` object → `JsErrorEvent`. Stack frames are 0-indexed from CDP and converted to 1-indexed lines.
+Converts an `exceptionDetails` object → `JsErrorEvent`. Stack frames use 1-indexed lines.
 
 ```ts
 {
@@ -156,7 +156,7 @@ Returns:
   trigger: 'js.error' | 'manual',
   url: string,
   dom: string,                         // full outerHTML
-  scopes: ScopeFrame[],                // up to 5 frames, 3 scope levels, 20 props each
+  scopes: ScopeFrame[],
   globals: {
     'location.pathname': string,
     'localStorage': object,
@@ -186,6 +186,6 @@ interface BodySummary {
   keys: string[]                                       // top-level keys
   scalars: Record<string, string | number | boolean | null>   // primitive leaf values
   arrays: Record<string, { length: number; itemKeys: string[] }>  // arrays with first-item keys
-  errorFields: Record<string, unknown>                 // values of known error keys (error, message, code, status, detail)
+  errorFields: Record<string, unknown>                 // values of common error-related keys
 }
 ```
