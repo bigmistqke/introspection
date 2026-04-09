@@ -27,6 +27,31 @@ describe('initSessionDir', () => {
     const entries = await readdir(join(dir, 'sess-1'))
     expect(entries).toContain('assets')
   })
+
+  it('writes plugin metadata to meta.json when provided', async () => {
+    await initSessionDir(dir, {
+      ...initParams,
+      plugins: [
+        {
+          name: 'js-errors',
+          description: 'Captures errors',
+          events: { 'js.error': 'Uncaught exception' },
+          options: { pauseOnExceptions: { description: 'Pause mode', value: 'uncaught' } },
+        },
+      ],
+    })
+    const meta = JSON.parse(await readFile(join(dir, 'sess-1', 'meta.json'), 'utf-8'))
+    expect(meta.plugins).toHaveLength(1)
+    expect(meta.plugins[0].name).toBe('js-errors')
+    expect(meta.plugins[0].events['js.error']).toBe('Uncaught exception')
+    expect(meta.plugins[0].options.pauseOnExceptions.value).toBe('uncaught')
+  })
+
+  it('omits plugins from meta.json when not provided', async () => {
+    await initSessionDir(dir, initParams)
+    const meta = JSON.parse(await readFile(join(dir, 'sess-1', 'meta.json'), 'utf-8'))
+    expect(meta.plugins).toBeUndefined()
+  })
 })
 
 describe('appendEvent', () => {

@@ -1,12 +1,13 @@
 import { writeFile, mkdir, appendFile, readFile } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
-import type { TraceEvent, SessionMeta, BodySummary, EventSource } from '@introspection/types'
+import type { TraceEvent, SessionMeta, BodySummary, EventSource, PluginMeta } from '@introspection/types'
 
 export interface SessionInitParams {
   id: string
   startedAt: number
   label?: string
+  plugins?: PluginMeta[]
 }
 
 export function summariseBody(raw: string): BodySummary {
@@ -40,7 +41,13 @@ export function summariseBody(raw: string): BodySummary {
 export async function initSessionDir(outDir: string, parameters: SessionInitParams): Promise<void> {
   const sessionDir = join(outDir, parameters.id)
   await mkdir(join(sessionDir, 'assets'), { recursive: true })
-  const meta: SessionMeta = { version: '2', id: parameters.id, startedAt: parameters.startedAt, label: parameters.label }
+  const meta: SessionMeta = {
+    version: '2',
+    id: parameters.id,
+    startedAt: parameters.startedAt,
+    label: parameters.label,
+    plugins: parameters.plugins,
+  }
   await writeFile(join(sessionDir, 'meta.json'), JSON.stringify(meta, null, 2))
   await writeFile(join(sessionDir, 'events.ndjson'), '')
 }
