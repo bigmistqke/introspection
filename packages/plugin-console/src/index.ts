@@ -5,12 +5,12 @@ export type ConsoleLevel = 'log' | 'warn' | 'error' | 'info' | 'debug'
 
 export interface ConsoleOptions {
   levels?: ConsoleLevel[]
-  debug?: boolean
+  verbose?: boolean
 }
 
 export function consolePlugin(options?: ConsoleOptions): IntrospectionPlugin {
   const allowedLevels = options?.levels ?? ['log', 'warn', 'error', 'info', 'debug']
-  const debug = createDebug('console', options?.debug ?? false)
+  const debug = createDebug('console', options?.verbose ?? false)
 
   function normaliseLevel(level: string): ConsoleLevel | undefined {
     if (level === 'warning') return 'warn'

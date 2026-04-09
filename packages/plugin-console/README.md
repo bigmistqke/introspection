@@ -36,7 +36,7 @@ consolePlugin({
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `levels` | `ConsoleLevel[]` | `['log', 'warn', 'error', 'info', 'debug']` | Which console levels to capture |
-| `debug` | `boolean` | `false` | Log received console events to stderr |
+| `verbose` | `boolean` | `false` | Log received console events to stderr |
 
 ## What it emits
 
