@@ -20,9 +20,7 @@ The log is also designed to be consumed by AI assistants. Run `introspect summar
 
 ## How it works
 
-`attach(page, { plugins })` opens a CDP session alongside the Playwright test. Plugins (like `network()` and `jsError()`, bundled together as `defaults()`) subscribe to CDP events and translate them into a normalized event stream. A proxy-wrapped `page` object records Playwright actions into the same stream. Everything is appended to `events.ndjson` as it arrives — no batching, no end-of-test flush required.
-
-On uncaught JS errors, the debugger pauses to capture scope locals and call stack.
+`attach(page, { plugins })` opens a CDP session alongside the Playwright test. Plugins contribute to the event stream by subscribing to CDP events and/or injecting scripts in the browser.
 
 ---
 
@@ -43,8 +41,9 @@ Every capability is a plugin. If you don't wire it up, it won't log. Pass the pl
 | Plugin | Package | What it captures |
 |---|---|---|
 | `network()` | [`@introspection/plugin-network`](packages/plugin-network/README.md) | HTTP requests, responses, and response bodies |
-| `jsError()` | [`@introspection/plugin-js-error`](packages/plugin-js-error/README.md) | JS exceptions and unhandled rejections, emits bus event |
+| `jsError()` | [`@introspection/plugin-js-error`](packages/plugin-js-error/README.md) | JS exceptions and unhandled rejections |
 | `debuggerPlugin()` | [`@introspection/plugin-debugger`](packages/plugin-debugger/README.md) | Debugger pauses with scope locals and call stack |
+| `consolePlugin()` | [`@introspection/plugin-console`](packages/plugin-console/README.md) | Browser console output |
 | `webgl()` | [`@introspection/plugin-webgl`](packages/plugin-webgl/README.md) | WebGL state, uniforms, draw calls, textures, and canvas PNGs |
 | `solidDevtools()` | [`@introspection/plugin-solid`](packages/plugin-solid/README.md) | SolidJS component structure, reactive updates, and dependency graph |
 | `performance()` | [`@introspection/plugin-performance`](packages/plugin-performance/README.md) | Core Web Vitals, resource timing, long tasks, layout shifts, and paint |
