@@ -56,8 +56,6 @@ import { attach } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
 ```
 
-Plugins only depend on `@introspection/types` and `@introspection/core` — they are host-agnostic and can be reused with any CDP provider, not just Playwright.
-
 ---
 
 ## Quick start
