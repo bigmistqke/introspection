@@ -80,6 +80,27 @@
 
   observeLayoutShift()
 
+  function observeInp(): void {
+    function handleEntries(list: PerformanceObserverEntryList): void {
+      for (const entry of list.getEntries()) {
+        const eventEntry = entry as PerformanceEventTiming
+        push('perf.cwv', {
+          metric: 'inp',
+          value: eventEntry.duration,
+          startTime: eventEntry.startTime,
+        })
+      }
+    }
+
+    const eventObserver = new PerformanceObserver(handleEntries)
+    eventObserver.observe({ type: 'event', buffered: true, durationThreshold: 0 } as PerformanceObserverInit)
+
+    const firstInputObserver = new PerformanceObserver(handleEntries)
+    firstInputObserver.observe({ type: 'first-input', buffered: true })
+  }
+
+  observeInp()
+
   window.__introspect_plugins__ = window.__introspect_plugins__ || {}
   ;(window.__introspect_plugins__ as Record<string, unknown>).performance = {}
 })()

@@ -80,6 +80,31 @@ test('emits perf.layout-shift events when layout shifts occur', async ({ page })
   expect(typeof shift.data.hadRecentInput).toBe('boolean')
 })
 
+test('emits perf.cwv event with metric inp on user interaction', async ({ page }) => {
+  await page.route('**/*', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<html><body><button id="btn" onclick="let x=0;for(let i=0;i<1e6;i++)x+=i;">Click</button></body></html>',
+    })
+  )
+
+  const { outDir, handle } = await makeSession(page)
+  await handle.page.goto('http://localhost:9999/')
+  await handle.page.click('#btn')
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  const events = await endSession(handle, outDir)
+  const inpEvents = events.filter(
+    (event: { type: string; data: { metric: string } }) =>
+      event.type === 'perf.cwv' && event.data.metric === 'inp'
+  )
+
+  expect(inpEvents.length).toBeGreaterThanOrEqual(1)
+  expect(typeof inpEvents[0].data.value).toBe('number')
+  expect(typeof inpEvents[0].data.startTime).toBe('number')
+})
+
 test('emits perf.paint events for FP and FCP on navigation', async ({ page }) => {
   await page.route('**/*', route =>
     route.fulfill({
