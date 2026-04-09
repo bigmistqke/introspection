@@ -8,5 +8,4 @@ export default defineConfig({
   platform: 'browser',
   minify: false,
   outExtension: () => ({ js: '.iife.js' }),
-  noExternal: [/.*/],
 })

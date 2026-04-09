@@ -1,11 +1,7 @@
-// Browser-side SolidJS reactive state instrumentation script.
+// Browser-side SolidJS detection and event routing script.
 // Bundled as IIFE and embedded into index.ts at build time.
-// Imports from @solid-devtools/debugger and solid-js are bundled in via noExternal.
-
-import { createRoot } from 'solid-js'
-import { useDebugger } from '@solid-devtools/debugger'
-
-type Debugger = ReturnType<typeof useDebugger>
+// NO imports from @solid-devtools/debugger — the debugger is injected
+// on demand by the server after SolidDevtools$$ is detected.
 
 type EventMode = 'stream' | 'trigger' | 'off'
 
@@ -45,7 +41,6 @@ const latestState: State = {
   dgraph: null,
 }
 
-let debuggerInstance: Debugger | null = null
 let detected = false
 
 // ─── Event routing ───────────────────────────────────────────────────────────
@@ -90,50 +85,21 @@ function eventTypeToCategory(type: string): EventCategory | null {
   return null
 }
 
-// ─── Debugger initialization ─────────────────────────────────────────────────
-
-function initializeDebugger(): void {
-  if (detected) return
-  detected = true
-
-  try {
-    createRoot(() => {
-      const instance = useDebugger()
-      debuggerInstance = instance
-
-      instance.toggleEnabled(true)
-
-      // Enable dependency graph module eagerly so data is available when config arrives
-      instance.emit({ kind: 'ToggleModule', data: { module: 'dgraph', enabled: true } })
-
-      instance.listen((message: { kind: string; data: unknown }) => {
-        if (message.kind === 'StructureUpdates') {
-          routeEvent('structureUpdates', 'solid.structure', message.data)
-        } else if (message.kind === 'NodeUpdates') {
-          routeEvent('nodeUpdates', 'solid.updates', message.data)
-        } else if (message.kind === 'DgraphUpdate') {
-          routeEvent('dependencyGraph', 'solid.dgraph', message.data)
-        }
-      })
-    })
-  } catch (error) {
-    detected = false
-    push('solid.warning', {
-      message: `Failed to initialize solid-devtools debugger: ${error instanceof Error ? error.message : String(error)}`,
-    })
-  }
-}
-
 // ─── SolidDevtools$$ detection ───────────────────────────────────────────────
 
+function onDetected(): void {
+  if (detected) return
+  detected = true
+  // Signal the server to inject the debugger script
+  push('solid.detected', {})
+}
+
 function detectDevtools(): void {
-  // Check if already present
   if ((globalThis as Record<string, unknown>).SolidDevtools$$) {
-    initializeDebugger()
+    onDetected()
     return
   }
 
-  // Intercept when it gets set
   let devtoolsValue: unknown = undefined
   Object.defineProperty(globalThis, 'SolidDevtools$$', {
     configurable: true,
@@ -144,12 +110,11 @@ function detectDevtools(): void {
     set(value: unknown) {
       devtoolsValue = value
       if (value) {
-        initializeDebugger()
+        onDetected()
       }
     },
   })
 
-  // Timeout fallback: warn if not detected after load + delay
   window.addEventListener('load', () => {
     setTimeout(() => {
       if (!detected) {
@@ -173,17 +138,23 @@ detectDevtools()
 ).solid = {
   configure(options: Config): void {
     config = options
-
-    // Enable/disable dgraph module based on config
-    if (debuggerInstance) {
-      const dgraphEnabled = options.dependencyGraph !== 'off'
-      debuggerInstance.emit({
-        kind: 'ToggleModule',
-        data: { module: 'dgraph', enabled: dgraphEnabled },
-      })
-    }
-
     flushBuffer()
+  },
+
+  // Called by the injected module script after the debugger is initialized.
+  // The debugger v0.23 uses { name, details } instead of { kind, data }.
+  onDebuggerReady(instance: { toggleEnabled: (enabled: boolean) => void; emit: (message: unknown) => void; listen: (listener: (message: { name: string; details: unknown }) => void) => () => void }): void {
+    instance.toggleEnabled(true)
+
+    instance.listen((message: { name: string; details: unknown }) => {
+      if (message.name === 'StructureUpdates') {
+        routeEvent('structureUpdates', 'solid.structure', message.details)
+      } else if (message.name === 'NodeUpdates') {
+        routeEvent('nodeUpdates', 'solid.updates', message.details)
+      } else if (message.name === 'DgraphUpdate') {
+        routeEvent('dependencyGraph', 'solid.dgraph', message.details)
+      }
+    })
   },
 
   getState(): State {
