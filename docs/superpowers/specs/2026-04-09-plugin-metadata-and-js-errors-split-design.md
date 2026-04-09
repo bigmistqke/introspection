@@ -127,19 +127,45 @@ Two independent CDP listeners, two event types:
 
 **`Runtime.exceptionThrown` → `js.error` event**
 - The reliable error detection path. Always fires for uncaught exceptions.
-- Includes: message, stack trace, DOM snapshot.
+- Prerequisite: `Runtime.enable` must be called before this event fires. Currently `attach()` calls this in `attach.ts` — the plugin does not need to call it itself, but depends on it.
+- Includes: message, stack trace, DOM snapshot (no scopes — debugger is not paused).
 - Triggers the `js.error` bus event so other plugins (e.g. webgl) can react.
 
 **`Debugger.paused` → `js.error.paused` event**
 - Fires when the debugger pauses on an exception. Depends on `pauseOnExceptions` setting.
 - Includes: scope locals from the call stack.
 - A bonus when available, not the detection mechanism.
+- Does NOT emit the `js.error` bus trigger — only `Runtime.exceptionThrown` does.
 
-Both may fire for the same error. No correlation id — they'll be adjacent in the NDJSON stream. Temporal proximity is the link.
+Both may fire for the same error. No correlation id — they'll be adjacent in the NDJSON stream. Temporal proximity is the link. Consumers should treat `js.error` as the canonical error count; `js.error.paused` is enrichment data (scope locals) for the preceding `js.error`.
+
+### Semantic change
+
+This is a semantic breaking change for the `js.error` event:
+
+- **Before:** `js.error` came from `Debugger.paused` and its associated snapshot included scope locals.
+- **After:** `js.error` comes from `Runtime.exceptionThrown` — its snapshot has DOM only, no scopes. Scope locals are in the `js.error.paused` event's snapshot instead.
+
+The event data shape (`{ message, stack }`) is unchanged.
+
+### Type additions
+
+New event interface:
+
+```ts
+export interface JsErrorPausedEvent extends BaseEvent {
+  type: 'js.error.paused'
+  data: { message: string; stack: StackFrame[] }
+}
+```
+
+Add `JsErrorPausedEvent` to the `TraceEvent` union.
+
+Update `Snapshot['trigger']` union: `'js.error' | 'js.error.paused' | 'manual'`.
 
 ### Event shapes
 
-`js.error` (new, from `Runtime.exceptionThrown`):
+`js.error` (from `Runtime.exceptionThrown`):
 ```ts
 {
   type: 'js.error'
@@ -148,7 +174,7 @@ Both may fire for the same error. No correlation id — they'll be adjacent in t
 }
 ```
 
-`js.error.paused` (new event type, from `Debugger.paused`):
+`js.error.paused` (from `Debugger.paused`):
 ```ts
 {
   type: 'js.error.paused'
@@ -157,13 +183,9 @@ Both may fire for the same error. No correlation id — they'll be adjacent in t
 }
 ```
 
-The `js.error.paused` handler still collects scope locals, resumes the debugger, and writes a snapshot asset with the scopes attached — same as today. It just emits to a different event type.
-
-The `js.error` handler takes a DOM snapshot (no scopes since the debugger isn't paused) and writes it as an asset.
-
 ### Bus event
 
-The `js.error` bus trigger is emitted from the `Runtime.exceptionThrown` handler only. This is the canonical error signal for plugin coordination.
+The `js.error` bus trigger is emitted from the `Runtime.exceptionThrown` handler only. This is the canonical error signal for plugin coordination. The `Debugger.paused` handler does not emit a bus event.
 
 ## CLI: `introspect plugins` command
 
@@ -187,16 +209,18 @@ network — Captures HTTP requests, responses, and response bodies
     network.error     Failed or aborted request
 ```
 
-Existing commands (`summary`, `errors`, `events`, etc.) stay unchanged — they filter the NDJSON stream by event type.
+### Existing commands
+
+The `errors` and `summary` commands filter by `type === 'js.error'`. After this change they show only `Runtime.exceptionThrown` errors — not `js.error.paused`. This is intentional: `js.error` is the canonical error record, `js.error.paused` is enrichment. No changes needed.
 
 ## Changes by Package
 
 | Package | Change |
 |---|---|
-| `@introspection/types` | Add `description`, `events`, `options` to `IntrospectionPlugin`. Add `PluginMeta` type. Add `plugins` to `SessionMeta`. Add `js.error.paused` to `TraceEvent` union. |
-| `@introspection/core` | `initSessionDir` accepts plugin metadata, writes to `meta.json`. |
-| `@introspection/plugin-js-errors` | Add `Runtime.exceptionThrown` handler emitting `js.error`. Keep `Debugger.paused` handler, change to emit `js.error.paused`. Populate metadata fields. |
+| `@introspection/types` | Add `description`, `events`, `options` to `IntrospectionPlugin`. Add `PluginMeta` type. Add `plugins` to `SessionMeta`. Add `JsErrorPausedEvent` interface and add it to `TraceEvent` union. Add `'js.error.paused'` to `Snapshot['trigger']` union. |
+| `@introspection/core` | `initSessionDir` accepts plugin metadata via `SessionInitParams.plugins?: PluginMeta[]`, writes to `meta.json`. |
+| `@introspection/plugin-js-errors` | Add `Runtime.exceptionThrown` handler emitting `js.error` (depends on `Runtime.enable` from `attach()`). Keep `Debugger.paused` handler, change to emit `js.error.paused`. Populate metadata fields. |
 | `@introspection/plugin-network` | Populate metadata fields (description, events). No logic changes. |
 | `@introspection/plugin-webgl` | Populate metadata fields. No logic changes. |
-| `@introspection/playwright` | `attach()` extracts plugin metadata, passes to `initSessionDir`. |
+| `@introspection/playwright` | `attach()` extracts plugin metadata (`{ name, description, events, options }`), passes to `initSessionDir`. |
 | `introspect` (CLI) | Add `plugins` command that reads from `meta.json`. |
