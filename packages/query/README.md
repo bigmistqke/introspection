@@ -7,6 +7,8 @@ Programmatic access to introspection trace data for custom analysis and scriptin
 - [Install](#install)
 - [Usage](#usage)
 - [API](#api)
+  - [listSessions](#listsessionsdir)
+  - [SessionSummary](#sessionsummary)
   - [createSession](#createsessiondir-sessionid)
   - [Session](#session)
   - [EventsAPI](#eventsapi)
@@ -41,6 +43,29 @@ const html = await session.assets.read('index.html')
 ```
 
 ## API
+
+### `listSessions(dir)`
+
+Lists all sessions in a traces directory, sorted by most recent first.
+
+```ts
+import { listSessions } from '@introspection/query'
+
+const sessions = await listSessions('./traces')
+// Returns: [{ id: 'abc', label: 'test', startedAt: 1234567890, duration: 5000 }, ...]
+```
+
+### `SessionSummary`
+
+```ts
+interface SessionSummary {
+  id: string
+  label?: string
+  startedAt: number    // unix ms
+  endedAt?: number    // unix ms
+  duration?: number    // ms (endedAt - startedAt)
+}
+```
 
 ### `createSession(dir, sessionId?)`
 

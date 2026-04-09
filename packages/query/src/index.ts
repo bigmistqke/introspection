@@ -9,6 +9,44 @@ export interface Session {
   assets: AssetsAPI
 }
 
+export interface SessionSummary {
+  id: string
+  label?: string
+  startedAt: number
+  endedAt?: number
+  duration?: number
+}
+
+export async function listSessions(dir: string): Promise<SessionSummary[]> {
+  const sessionIds = await listSessionIds(dir)
+  if (sessionIds.length === 0) return []
+
+  const sessions: SessionSummary[] = []
+
+  for (const id of sessionIds) {
+    try {
+      const raw = await readFile(join(dir, id, 'meta.json'), 'utf-8')
+      const meta = JSON.parse(raw) as {
+        id: string
+        startedAt: number
+        endedAt?: number
+        label?: string
+      }
+      sessions.push({
+        id: meta.id,
+        label: meta.label,
+        startedAt: meta.startedAt,
+        endedAt: meta.endedAt,
+        duration: meta.endedAt ? meta.endedAt - meta.startedAt : undefined,
+      })
+    } catch {
+      // skip malformed sessions
+    }
+  }
+
+  return sessions.sort((a, b) => b.startedAt - a.startedAt)
+}
+
 export interface EventsFilters {
   type?: string
   source?: string
@@ -45,7 +83,7 @@ export async function createSession(dir: string, sessionId?: string): Promise<Se
 }
 
 async function getLatestSessionId(dir: string): Promise<string | null> {
-  const sessions = await listSessions(dir)
+  const sessions = await listSessionIds(dir)
   if (sessions.length === 0) return null
 
   const metas = await Promise.all(
@@ -63,7 +101,7 @@ async function getLatestSessionId(dir: string): Promise<string | null> {
   return metas[0].id
 }
 
-async function listSessions(dir: string): Promise<string[]> {
+async function listSessionIds(dir: string): Promise<string[]> {
   try {
     const entries = await readdir(dir, { withFileTypes: true })
     return entries.filter(e => e.isDirectory()).map(e => e.name)
