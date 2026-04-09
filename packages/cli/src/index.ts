@@ -9,6 +9,7 @@ import { queryBody } from './commands/body.js'
 import { formatDom } from './commands/dom.js'
 import { evalExpression } from './commands/eval.js'
 import { formatEvents } from './commands/events.js'
+import { formatPlugins } from './commands/plugins.js'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
@@ -97,6 +98,12 @@ program.command('list').description('List available sessions').action(async () =
       : 'ongoing'
     console.log(`${id.padEnd(40)}  ${duration.padEnd(10)}  ${label}`)
   }
+})
+
+program.command('plugins').description('Show plugin metadata for a session').option('--session <id>').action(async (opts) => {
+  const trace = await loadTrace(opts)
+  const session = { ...trace.session, version: '2' as const }
+  console.log(formatPlugins(session))
 })
 
 const skillsCmd = program.command('skills').description('Manage AI skills for this project')
