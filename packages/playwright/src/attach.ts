@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import type { Page } from '@playwright/test'
-import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginContext } from '@introspection/types'
+import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginContext, PluginMeta } from '@introspection/types'
 import {
   initSessionDir, appendEvent, writeAsset, finalizeSession, takeSnapshot, createBus,
 } from '@introspection/core'
@@ -24,7 +24,15 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
   const debug = createDebug('introspect', opts.verbose ?? false)
 
   debug('attach', { sessionId, testTitle, outDir })
-  await initSessionDir(outDir, { id: sessionId, startedAt, label: testTitle })
+  const pluginMetas: PluginMeta[] = opts.plugins
+    .map(({ name, description, events, options }) => {
+      const meta: PluginMeta = { name }
+      if (description) meta.description = description
+      if (events) meta.events = events
+      if (options) meta.options = options
+      return meta
+    })
+  await initSessionDir(outDir, { id: sessionId, startedAt, label: testTitle, plugins: pluginMetas.length > 0 ? pluginMetas : undefined })
 
   const cdp = await page.context().newCDPSession(page)
   const cdpSend = cdp.send.bind(cdp) as (method: string, params?: Record<string, unknown>) => Promise<unknown>
