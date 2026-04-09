@@ -29,6 +29,7 @@ The log is also designed to be consumed by AI assistants. Run `introspect summar
 | Package | Description |
 |---|---|
 | [`@introspection/playwright`](packages/playwright/README.md) | Attach tracing to a Playwright page — the main integration point |
+| [`@introspection/plugin-defaults`](packages/plugin-defaults/README.md) | Default plugin composition: `[network(), jsError(), debuggerPlugin(), consolePlugin()]` |
 | [`introspect`](packages/cli/README.md) | CLI for querying traces: summary, events, list, plugins |
 | [`@introspection/query`](packages/query/README.md) | Programmatic access to traces for custom analysis and scripting |
 | [`@introspection/core`](packages/core/README.md) | CDP normalizers, session I/O, event bus, snapshot utilities (used internally) |
