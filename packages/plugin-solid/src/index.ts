@@ -3,7 +3,7 @@
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 // Side-effect import: brings the 'js.error' BusPayloadMap augmentation into scope
-import '@introspection/plugin-js-errors'
+import '@introspection/plugin-js-error'
 
 // Re-export types from @solid-devtools/debugger for consumers parsing trace data
 export type { NodeID, NodeType } from '@solid-devtools/debugger/types'

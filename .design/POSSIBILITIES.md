@@ -68,6 +68,10 @@ Things the browser exposes that aren't tied to any framework. All can be capture
 - **ARIA live region updates** — intercept announcements made to screen readers.
 - **axe-core integration** — run axe on every DOM snapshot. Emit violations as `a11y.violation` events. Catch regressions automatically.
 
+### DOM / Rendering
+
+- **`dom()`** — Reactive DOM snapshot plugin. Listens to bus events (`'js.error'`, `'manual'`, `'detach'`) and writes DOM snapshots as assets. Captures the full serialized DOM tree at meaningful moments without being tied to error detection. (Replaces the DOM snapshot logic currently in `jsError()`.)
+
 ### Media
 
 - **Video/audio playback** — `HTMLMediaElement` events: `play`, `pause`, `seeking`, `stalled`, `error`, `ended`. Emit with `currentTime` and `networkState`. Useful for media player testing.

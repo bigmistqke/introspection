@@ -7,7 +7,7 @@ import { attach } from '../src/attach.js'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 import { defaults } from '../src/plugins/defaults.js'
 import { network } from '@introspection/plugin-network'
-import { jsErrors } from '@introspection/plugin-js-errors'
+import { jsError } from '@introspection/plugin-js-error'
 
 let dir: string
 test.beforeEach(async () => {
@@ -80,7 +80,7 @@ test('Runtime.exceptionThrown appends js.error event', async ({ page }) => {
     route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body></body></html>' })
   )
   await page.goto('http://localhost:9999/')
-  const handle = await attach(page, { outDir: dir, plugins: [jsErrors()] })
+  const handle = await attach(page, { outDir: dir, plugins: [jsError()] })
   // Use addScriptTag so the error happens in a proper browsing context
   await page.evaluate(() => {
     setTimeout(() => { throw new TypeError('oops') }, 0)

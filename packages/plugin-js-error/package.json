@@ -1,5 +1,5 @@
 {
-  "name": "@introspection/plugin-js-errors",
+  "name": "@introspection/plugin-js-error",
   "version": "0.1.0",
   "type": "module",
   "exports": {

@@ -3,7 +3,7 @@
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
 import type { IntrospectionPlugin, PluginContext, WatchHandle } from '@introspection/types'
 // Side-effect import: brings the 'js.error' BusPayloadMap augmentation into scope
-import '@introspection/plugin-js-errors'
+import '@introspection/plugin-js-error'
 
 declare global {
   interface Window {

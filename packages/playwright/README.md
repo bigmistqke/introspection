@@ -53,7 +53,7 @@ Opens a CDP session on the page and begins recording. CDP domains are enabled by
 Plugins are separate packages that depend only on `@introspection/types` and `@introspection/core` — they are host-agnostic. See each plugin's README for details:
 
 - [`@introspection/plugin-network`](../plugin-network/README.md) — `network()` — HTTP requests, responses, bodies
-- [`@introspection/plugin-js-errors`](../plugin-js-errors/README.md) — `jsErrors(opts?)` — exceptions with scope locals and DOM snapshots
+- [`@introspection/plugin-js-error`](../plugin-js-error/README.md) — `jsErrors(opts?)` — exceptions with scope locals and DOM snapshots
 - [`@introspection/plugin-webgl`](../plugin-webgl/README.md) — `webgl()` — WebGL state, uniforms, draw calls, canvas PNGs
 
 ### `defaults(opts?)`

@@ -11,9 +11,14 @@ describe('formatPlugins', () => {
       label: 'my test',
       plugins: [
         {
-          name: 'js-errors',
+          name: 'js-error',
           description: 'Captures errors',
-          events: { 'js.error': 'Uncaught exception', 'js.error.paused': 'Debugger paused' },
+          events: { 'js.error': 'JS exception' },
+        },
+        {
+          name: 'debugger',
+          description: 'Captures scopes',
+          events: { 'scopes': 'Debugger pause with scopes' },
           options: { pauseOnExceptions: { description: 'Pause mode', value: 'uncaught' } },
         },
         {
@@ -24,11 +29,12 @@ describe('formatPlugins', () => {
       ],
     }
     const out = formatPlugins(session)
-    expect(out).toContain('js-errors')
+    expect(out).toContain('js-error')
     expect(out).toContain('Captures errors')
     expect(out).toContain('js.error')
-    expect(out).toContain('Uncaught exception')
-    expect(out).toContain('js.error.paused')
+    expect(out).toContain('JS exception')
+    expect(out).toContain('debugger')
+    expect(out).toContain('Captures scopes')
     expect(out).toContain('pauseOnExceptions')
     expect(out).toContain('"uncaught"')
     expect(out).toContain('Pause mode')

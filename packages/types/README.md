@@ -228,9 +228,9 @@ interface PluginContext {
 
 `addSubscription` installs a browser-side watch by calling `window.__introspect_plugins__[pluginName].watch(spec)` and registers the subscription for automatic re-apply after navigation. Returns a `WatchHandle` with `unwatch()`.
 
-`cdpSession.on()` subscribes to raw CDP events (e.g. `Network.requestWillBeSent`) from within `install()`. This is how built-in plugins like `network()` and `jsErrors()` wire themselves up.
+`cdpSession.on()` subscribes to raw CDP events (e.g. `Network.requestWillBeSent`) from within `install()`. This is how built-in plugins like `network()` and `jsError()` wire themselves up.
 
-`bus` provides a typed async event bus scoped to the session. `bus.on()` registers a handler. `bus.emit()` runs all registered handlers concurrently and resolves only after all settle. Use `bus.on('manual', ...)` to react to `handle.snapshot()` calls, `bus.on('detach', ...)` for teardown capture, and `bus.on('js.error', ...)` (augmented by `jsErrors()`) for error captures.
+`bus` provides a typed async event bus scoped to the session. `bus.on()` registers a handler. `bus.emit()` runs all registered handlers concurrently and resolves only after all settle. Use `bus.on('manual', ...)` to react to `handle.snapshot()` calls, `bus.on('detach', ...)` for teardown capture, and `bus.on('js.error', ...)` (augmented by `jsError()`) for error captures.
 
 ### `WatchHandle`
 

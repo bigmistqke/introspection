@@ -37,10 +37,7 @@ export interface JsErrorEvent extends BaseEvent {
   data: { message: string; stack: StackFrame[] }
 }
 
-export interface JsErrorPausedEvent extends BaseEvent {
-  type: 'js.error.paused'
-  data: { message: string; stack: StackFrame[] }
-}
+// JsErrorPausedEvent removed — see debugger plugin for scope collection
 
 export interface BrowserNavigateEvent extends BaseEvent {
   type: 'browser.navigate'
@@ -90,7 +87,6 @@ export type TraceEvent =
   | PlaywrightActionEvent
   | PlaywrightResultEvent
   | AssetEvent
-  | JsErrorPausedEvent
   | PluginEvent
 
 // ─── Bus ──────────────────────────────────────────────────────────────────────
@@ -183,7 +179,7 @@ export interface BodySummary {
 
 export interface Snapshot {
   timestamp: number
-  trigger: 'js.error' | 'js.error.paused' | 'manual'
+  trigger: 'js.error' | 'debugger.paused' | 'manual'
   url: string
   dom: string
   scopes: ScopeFrame[]

@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@introspection/types": "workspace:*",
-    "@introspection/plugin-js-errors": "workspace:*"
+    "@introspection/plugin-js-error": "workspace:*"
   },
   "devDependencies": {
     "@introspection/playwright": "workspace:*",

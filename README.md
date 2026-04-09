@@ -10,7 +10,7 @@ The log is also designed to be consumed by AI assistants. Run `introspect summar
 
 ## How it works
 
-`attach(page, { plugins })` opens a CDP session alongside the Playwright test. Plugins (like `network()` and `jsErrors()`, bundled together as `defaults()`) subscribe to CDP events and translate them into a normalized event stream. A proxy-wrapped `page` object records Playwright actions into the same stream. Everything is appended to `events.ndjson` as it arrives — no batching, no end-of-test flush required.
+`attach(page, { plugins })` opens a CDP session alongside the Playwright test. Plugins (like `network()` and `jsError()`, bundled together as `defaults()`) subscribe to CDP events and translate them into a normalized event stream. A proxy-wrapped `page` object records Playwright actions into the same stream. Everything is appended to `events.ndjson` as it arrives — no batching, no end-of-test flush required.
 
 On uncaught JS errors the debugger pauses, collects scope locals from the call stack, then resumes. The snapshot (DOM + scopes + globals) is written to `assets/` with a pointer in the event stream.
 
@@ -34,12 +34,13 @@ Every capability is a plugin. If you don't wire it up, it won't log. Pass the pl
 | Plugin | Package | What it captures |
 |---|---|---|
 | `network()` | [`@introspection/plugin-network`](packages/plugin-network/README.md) | HTTP requests, responses, and response bodies |
-| `jsErrors()` | [`@introspection/plugin-js-errors`](packages/plugin-js-errors/README.md) | Uncaught exceptions and unhandled rejections with scope locals and DOM snapshots |
+| `jsError()` | [`@introspection/plugin-js-error`](packages/plugin-js-error/README.md) | JS exceptions and unhandled rejections, emits bus event |
+| `debuggerPlugin()` | [`@introspection/plugin-debugger`](packages/plugin-debugger/README.md) | Debugger pauses with scope locals and call stack |
 | `webgl()` | [`@introspection/plugin-webgl`](packages/plugin-webgl/README.md) | WebGL state, uniforms, draw calls, textures, and canvas PNGs |
 | `solidDevtools()` | [`@introspection/plugin-solid`](packages/plugin-solid/README.md) | SolidJS component structure, reactive updates, and dependency graph |
 | `performance()` | [`@introspection/plugin-performance`](packages/plugin-performance/README.md) | Core Web Vitals, resource timing, long tasks, layout shifts, and paint |
 
-`defaults()` from `@introspection/playwright` returns `[network(), jsErrors()]` — the standard set for most tests. Add domain-specific plugins alongside:
+`defaults()` from `@introspection/playwright` returns `[network(), jsError(), debuggerPlugin()]` — the standard set for most tests. Add domain-specific plugins alongside:
 
 ```ts
 import { attach, defaults } from '@introspection/playwright'
