@@ -25,6 +25,14 @@
 
   observePaint()
 
+  function selectorForElement(element: Element | null): string | undefined {
+    if (!element) return undefined
+    if (element.id) return `#${element.id}`
+    const tag = element.tagName.toLowerCase()
+    const classes = Array.from(element.classList).join('.')
+    return classes ? `${tag}.${classes}` : tag
+  }
+
   function observeLcp(): void {
     const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
@@ -32,7 +40,7 @@
         push('perf.cwv', {
           metric: 'lcp',
           value: lcpEntry.renderTime || lcpEntry.loadTime,
-          element: lcpEntry.element?.tagName?.toLowerCase(),
+          element: selectorForElement(lcpEntry.element),
           url: lcpEntry.url || undefined,
           size: lcpEntry.size,
           startTime: lcpEntry.startTime,
@@ -43,14 +51,6 @@
   }
 
   observeLcp()
-
-  function selectorForElement(element: Element | null): string | undefined {
-    if (!element) return undefined
-    if (element.id) return `#${element.id}`
-    const tag = element.tagName.toLowerCase()
-    const classes = Array.from(element.classList).join('.')
-    return classes ? `${tag}.${classes}` : tag
-  }
 
   function observeLayoutShift(): void {
     const observer = new PerformanceObserver((list) => {
@@ -116,7 +116,7 @@
   observeResource()
 
   function observeInp(): void {
-    function handleEntries(list: PerformanceObserverEntryList): void {
+    const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         const eventEntry = entry as PerformanceEventTiming
         push('perf.cwv', {
@@ -125,13 +125,8 @@
           startTime: eventEntry.startTime,
         })
       }
-    }
-
-    const eventObserver = new PerformanceObserver(handleEntries)
-    eventObserver.observe({ type: 'event', buffered: true, durationThreshold: 0 } as PerformanceObserverInit)
-
-    const firstInputObserver = new PerformanceObserver(handleEntries)
-    firstInputObserver.observe({ type: 'first-input', buffered: true })
+    })
+    observer.observe({ type: 'event', buffered: true, durationThreshold: 0 } as PerformanceObserverInit)
   }
 
   observeInp()
