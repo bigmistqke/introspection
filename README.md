@@ -24,7 +24,7 @@ The log is also designed to be consumed by AI assistants. Run `introspect summar
 
 JS errors trigger a debugger pause that `debuggerPlugin()` leverages to capture scope locals and call stack before resuming.
 
-Plugins inject a browser-side script to intercept domain-specific APIs (e.g. WebGL calls) and push structured events into the same stream.
+Plugins extend the event stream in three ways: they can subscribe to CDP events from the browser, inject a browser-side script to intercept domain-specific APIs (e.g. WebGL calls), and emit events on the bus for other plugins to react to.
 
 ---
 
