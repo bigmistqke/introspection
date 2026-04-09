@@ -105,6 +105,55 @@ test('emits perf.cwv event with metric inp on user interaction', async ({ page }
   expect(typeof inpEvents[0].data.startTime).toBe('number')
 })
 
+test('emits perf.resource events for loaded resources', async ({ page }) => {
+  await page.route('**/*', (route) => {
+    if (route.request().url().includes('style.css')) {
+      route.fulfill({ status: 200, contentType: 'text/css', body: 'body { color: red; }' })
+    } else {
+      route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: '<html><head><link rel="stylesheet" href="/style.css"></head><body>Hello</body></html>',
+      })
+    }
+  })
+
+  const { outDir, handle } = await makeSession(page)
+  await handle.page.goto('http://localhost:9999/')
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  const events = await endSession(handle, outDir)
+  const resourceEvents = events.filter((event: { type: string }) => event.type === 'perf.resource')
+
+  expect(resourceEvents.length).toBeGreaterThanOrEqual(1)
+  const cssResource = resourceEvents.find((event: { data: { name: string } }) =>
+    event.data.name.includes('style.css')
+  )
+  expect(cssResource).toBeDefined()
+  expect(cssResource.source).toBe('plugin')
+  expect(typeof cssResource.data.transferSize).toBe('number')
+  expect(typeof cssResource.data.total).toBe('number')
+  expect(typeof cssResource.data.initiatorType).toBe('string')
+})
+
+test('suppresses perf.resource events when resources option is false', async ({ page }) => {
+  await page.route('**/*', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<html><body>Hello</body></html>',
+    })
+  )
+
+  const { outDir, handle } = await makeSession(page, { resources: false })
+  await handle.page.goto('http://localhost:9999/')
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  const events = await endSession(handle, outDir)
+  const resourceEvents = events.filter((event: { type: string }) => event.type === 'perf.resource')
+  expect(resourceEvents.length).toBe(0)
+})
+
 test('emits perf.paint events for FP and FCP on navigation', async ({ page }) => {
   await page.route('**/*', route =>
     route.fulfill({

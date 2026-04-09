@@ -9,6 +9,8 @@
     )
   }
 
+  const config = (window as unknown as { __introspect_perf_config__: { resources: boolean; longTasks: boolean } }).__introspect_perf_config__ ?? { resources: true, longTasks: true }
+
   function observePaint(): void {
     const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
@@ -79,6 +81,32 @@
   }
 
   observeLayoutShift()
+
+  function observeResource(): void {
+    if (!config.resources) return
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        const resource = entry as PerformanceResourceTiming
+        push('perf.resource', {
+          name: resource.name,
+          initiatorType: resource.initiatorType,
+          transferSize: resource.transferSize,
+          encodedBodySize: resource.encodedBodySize,
+          decodedBodySize: resource.decodedBodySize,
+          dns: resource.domainLookupEnd - resource.domainLookupStart,
+          tcp: resource.connectEnd - resource.connectStart,
+          tls: resource.secureConnectionStart > 0 ? resource.connectEnd - resource.secureConnectionStart : 0,
+          ttfb: resource.responseStart - resource.requestStart,
+          download: resource.responseEnd - resource.responseStart,
+          total: resource.responseEnd - resource.startTime,
+          renderBlocking: (resource as Record<string, unknown>).renderBlockingStatus as string | undefined,
+        })
+      }
+    })
+    observer.observe({ type: 'resource', buffered: true })
+  }
+
+  observeResource()
 
   function observeInp(): void {
     function handleEntries(list: PerformanceObserverEntryList): void {
