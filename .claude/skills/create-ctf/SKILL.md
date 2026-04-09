@@ -14,7 +14,7 @@ Creates a self-contained Playwright challenge with a deliberate hidden bug, veri
 Determine the bug scenario from the user's message. If unclear, pick an unused scenario from `ROLE_PLAY.md`. The bug must:
 
 - Be discoverable **entirely from `introspect` CLI output** — no source reading needed to form a hypothesis
-- Map to at least one of these trace signals: `introspect errors`, `introspect snapshot`, `introspect body`, `introspect events --type webgl.*`
+- Map to at least one of these trace signals: `introspect events --type js.error`, `introspect assets`, `introspect events --type webgl.*`
 - Cause a Playwright test assertion to fail in a way that doesn't reveal the root cause
 
 Choose a short kebab-case name for `ctf/<name>/`.
@@ -57,18 +57,18 @@ Using `pnpm exec introspect --dir .introspect`, confirm the trace contains the e
 
 ```bash
 pnpm exec introspect summary --dir .introspect
-pnpm exec introspect errors --dir .introspect
-pnpm exec introspect snapshot --filter 'snapshot.trigger === "js.error"' --dir .introspect
-pnpm exec introspect network --dir .introspect
-pnpm exec introspect body <eventId> --dir .introspect   # for network bugs
-pnpm exec introspect events --type webgl.draw-arrays --dir .introspect   # for WebGL bugs
+pnpm exec introspect events --type js.error --dir .introspect
+pnpm exec introspect assets --kind scopes --dir .introspect
+pnpm exec introspect events --type network.response --dir .introspect
+pnpm exec introspect assets --kind body --dir .introspect
+pnpm exec introspect events --type webgl.draw-arrays --dir .introspect
 ```
 
 **Required signal checklist — at least one must be true:**
 - [ ] `summary` shows a JS error with a useful message and stack
-- [ ] `snapshot` shows a variable with the wrong value (null, undefined, wrong type, wrong key)
-- [ ] `body` shows an API response whose structure differs from what the code expects
-- [ ] `webgl.draw-arrays` events have `count: 0` or are absent when they should be present
+- [ ] `assets --kind scopes` shows a variable with the wrong value (null, undefined, wrong type, wrong key)
+- [ ] `assets --kind body` shows an API response whose structure differs from what the code expects
+- [ ] `events --type webgl.draw-arrays` events have `count: 0` or are absent when they should be present
 
 If the trace lacks sufficient signals, strengthen the bug or adjust the app so the evidence surfaces.
 
@@ -79,13 +79,13 @@ Walk through each introspect command an agent would run and confirm the output a
 For each step, verify:
 
 1. **`introspect summary`** — does it surface the right signal (JS error / network failure / frozen animation)? Would an agent know where to look next?
-2. **`introspect errors` or `introspect events --type webgl.*`** — does the output name the right function and property? Is the stack trace useful?
-3. **`introspect snapshot --filter 'snapshot.trigger === "js.error"'`** — do the scope locals show the wrong value (null, undefined, wrong type)? Is the offending variable visible?
-4. **`introspect body <id>`** (if network bug) — does the response body show the key the code expected is missing or named differently?
+2. **`introspect events --type js.error`** — does the output name the right function and property? Is the stack trace useful?
+3. **`introspect assets --kind scopes`** — do the scope locals show the wrong value (null, undefined, wrong type)? Is the offending variable visible?
+4. **`introspect assets --kind body`** (if network bug) — does the response body show the key the code expected is missing or named differently?
 
 After running each command, ask: *could an agent reading only this output form a correct hypothesis without reading source?* If any step produces output that is empty, ambiguous, or points in the wrong direction, fix the challenge and re-run from step 3.
 
-The goal is that the chain `summary → errors/events → snapshot/body` is sufficient for a confident root cause — no step missing, no dead ends.
+The goal is that the chain `summary → events → assets` is sufficient for a confident root cause — no step missing, no dead ends.
 
 ### 6. Revert if needed
 
@@ -101,15 +101,14 @@ Call the `run-ctf` skill with the challenge directory as the argument.
 
 | Signal used | Bug pattern | Example |
 |---|---|---|
-| `errors` + `snapshot` | Wrong key access | `scene.meshes` when API returns `scene.geometry` |
-| `errors` + `snapshot` | Post-construction mutation | `setTimeout(() => { obj.dep = undefined }, N)` |
-| `body` + `snapshot` | 4xx response body discarded | `if (ok) return { data: json }` else `return { data: undefined }` |
-| `webgl.*` events | Empty vertex buffer | `drawArrays` with `count: 0` after failed geometry load |
-| `timeline` ordering | Race condition | Profile fetch fires before auth resolves |
+| `events --type js.error` + `assets --kind scopes` | Wrong key access | `scene.meshes` when API returns `scene.geometry` |
+| `events --type js.error` + `assets --kind scopes` | Post-construction mutation | `setTimeout(() => { obj.dep = undefined }, N)` |
+| `assets --kind body` | 4xx response body discarded | `if (ok) return { data: json }` else `return { data: undefined }` |
+| `events --type webgl.*` | Empty vertex buffer | `drawArrays` with `count: 0` after failed geometry load |
 
 ## What to avoid
 
 - Comments, variable names, or log messages that name or describe the bug
 - Bugs requiring reading source code to form the initial hypothesis
-- Bugs that make `introspect errors` empty AND leave no other signal (fully silent failures)
+- Bugs that make `introspect events --type js.error` empty AND leave no other signal (fully silent failures)
 - Over-engineered apps — simpler is better, the bug is the point

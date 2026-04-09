@@ -44,67 +44,6 @@ Defaults to the most recent session when `--session` is omitted.
 
 ---
 
-### `errors`
-
-All JS errors with full stack traces.
-
-```
-introspect errors [--session <id>]
-```
-
----
-
-### `snapshot`
-
-Scope chain and globals captured at the point of a JS error or manual snapshot.
-
-```
-introspect snapshot [--session <id>]
-```
-
----
-
-### `network`
-
-Network requests and responses in table form.
-
-```
-introspect network [--session <id>] [--failed] [--url <pattern>]
-```
-
-| Flag | Description |
-|---|---|
-| `--failed` | Show only failed/errored requests |
-| `--url <pattern>` | Filter by URL substring |
-
----
-
-### `body <eventId>`
-
-Full response body for a network response event. Supports JSONPath queries.
-
-```
-introspect body <eventId> [--path <jsonpath>]
-```
-
-| Flag | Description |
-|---|---|
-| `--path <jsonpath>` | JSONPath expression (e.g. `$.users[0].name`) |
-
-`eventId` is the `id` field from a `network.response` event in `events.ndjson`.
-
----
-
-### `dom`
-
-Raw outer HTML from the most recent snapshot. Snapshots are taken on JS errors and `handle.snapshot()` calls.
-
-```
-introspect dom [--session <id>]
-```
-
----
-
 ### `events`
 
 Chronological event log with filtering. Outputs human-readable text by default; use `--format json` to get raw event objects (pipe to `jq` for field extraction).
@@ -128,10 +67,34 @@ introspect events [--session <id>] [--filter <expr>] [--format <fmt>] [--type <t
 Examples:
 
 ```bash
+introspect events --type js.error
+introspect events --type network.response --filter 'event.data.status >= 400'
 introspect events --type webgl.uniform --last 20
 introspect events --since before-submit
-introspect events --filter 'event.data.status >= 400' --type network.response
 introspect events --format json | jq '.[].data.url'
+```
+
+---
+
+### `assets`
+
+List and display assets written during the session.
+
+```
+introspect assets [--session <id>] [--kind <name>] [--content-type <type>] [path]
+```
+
+| Flag | Description |
+|---|---|
+| `--kind <name>` | Filter by asset kind (e.g. `scopes`, `body`, `webgl-canvas`) |
+| `--content-type <type>` | Filter by content type (`json`, `html`, `text`, `image`) |
+
+Without a path argument, lists all assets (or filtered subset). With a path, displays the asset content.
+
+```bash
+introspect assets                    # list all assets
+introspect assets --kind scopes      # list scope assets
+introspect assets abc123.json        # display asset content
 ```
 
 ---
@@ -152,6 +115,16 @@ introspect eval "events.find(e => e.data?.url?.includes('/api/auth'))"
 ```
 
 Exits with code 1 if the expression throws.
+
+---
+
+### `plugins`
+
+Show plugin metadata for a session.
+
+```
+introspect plugins [--session <id>]
+```
 
 ---
 
