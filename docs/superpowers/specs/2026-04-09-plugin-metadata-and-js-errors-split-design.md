@@ -137,7 +137,7 @@ Two independent CDP listeners, two event types:
 - A bonus when available, not the detection mechanism.
 - Does NOT emit the `js.error` bus trigger — only `Runtime.exceptionThrown` does.
 
-Both may fire for the same error. No correlation id — they'll be adjacent in the NDJSON stream. Temporal proximity is the link. Consumers should treat `js.error` as the canonical error count; `js.error.paused` is enrichment data (scope locals) for the preceding `js.error`.
+Both may fire for the same error. There is no reliable CDP-level identifier to correlate them — the two events use different `objectId`s and `Debugger.paused` doesn't carry `exceptionId`. The events are useful independently: `js.error` is the canonical error record, `js.error.paused` provides scope locals when available. No correlation id is needed.
 
 ### Semantic change
 
