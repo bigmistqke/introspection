@@ -1,3 +1,4 @@
+import BROWSER_SCRIPT from '../dist/browser.iife.js'
 import type { IntrospectionPlugin } from '@introspection/types'
 
 export interface PerformanceOptions {
@@ -5,7 +6,7 @@ export interface PerformanceOptions {
   longTasks?: boolean
 }
 
-export function performance(_options?: PerformanceOptions): IntrospectionPlugin {
+export function performance(options?: PerformanceOptions): IntrospectionPlugin {
   return {
     name: 'performance',
     description: 'Captures Core Web Vitals, resource timing, long tasks, layout shifts, and paint timing',
@@ -17,9 +18,10 @@ export function performance(_options?: PerformanceOptions): IntrospectionPlugin 
       'perf.paint': 'First Paint or First Contentful Paint timing',
     },
     options: {
-      resources: { description: 'Capture resource timing entries', value: _options?.resources ?? true },
-      longTasks: { description: 'Capture long tasks >50ms', value: _options?.longTasks ?? true },
+      resources: { description: 'Capture resource timing entries', value: options?.resources ?? true },
+      longTasks: { description: 'Capture long tasks >50ms', value: options?.longTasks ?? true },
     },
+    script: BROWSER_SCRIPT,
 
     async install(): Promise<void> {
       // no-op — browser script handles everything via __introspect_push__
