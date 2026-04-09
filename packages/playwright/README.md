@@ -22,17 +22,8 @@ pnpm add -D @introspection/playwright
 ## Usage
 
 ```ts
-import { attach, defaults } from '@introspection/playwright'
-
-const handle = await attach(page, {
-  testTitle: 'my test',
-  plugins: defaults(),    // network capture + JS error capture
-})
-
-await handle.page.goto('/')
-handle.mark('step', { extra: 'data' })
-await handle.snapshot()           // capture DOM + scope manually
-await handle.detach()             // finalize session
+import { attach } from '@introspection/playwright'
+import { defaults } from '@introspection/plugin-defaults'
 ```
 
 Use `handle.page` (the proxy-wrapped page) instead of the original — it records Playwright actions as `playwright.action` events.
@@ -67,14 +58,6 @@ Plugins are separate packages that depend only on `@introspection/types` and `@i
 - [`@introspection/plugin-js-error`](../plugin-js-error/README.md) — `jsError()` — JS exceptions and bus event
 - [`@introspection/plugin-debugger`](../plugin-debugger/README.md) — `debuggerPlugin()` — scope locals and `capture()`
 - [`@introspection/plugin-webgl`](../plugin-webgl/README.md) — `webgl()` — WebGL state, uniforms, draw calls, canvas PNGs
-
-### `defaults()`
-
-Convenience factory that returns `[network(), jsError(), debuggerPlugin()]`:
-
-```ts
-attach(page, { plugins: defaults() })
-```
 
 ---
 
@@ -147,7 +130,7 @@ For automatic attach/detach with test result propagation:
 ```ts
 // fixtures.ts
 import { introspectFixture } from '@introspection/playwright/fixture'
-import { defaults } from '@introspection/playwright'
+import { defaults } from '@introspection/plugin-defaults'
 export const { test, expect } = introspectFixture({ outDir: '.introspect', plugins: defaults() })
 ```
 

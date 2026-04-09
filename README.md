@@ -51,11 +51,8 @@ Every capability is a plugin. If you don't wire it up, it won't log. Pass the pl
 `defaults()` from `@introspection/playwright` returns `[network(), jsError(), debuggerPlugin()]` — the standard set for most tests. Add domain-specific plugins alongside:
 
 ```ts
-import { attach, defaults } from '@introspection/playwright'
-import { webgl } from '@introspection/plugin-webgl'
-
-const plugin = webgl()
-const handle = await attach(page, { plugins: [...defaults(), plugin] })
+import { attach } from '@introspection/playwright'
+import { defaults } from '@introspection/plugin-defaults'
 ```
 
 Plugins only depend on `@introspection/types` and `@introspection/core` — they are host-agnostic and can be reused with any CDP provider, not just Playwright.
@@ -69,7 +66,8 @@ pnpm add -D @introspection/playwright introspect
 ```
 
 ```ts
-import { attach, defaults } from '@introspection/playwright'
+import { attach } from '@introspection/playwright'
+import { defaults } from '@introspection/plugin-defaults'
 
 test('checkout flow', async ({ page }) => {
   const handle = await attach(page, { testTitle: 'checkout flow', plugins: defaults() })

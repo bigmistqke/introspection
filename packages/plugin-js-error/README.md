@@ -28,7 +28,8 @@ const handle = await attach(page, { plugins: [jsError()] })
 Or via `defaults()` which includes `jsError()` automatically:
 
 ```ts
-import { attach, defaults } from '@introspection/playwright'
+import { attach } from '@introspection/playwright'
+import { defaults } from '@introspection/plugin-defaults'
 const handle = await attach(page, { plugins: defaults() })
 ```
 

@@ -33,21 +33,8 @@ Available plugins:
 
 ```ts
 import { test } from '@playwright/test'
-import { attach, defaults } from '@introspection/playwright'
-
-test('my test', async ({ page }) => {
-  const handle = await attach(page, {
-    outDir: '.introspect',   // default — where session traces are written
-    testTitle: 'my test',    // optional human-readable name
-    plugins: defaults(),     // network capture + JS error capture
-  })
-
-  await page.goto('/')
-  handle.mark('user submitted form')  // optional semantic markers
-
-  await handle.snapshot()   // optional manual snapshot
-  await handle.detach()
-})
+import { attach } from '@introspection/playwright'
+import { defaults } from '@introspection/plugin-defaults'
 ```
 
 `handle.page` is a proxy-wrapped version of `page` that tracks Playwright actions as events. Use it instead of `page` directly if you want action tracking.

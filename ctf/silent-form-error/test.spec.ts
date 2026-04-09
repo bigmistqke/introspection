@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { attach, defaults } from '@introspection/playwright'
+import { attach } from '@introspection/playwright'
+import { defaults } from '@introspection/plugin-defaults'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 

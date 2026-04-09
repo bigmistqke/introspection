@@ -1,8 +1,3 @@
 export { attach } from './attach.js'
 export type { AttachOptions } from './attach.js'
-export { network } from '@introspection/plugin-network'
-export { jsError } from '@introspection/plugin-js-error'
-export { debuggerPlugin } from '@introspection/plugin-debugger'
-export type { DebuggerOptions } from '@introspection/plugin-debugger'
-export { defaults } from './plugins/defaults.js'
 export type { BusPayloadMap, BusTrigger } from '@introspection/types'
