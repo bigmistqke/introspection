@@ -9,7 +9,7 @@ description: Use when adding introspection to a project for the first time
 
 ```bash
 # Host adapter + standard plugins
-pnpm add -D @introspection/playwright @introspection/plugin-network @introspection/plugin-js-errors
+pnpm add -D @introspection/playwright @introspection/plugin-network @introspection/plugin-js-error
 
 # Optional domain-specific plugins
 pnpm add -D @introspection/plugin-webgl
@@ -20,10 +20,10 @@ Available plugins:
 | Plugin | Package | What it captures |
 |---|---|---|
 | `network()` | `@introspection/plugin-network` | HTTP requests, responses, bodies |
-| `jsErrors()` | `@introspection/plugin-js-errors` | Exceptions with scope locals and DOM snapshots |
+| `jsError()` | `@introspection/plugin-js-error` | Exceptions with scope locals and DOM snapshots |
 | `webgl()` | `@introspection/plugin-webgl` | WebGL state, uniforms, draw calls, canvas PNGs |
 
-`defaults()` from `@introspection/playwright` bundles `network()` + `jsErrors()` for convenience.
+`defaults()` from `@introspection/playwright` bundles `network()` + `jsError()` for convenience.
 
 ## 2. Attach in Playwright tests
 
