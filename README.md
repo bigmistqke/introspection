@@ -22,7 +22,7 @@ The log is also designed to be consumed by AI assistants. Run `introspect summar
 
 `attach(page, { plugins })` opens a CDP session alongside the Playwright test. Plugins (like `network()` and `jsError()`, bundled together as `defaults()`) subscribe to CDP events and translate them into a normalized event stream. A proxy-wrapped `page` object records Playwright actions into the same stream. Everything is appended to `events.ndjson` as it arrives — no batching, no end-of-test flush required.
 
-On uncaught JS errors the debugger pauses, collects scope locals from the call stack, then resumes. The snapshot (DOM + scopes + globals) is written to `assets/` with a pointer in the event stream.
+On uncaught JS errors, `jsError()` emits a bus event that other plugins (like `debuggerPlugin()`) can react to — collecting scope locals from the call stack and writing them to `assets/`.
 
 Plugins inject a browser-side script to intercept domain-specific APIs (e.g. WebGL calls) and push structured events into the same stream.
 
@@ -90,7 +90,6 @@ After the test runs, query the session:
 introspect summary
 introspect events --type js.error
 introspect events --type network.response --filter 'event.data.status >= 400'
-introspect assets --kind scopes
 ```
 
 See [`@introspection/playwright`](packages/playwright/README.md) for the full API including plugins, fixtures, and options.
