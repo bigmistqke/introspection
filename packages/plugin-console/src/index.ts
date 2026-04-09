@@ -1,13 +1,22 @@
+import { createDebug } from '@introspection/core'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 
 export type ConsoleLevel = 'log' | 'warn' | 'error' | 'info' | 'debug'
 
 export interface ConsoleOptions {
   levels?: ConsoleLevel[]
+  debug?: boolean
 }
 
 export function consolePlugin(options?: ConsoleOptions): IntrospectionPlugin {
   const allowedLevels = options?.levels ?? ['log', 'warn', 'error', 'info', 'debug']
+  const debug = createDebug('console', options?.debug ?? false)
+
+  function normaliseLevel(level: string): ConsoleLevel | undefined {
+    if (level === 'warning') return 'warn'
+    if (level === 'info' || level === 'debug' || level === 'log' || level === 'error') return level
+    return undefined
+  }
 
   return {
     name: 'console',
@@ -17,21 +26,25 @@ export function consolePlugin(options?: ConsoleOptions): IntrospectionPlugin {
     },
 
     async install(ctx: PluginContext): Promise<void> {
-      await ctx.cdpSession.send('Log.enable')
+      await ctx.cdpSession.send('Runtime.enable')
 
-      ctx.cdpSession.on('Log.entryAdded', (rawParams) => {
-        const entry = (rawParams as { entry: { level: string; text: string; args?: unknown[]; timestamp: number } }).entry
+      ctx.cdpSession.on('Runtime.consoleAPICalled', (rawParams) => {
+        const params = rawParams as { type: string; args: Array<{ type: string; value?: string; description?: string }>; timestamp: number }
 
-        if (!allowedLevels.includes(entry.level as ConsoleLevel)) return
+        debug('consoleAPICalled', params.type)
+
+        const level = normaliseLevel(params.type)
+        if (!level || !allowedLevels.includes(level)) return
+
+        const message = params.args.map(a => a.value ?? a.description ?? '').join(' ')
 
         ctx.emit({
           source: 'plugin',
           type: 'console',
           timestamp: ctx.timestamp(),
           data: {
-            level: entry.level,
-            message: entry.text,
-            args: entry.args?.map(a => String(a)),
+            level,
+            message,
           },
         })
       })

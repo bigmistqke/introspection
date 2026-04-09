@@ -1,6 +1,6 @@
 # @introspection/plugin-console
 
-Captures browser console output (`log`, `warn`, `error`, `info`, `debug`) via CDP's `Log` domain.
+Captures browser console output (`log`, `warn`, `error`, `info`, `debug`) via CDP's `Runtime.consoleAPICalled`.
 
 ## Table of Contents
 
@@ -28,13 +28,15 @@ const handle = await attach(page, { plugins: [consolePlugin()] })
 
 ```ts
 consolePlugin({
-  levels: ['log', 'warn', 'error']  // default: all levels
+  levels: ['log', 'warn', 'error'],  // default: all levels
+  debug: true,                          // default: false
 })
 ```
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `levels` | `ConsoleLevel[]` | `['log', 'warn', 'error', 'info', 'debug']` | Which console levels to capture |
+| `debug` | `boolean` | `false` | Log received console events to stderr |
 
 ## What it emits
 
@@ -48,8 +50,7 @@ consolePlugin({
   source: 'plugin',
   data: {
     level: 'log' | 'warn' | 'error' | 'info' | 'debug',
-    message: string,
-    args?: string[]
+    message: string
   }
 }
 ```

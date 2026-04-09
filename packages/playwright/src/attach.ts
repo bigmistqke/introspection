@@ -2,11 +2,10 @@ import { randomUUID } from 'crypto'
 import type { Page } from '@playwright/test'
 import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginContext, PluginMeta } from '@introspection/types'
 import {
-  initSessionDir, appendEvent, writeAsset, finalizeSession, takeSnapshot, createBus,
+  initSessionDir, appendEvent, writeAsset, finalizeSession, takeSnapshot, createBus, createDebug,
 } from '@introspection/core'
 import { createPageProxy } from './proxy.js'
 import { PluginRegistry } from './plugin-registry.js'
-import { createDebug } from './debug.js'
 
 export interface AttachOptions {
   outDir?: string
