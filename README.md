@@ -22,9 +22,7 @@ The log is also designed to be consumed by AI assistants. Run `introspect summar
 
 `attach(page, { plugins })` opens a CDP session alongside the Playwright test. Plugins (like `network()` and `jsError()`, bundled together as `defaults()`) subscribe to CDP events and translate them into a normalized event stream. A proxy-wrapped `page` object records Playwright actions into the same stream. Everything is appended to `events.ndjson` as it arrives — no batching, no end-of-test flush required.
 
-JS errors trigger a debugger pause that `debuggerPlugin()` leverages to capture scope locals and call stack before resuming.
-
-Plugins extend the event stream in three ways: they can subscribe to CDP events from the browser, inject a browser-side script to intercept domain-specific APIs (e.g. WebGL calls), and emit events on the bus for other plugins to react to.
+On uncaught JS errors, the debugger pauses to capture scope locals and call stack.
 
 ---
 
