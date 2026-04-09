@@ -37,6 +37,11 @@ export interface JsErrorEvent extends BaseEvent {
   data: { message: string; stack: StackFrame[] }
 }
 
+export interface JsErrorPausedEvent extends BaseEvent {
+  type: 'js.error.paused'
+  data: { message: string; stack: StackFrame[] }
+}
+
 export interface BrowserNavigateEvent extends BaseEvent {
   type: 'browser.navigate'
   data: { from: string; to: string }
@@ -85,6 +90,7 @@ export type TraceEvent =
   | PlaywrightActionEvent
   | PlaywrightResultEvent
   | AssetEvent
+  | JsErrorPausedEvent
   | PluginEvent
 
 // ─── Bus ──────────────────────────────────────────────────────────────────────
@@ -143,6 +149,9 @@ export interface PluginContext {
 
 export interface IntrospectionPlugin {
   name: string
+  description?: string
+  events?: Record<string, string>
+  options?: Record<string, { description: string; value: unknown }>
   /** Browser-side IIFE script. Optional — not all plugins have browser-side code. */
   script?: string
   install(ctx: PluginContext): Promise<void>
@@ -174,7 +183,7 @@ export interface BodySummary {
 
 export interface Snapshot {
   timestamp: number
-  trigger: 'js.error' | 'manual'
+  trigger: 'js.error' | 'js.error.paused' | 'manual'
   url: string
   dom: string
   scopes: ScopeFrame[]
@@ -189,6 +198,14 @@ export interface SessionMeta {
   startedAt: number    // unix ms
   endedAt?: number     // unix ms, set when session ends
   label?: string       // human-readable name
+  plugins?: PluginMeta[]
+}
+
+export interface PluginMeta {
+  name: string
+  description?: string
+  events?: Record<string, string>
+  options?: Record<string, { description: string; value: unknown }>
 }
 
 export interface TraceFile {
