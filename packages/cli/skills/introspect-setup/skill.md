@@ -9,7 +9,7 @@ description: Use when adding introspection to a project for the first time
 
 ```bash
 # Host adapter + standard plugins
-pnpm add -D @introspection/playwright @introspection/plugin-network @introspection/plugin-js-error
+pnpm add -D @introspection/playwright @introspection/plugin-network @introspection/plugin-js-error @introspection/plugin-console
 
 # Optional domain-specific plugins
 pnpm add -D @introspection/plugin-webgl
@@ -22,6 +22,7 @@ Available plugins:
 | `network()` | `@introspection/plugin-network` | HTTP requests, responses, bodies |
 | `jsError()` | `@introspection/plugin-js-error` | JS exceptions, emits bus('js.error') |
 | `debuggerPlugin()` | `@introspection/plugin-debugger` | Scope locals on exceptions, breakpoints, and `capture()` calls |
+| `consolePlugin()` | `@introspection/plugin-console` | Browser console output |
 | `webgl()` | `@introspection/plugin-webgl` | WebGL state, uniforms, draw calls, canvas PNGs |
 | `solidDevtools()` | `@introspection/plugin-solid` | SolidJS component tree and reactive updates |
 | `performance()` | `@introspection/plugin-performance` | Core Web Vitals, resource timing, long tasks |
