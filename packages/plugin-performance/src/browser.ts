@@ -129,6 +129,23 @@
 
   observeInp()
 
+  function observeLongTask(): void {
+    if (!config.longTasks) return
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        const attribution = (entry as unknown as { attribution?: Array<{ containerSrc?: string }> }).attribution
+        push('perf.long-task', {
+          duration: entry.duration,
+          startTime: entry.startTime,
+          attribution: attribution?.[0]?.containerSrc || 'unknown',
+        })
+      }
+    })
+    observer.observe({ type: 'longtask', buffered: true })
+  }
+
+  observeLongTask()
+
   window.__introspect_plugins__ = window.__introspect_plugins__ || {}
   ;(window.__introspect_plugins__ as Record<string, unknown>).performance = {}
 })()

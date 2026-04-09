@@ -154,6 +154,52 @@ test('suppresses perf.resource events when resources option is false', async ({ 
   expect(resourceEvents.length).toBe(0)
 })
 
+test('emits perf.long-task events for tasks exceeding 50ms', async ({ page }) => {
+  await page.route('**/*', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: `<html><body><script>
+        const start = Date.now();
+        while (Date.now() - start < 100) {} // block for 100ms
+      </script></body></html>`,
+    })
+  )
+
+  const { outDir, handle } = await makeSession(page)
+  await handle.page.goto('http://localhost:9999/')
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  const events = await endSession(handle, outDir)
+  const longTaskEvents = events.filter((event: { type: string }) => event.type === 'perf.long-task')
+
+  expect(longTaskEvents.length).toBeGreaterThanOrEqual(1)
+  expect(longTaskEvents[0].source).toBe('plugin')
+  expect(typeof longTaskEvents[0].data.duration).toBe('number')
+  expect(longTaskEvents[0].data.duration).toBeGreaterThanOrEqual(50)
+})
+
+test('suppresses perf.long-task events when longTasks option is false', async ({ page }) => {
+  await page.route('**/*', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: `<html><body><script>
+        const start = Date.now();
+        while (Date.now() - start < 100) {}
+      </script></body></html>`,
+    })
+  )
+
+  const { outDir, handle } = await makeSession(page, { longTasks: false })
+  await handle.page.goto('http://localhost:9999/')
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  const events = await endSession(handle, outDir)
+  const longTaskEvents = events.filter((event: { type: string }) => event.type === 'perf.long-task')
+  expect(longTaskEvents.length).toBe(0)
+})
+
 test('emits perf.paint events for FP and FCP on navigation', async ({ page }) => {
   await page.route('**/*', route =>
     route.fulfill({

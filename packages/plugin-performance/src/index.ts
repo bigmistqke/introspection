@@ -21,7 +21,7 @@ export function performance(options?: PerformanceOptions): IntrospectionPlugin {
       resources: { description: 'Capture resource timing entries', value: options?.resources ?? true },
       longTasks: { description: 'Capture long tasks >50ms', value: options?.longTasks ?? true },
     },
-    script: `var __introspect_perf_config__=${JSON.stringify({ resources: options?.resources ?? true, longTasks: options?.longTasks ?? true })};${BROWSER_SCRIPT}`,
+    script: `window.__introspect_perf_config__=${JSON.stringify({ resources: options?.resources ?? true, longTasks: options?.longTasks ?? true })};${BROWSER_SCRIPT}`,
 
     async install(): Promise<void> {
       // no-op — browser script handles everything via __introspect_push__
