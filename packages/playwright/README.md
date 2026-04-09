@@ -7,7 +7,6 @@ Attaches CDP-based tracing to a Playwright `Page`. Captures network requests, JS
 - [Install](#install)
 - [Usage](#usage)
 - [attach(page, opts)](#attachpage-opts)
-- [Plugins](#plugins)
 - [IntrospectHandle](#introspecthandle)
 - [What gets captured automatically](#what-gets-captured-automatically)
 - [Fixture](#fixture)
@@ -47,17 +46,6 @@ Opens a CDP session on the page and begins recording. CDP domains are enabled by
 | `workerIndex` | `number` | — | Playwright worker index (informational) |
 | `plugins` | `IntrospectionPlugin[]` | **required** | Plugins to install — use `defaults()` for standard behaviour |
 | `verbose` | `boolean` | `false` | Log lifecycle events to stderr |
-
----
-
-## Plugins
-
-Plugins are separate packages that depend only on `@introspection/types` and `@introspection/core` — they are host-agnostic. See each plugin's README for details:
-
-- [`@introspection/plugin-network`](../plugin-network/README.md) — `network()` — HTTP requests, responses, bodies
-- [`@introspection/plugin-js-error`](../plugin-js-error/README.md) — `jsError()` — JS exceptions and bus event
-- [`@introspection/plugin-debugger`](../plugin-debugger/README.md) — `debuggerPlugin()` — scope locals and `capture()`
-- [`@introspection/plugin-webgl`](../plugin-webgl/README.md) — `webgl()` — WebGL state, uniforms, draw calls, canvas PNGs
 
 ---
 
@@ -151,6 +139,7 @@ test('example', async ({ page, introspect }) => {
 |---|---|---|
 | `plugins` | `IntrospectionPlugin[]` | **required** — plugins to install, e.g. `defaults()` |
 | `outDir` | `string` | Session output directory |
+| `viteUrl` | `string` | Vite dev server URL (optional) |
 
 The `introspect` fixture value is the full `IntrospectHandle`. The fixture is auto-used (`{ auto: true }`), so it activates for every test even without destructuring it.
 
@@ -161,7 +150,7 @@ On test failure or timeout, the fixture automatically calls `handle.snapshot()` 
 ## Exports
 
 ```ts
-import { attach, network, jsError, debuggerPlugin, defaults } from '@introspection/playwright'
-import type { AttachOptions, DebuggerOptions, BusPayloadMap, BusTrigger } from '@introspection/playwright'
+import { attach } from '@introspection/playwright'
+import type { AttachOptions, BusPayloadMap, BusTrigger } from '@introspection/playwright'
 import { introspectFixture } from '@introspection/playwright/fixture'
 ```

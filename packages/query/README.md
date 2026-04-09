@@ -26,20 +26,20 @@ pnpm add @introspection/query
 ```ts
 import { createSession } from '@introspection/query'
 
-const session = await createSession('./traces')
+const session = await createSession('.introspect')
 
 // List all events
 const allEvents = await session.events.ls()
 
 // Filter events by type
-const jsErrors = await session.events.query({ type: 'jsError' })
-const networkCalls = await session.events.query({ type: 'fetch' })
+const jsErrors = await session.events.query({ type: 'js.error' })
+const networkCalls = await session.events.query({ type: 'network.request' })
 
 // List all assets
 const assets = await session.assets.ls()
 
 // Read asset content
-const html = await session.assets.read('index.html')
+const body = await session.assets.read('abc123.body.json')
 ```
 
 ## API
@@ -105,8 +105,8 @@ interface EventsAPI {
 }
 
 interface EventsFilters {
-  type?: string       // Event type (e.g., 'jsError', 'fetch', 'resource')
-  source?: string     // Event source (e.g., 'page', 'system')
+  type?: string       // Event type (e.g., 'js.error', 'network.request', 'asset')
+  source?: string     // Event source (e.g., 'cdp', 'agent', 'playwright', 'plugin')
 }
 ```
 
@@ -117,11 +117,11 @@ interface EventsFilters {
 const all = await session.events.ls()
 
 // By type (comma-separated for multiple)
-const errors = await session.events.query({ type: 'jsError' })
-const networkAndErrors = await session.events.query({ type: 'fetch,jsError' })
+const errors = await session.events.query({ type: 'js.error' })
+const networkAndErrors = await session.events.query({ type: 'network.request,js.error' })
 
 // By source
-const pageEvents = await session.events.query({ source: 'page' })
+const cdpEvents = await session.events.query({ source: 'cdp' })
 ```
 
 ### AssetsAPI
@@ -139,22 +139,26 @@ interface AssetsAPI {
 // All assets
 const assets = await session.assets.ls()
 
-// Read text content
-const html = await session.assets.read('index.html')
-const css = await session.assets.read('styles.css')
+// Read text content (JSON bodies, snapshots, etc.)
+const body = await session.assets.read('abc123.body.json')
+const scopes = await session.assets.read('def456.scopes.json')
 
 // Read binary content (images return size info only)
-const screenshot = await session.assets.read('screenshot.png')
-// Returns: { path: 'screenshot.png', sizeKB: 245.3 }
+const canvas = await session.assets.read('ghi789.webgl-canvas.png')
+// Returns: { path: 'ghi789.webgl-canvas.png', sizeKB: 245.3 }
 ```
 
 ## Event Types
 
 | Type | Description |
 |------|-------------|
-| `jsError` | JavaScript errors caught by the page |
-| `fetch` | Fetch/XHR network requests |
-| `resource` | Resource loads (scripts, styles, images) |
-| `asset` | Asset file stored during trace |
-| `performance` | Performance measurements |
-| `debugger` | Debugger pause events |
+| `network.request` | Outgoing HTTP request |
+| `network.response` | HTTP response with optional body summary |
+| `network.error` | Failed or aborted request |
+| `js.error` | Uncaught JS exceptions and unhandled rejections |
+| `browser.navigate` | Page navigations and URL changes |
+| `playwright.action` | Tracked page proxy method calls |
+| `playwright.result` | Test result (passed/failed/timedOut/skipped) |
+| `mark` | User-defined timeline annotation |
+| `asset` | File written to assets directory |
+| `console` | Browser console output |

@@ -49,7 +49,7 @@ Every capability is a plugin. If you don't wire it up, it won't log. Pass the pl
 | `solidDevtools()` | [`@introspection/plugin-solid`](packages/plugin-solid/README.md) | SolidJS component structure, reactive updates, and dependency graph |
 | `performance()` | [`@introspection/plugin-performance`](packages/plugin-performance/README.md) | Core Web Vitals, resource timing, long tasks, layout shifts, and paint |
 
-`defaults()` from `@introspection/playwright` returns `[network(), jsError(), debuggerPlugin()]` — the standard set for most tests. Add domain-specific plugins alongside:
+`defaults()` from `@introspection/plugin-defaults` returns `[network(), jsError(), debuggerPlugin(), consolePlugin()]` — the standard set for most tests. Add domain-specific plugins alongside:
 
 ```ts
 import { attach } from '@introspection/playwright'

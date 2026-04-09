@@ -10,11 +10,11 @@ CLI for querying introspection traces recorded by `@introspection/playwright`.
   - [list](#list)
   - [summary](#summary)
   - [events](#events)
+  - [network](#network)
   - [assets](#assets)
   - [plugins](#plugins)
   - [skills list](#skills-list)
   - [skills install](#skills-install)
-- [JavaScript API](#javascript-api)
 
 ## Install
 
@@ -87,6 +87,23 @@ introspect events --type webgl.uniform --last 20
 introspect events --since before-submit
 introspect events --format json | jq '.[].data.url'
 ```
+
+---
+
+### `network`
+
+Display network requests and responses as a table.
+
+```
+introspect network [--session <id>] [--failed] [--url <pattern>]
+```
+
+| Flag | Description |
+|---|---|
+| `--failed` | Show only responses with status >= 400 and network errors |
+| `--url <pattern>` | Filter by URL substring |
+
+Output columns: `STATUS`, `METHOD`, `URL`, `EVENT_ID`. Network errors appear with status `ERR`.
 
 ---
 

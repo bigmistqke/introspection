@@ -19,6 +19,10 @@ You generally don't need to use this directly — `@introspection/playwright` pr
   - [takeSnapshot](#takesnapshotopts)
 - [Body summarization](#body-summarization)
   - [summariseBody](#summarisebodyrawjson)
+- [Bus](#bus)
+  - [createBus](#createbus)
+- [Debug](#debug)
+  - [createDebug](#createdebugtitle-enabled)
 
 ## API
 
@@ -35,6 +39,7 @@ await initSessionDir(outDir, {
   id: string,
   startedAt: number,   // unix ms
   label?: string,
+  plugins?: PluginMeta[],  // plugin metadata to record in meta.json
 })
 ```
 
@@ -69,8 +74,9 @@ const path = await writeAsset({
   kind: string,                // e.g. 'snapshot', 'body', 'webgl-state'
   content: string | Buffer,
   ext?: string,                // default: 'json'
+  id?: string,                 // custom event id; auto-generated if omitted
   metadata: {
-    timestamp: number,         // required; becomes event.ts
+    timestamp: number,         // required; becomes event.timestamp
     [key: string]: unknown,    // any additional fields become event.data
   },
   source?: EventSource,        // default: 'agent'
@@ -84,7 +90,7 @@ The `asset` event written to `events.ndjson` looks like:
 {
   id: string,
   type: 'asset',
-  ts: metadata.timestamp,
+  timestamp: metadata.timestamp,
   source: source,
   data: { path, kind, ...restOfMetadata }
 }
@@ -158,7 +164,7 @@ Captures DOM, scope locals, and globals from a live CDP session.
 ```ts
 const snap = await takeSnapshot({
   cdpSession: { send(method, params?): Promise<unknown> },
-  trigger: 'js.error' | 'manual',
+  trigger: 'js.error' | 'debugger.paused' | 'manual',
   url: string,
   callFrames?: CallFrame[],   // Debugger.CallFrame array; defaults to []
 })
@@ -168,8 +174,8 @@ Returns:
 
 ```ts
 {
-  ts: number,
-  trigger: 'js.error' | 'manual',
+  timestamp: number,
+  trigger: 'js.error' | 'debugger.paused' | 'manual',
   url: string,
   dom: string,                         // full outerHTML
   scopes: ScopeFrame[],
@@ -204,4 +210,34 @@ interface BodySummary {
   arrays: Record<string, { length: number; itemKeys: string[] }>  // arrays with first-item keys
   errorFields: Record<string, unknown>                 // values of common error-related keys
 }
+```
+
+---
+
+### Bus
+
+#### `createBus()`
+
+Creates a typed async event bus scoped to a session. Used internally by `attach()`.
+
+```ts
+const bus = createBus()
+
+bus.on('manual', async (payload) => { /* ... */ })
+await bus.emit('manual', { trigger: 'manual', timestamp: Date.now() })
+```
+
+`bus.emit()` runs all registered handlers concurrently and resolves after all settle.
+
+---
+
+### Debug
+
+#### `createDebug(title, enabled)`
+
+Creates a conditional stderr logger. When `enabled` is `false`, calls are no-ops.
+
+```ts
+const debug = createDebug('my-plugin', true)
+debug('something happened', { detail: 42 })
 ```

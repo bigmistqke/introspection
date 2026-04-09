@@ -38,6 +38,7 @@ const handle = await attach(page, { plugins: defaults() })
 |---|---|
 | `network.request` | Every outgoing request |
 | `network.response` | Every response (with body written to `assets/`) |
+| `network.error` | Failed or aborted request |
 
 Response bodies are written as sidecar assets. The `network.response` event includes a `bodySummary` with extracted keys, scalars, and error fields for quick inspection.
 

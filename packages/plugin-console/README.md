@@ -29,7 +29,7 @@ const handle = await attach(page, { plugins: [consolePlugin()] })
 ```ts
 consolePlugin({
   levels: ['log', 'warn', 'error'],  // default: all levels
-  debug: true,                          // default: false
+  verbose: true,                       // default: false
 })
 ```
 

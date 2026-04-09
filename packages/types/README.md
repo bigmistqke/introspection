@@ -11,7 +11,7 @@ Shared TypeScript types for the introspection system. Used by all packages.
   - [StackFrame](#stackframe)
   - [ScopeFrame](#scopeframe)
   - [BodySummary](#bodysummary)
-  - [OnErrorSnapshot](#onerrorsnapshot)
+  - [Snapshot](#snapshot)
 - [Plugin interface](#plugin-interface)
   - [IntrospectionPlugin](#introspectionplugin)
   - [BusPayloadMap and BusTrigger](#buspayloadmap-and-bustrigger)
@@ -39,7 +39,7 @@ Union of all event types. Every event extends `BaseEvent`:
 ```ts
 interface BaseEvent {
   id: string
-  ts: number          // ms since test start
+  timestamp: number   // ms since test start
   source: EventSource
   initiator?: string  // id of the event that caused this one (best-effort)
 }
@@ -128,6 +128,7 @@ Points to a file written in `assets/`. Additional fields in `data` come from the
 data: {
   path: string        // relative path: 'assets/<uuid>.<kind>.<ext>'
   kind: string        // e.g. 'body', 'snapshot', 'webgl-state', 'webgl-canvas'
+  contentType?: 'json' | 'html' | 'text' | 'image' | 'binary'
   summary?: BodySummary
   trigger?: string
   url?: string
@@ -178,11 +179,11 @@ interface BodySummary {
 }
 ```
 
-### `OnErrorSnapshot`
+### `Snapshot`
 ```ts
-interface OnErrorSnapshot {
-  ts: number
-  trigger: 'js.error' | 'manual'
+interface Snapshot {
+  timestamp: number
+  trigger: 'js.error' | 'debugger.paused' | 'manual'
   url: string
   dom: string
   scopes: ScopeFrame[]
@@ -199,6 +200,9 @@ interface OnErrorSnapshot {
 ```ts
 interface IntrospectionPlugin {
   name: string
+  description?: string
+  events?: Record<string, string>                                    // event type → human description
+  options?: Record<string, { description: string; value: unknown }>  // option name → metadata
   script?: string  // browser-side IIFE injected as an init script on every navigation (optional)
   install(ctx: PluginContext): Promise<void>
 }
@@ -273,6 +277,14 @@ interface SessionMeta {
   startedAt: number    // unix ms
   endedAt?: number     // unix ms; set when session ends
   label?: string
+  plugins?: PluginMeta[]
+}
+
+interface PluginMeta {
+  name: string
+  description?: string
+  events?: Record<string, string>
+  options?: Record<string, { description: string; value: unknown }>
 }
 ```
 
@@ -285,7 +297,7 @@ interface TraceFile {
   version: '2'
   session: Omit<SessionMeta, 'version'>
   events: TraceEvent[]
-  snapshots: { [key: string]: OnErrorSnapshot | undefined }
+  snapshots: Snapshot[]
 }
 ```
 
