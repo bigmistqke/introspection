@@ -177,7 +177,27 @@ packages/plugin-solid/
 
 ## Open questions
 
-1. **Debugger output subscription** — The exact API for subscribing to the debugger's output messages needs to be verified by reading the `@solid-devtools/debugger` source. The Chrome extension uses a message bridge; we need to confirm there's a direct programmatic subscription path.
+1. **Debugger output subscription** — RESOLVED. Direct programmatic subscription is confirmed and straightforward.
+
+   **Initialization:** Call `useDebugger()` from `@solid-devtools/debugger`. This is a singleton — repeated calls return the same instance. It requires `globalThis.SolidDevtools$$` to exist (the setup API exposed by `solid-devtools/setup`), otherwise it throws. The function must be called within a SolidJS reactive root (`createRoot`) because `createDebugger()` internally uses `createMemo`, `createEffect`, and `createSignal`.
+
+   **Subscription:** The returned `Debugger` object exposes a `listen(listener: OutputListener) => (() => void)` method. The listener receives `OutputMessage` objects with shape `{ kind: string, data: T }` where `kind` is one of the `OutputChannels` keys. The return value is an unsubscribe function.
+
+   **Enabling the debugger:** After calling `useDebugger()`, the debugger starts disabled. Call `debugger.toggleEnabled(true)` to activate structure tracking. For dependency graph output, also send a `ToggleModule` input: `debugger.emit({ kind: 'ToggleModule', data: { module: 'dgraph', enabled: true } })`.
+
+   **Relevant output message kinds for our plugin:**
+   - `StructureUpdates` — `{ partial: boolean, removed: NodeID[], updated: Record<NodeID, Record<NodeID, Mapped.Owner>> }` — component/owner tree changes, emitted automatically when the debugger is enabled
+   - `NodeUpdates` — `NodeID[]` — batched reactive node update IDs, emitted via `setTimeout` debouncing
+   - `DgraphUpdate` — `SerializedDGraph.Graph | null` where `Graph = Record<NodeID, { name, depth, type, sources, observers, graph }>` — emitted when the dgraph module is enabled and an inspected node is set
+
+   **Input messages (for controlling the debugger):**
+   - `ToggleModule` — `{ module: 'structure' | 'dgraph' | 'locator', enabled: boolean }` — enable/disable modules
+   - `ResetState` — void — reset all inspected state
+   - `TreeViewModeChange` — `'owners' | 'components' | 'dom'` — change tree walker mode (default: `'components'`)
+
+   **Key implementation note:** The `DgraphUpdate` output requires both the dgraph module to be enabled AND an `InspectedState` with a non-null `ownerId` to be set (via `InspectNode` input). For our trigger-mode snapshot use case, we may need to inspect a specific node to get its dependency graph. Structure updates flow automatically once the debugger is enabled.
+
+   **Types to re-export:** `NodeID` (template literal `#${string}`), `Mapped.Owner`, `StructureUpdates`, `SerializedDGraph`, `DGraphUpdate`, `NodeType` enum — all from `@solid-devtools/debugger/types`.
 
 2. **Navigation handling** — When the page navigates, `SolidDevtools$$` may be re-created. The browser script is re-injected via the framework's `script` property mechanism (same as other plugins), but the debugger state will reset. The config must be re-applied; the server should re-call `configure()` after navigation.
 
