@@ -1,6 +1,6 @@
 # @introspection/plugin-network
 
-Captures all HTTP network activity via CDP. Host-agnostic — works with any CDP provider.
+Captures all HTTP network activity via CDP.
 
 ## Install
 

@@ -2,8 +2,6 @@
 
 Captures uncaught JS exceptions and unhandled promise rejections via CDP. On each error, pauses the debugger to collect scope locals from the call stack, writes a DOM snapshot, and emits a `js.error` event on the bus.
 
-Host-agnostic — works with any CDP provider.
-
 ## Install
 
 ```bash
