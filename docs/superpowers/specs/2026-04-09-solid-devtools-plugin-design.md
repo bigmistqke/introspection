@@ -46,7 +46,7 @@ Each event type is independently configurable with three modes:
 | Mode | Behavior |
 |------|----------|
 | `'stream'` | Log every occurrence as a trace event immediately |
-| `'trigger'` | Capture current state only on bus events (`js.error`, `detach`) |
+| `'trigger'` | Capture current state only on bus events (`manual`, `js.error`, `detach`) |
 | `'off'` | Don't capture |
 
 Defaults:
@@ -80,20 +80,24 @@ If a breaking change occurs in the `SolidDevtools$$` setup API, both the Chrome 
    - `NodeUpdates` — reactive node update batches
    - `DgraphUpdate` — serialized dependency graph
 
-4. **Filter by config** — For `'stream'` mode events, push immediately via `window.__introspect_push__()`. For `'trigger'` mode events, buffer the latest state in memory.
+4. **Receive config** — Expose `window.__introspect_plugins__.solid.configure(options)` for the server to call after script injection. Until called, the browser script buffers all events.
 
-5. **Expose snapshot API** — `window.__introspect_plugins__.solid.getState()` returns the latest buffered state for trigger-mode event types. Called by the server on bus triggers.
+5. **Filter by config** — For `'stream'` mode events, push immediately via `window.__introspect_push__()`. For `'trigger'` mode events, buffer the latest state in memory.
+
+6. **Expose snapshot API** — `window.__introspect_plugins__.solid.getState()` returns the latest buffered state for trigger-mode event types. Called by the server on bus triggers.
 
 ### Server side (`index.ts`)
+
+Requires a side-effect import of `@introspection/plugin-js-errors` for the `'js.error'` bus trigger type (same pattern as `plugin-webgl`).
 
 1. **Plugin factory** — `solidDevtools(options)` returns an `IntrospectionPlugin` with:
    - `name: 'solid'`
    - `script`: the built browser IIFE (loaded via text import, same as WebGL plugin)
 
 2. **`install(ctx)`**:
-   - Pass config to browser script via `ctx.page.evaluate()` after script injection.
-   - Listen for pushed events from the browser script — emit as trace events.
-   - Register bus listeners for `'js.error'` and `'detach'` triggers. On trigger, call `ctx.page.evaluate()` to invoke `getState()`, then emit/write assets for any trigger-mode event types.
+   - Pass config to browser script via `ctx.page.evaluate(() => window.__introspect_plugins__.solid.configure(options))`.
+   - Listen for pushed events from the browser script — emit streamed events via `ctx.emit()`.
+   - Register bus listeners for `'manual'`, `'js.error'`, and `'detach'` triggers. On trigger, call `ctx.page.evaluate()` to invoke `getState()`, then write trigger-mode captures via `ctx.writeAsset()`.
 
 ---
 
@@ -101,7 +105,7 @@ If a breaking change occurs in the `SolidDevtools$$` setup API, both the Chrome 
 
 All events use `source: 'plugin'`.
 
-### Streamed events
+### Streamed events (via `ctx.emit()`)
 
 | Type | Data | When |
 |------|------|------|
@@ -109,9 +113,17 @@ All events use `source: 'plugin'`.
 | `solid.updates` | `{ nodeIds: NodeID[] }` | Reactive node updates (stream mode) |
 | `solid.dgraph` | `{ graph: SerializedDGraph }` | Dependency graph (stream mode) |
 
-### Trigger events
+Data types (`NodeID`, `MappedOwner`, `SerializedDGraph`) come from `@solid-devtools/debugger`. The plugin re-exports them for consumers who need to parse trace data.
 
-Same types as above, emitted on bus triggers (`js.error`, `detach`) for event types configured as `'trigger'`.
+### Trigger events (via `ctx.writeAsset()`)
+
+Captured on `manual`, `js.error`, and `detach` bus triggers for event types configured as `'trigger'`.
+
+| Asset kind | Extension | Content |
+|------------|-----------|---------|
+| `solid-structure` | `.json` | Latest component tree state |
+| `solid-dgraph` | `.json` | Latest dependency graph |
+| `solid-updates` | `.json` | Latest reactive node update batch |
 
 ### Diagnostic events
 
@@ -125,7 +137,7 @@ Same types as above, emitted on bus triggers (`js.error`, `detach`) for event ty
 
 Dual tsup configuration (same pattern as `plugin-webgl`):
 
-- **`tsup.browser.config.ts`** — Builds `browser.ts` as IIFE to `dist/browser.iife.js`. Bundles `@solid-devtools/debugger` into the IIFE.
+- **`tsup.browser.config.ts`** — Builds `browser.ts` as IIFE to `dist/browser.iife.js`. Bundles `@solid-devtools/debugger` into the IIFE (requires `noExternal: [/.*/]` to inline all dependencies).
 - **`tsup.node.config.ts`** — Builds `index.ts` as ESM to `dist/index.js` + `dist/index.d.ts`. Uses esbuild text-loader to import `browser.iife.js` as a string.
 
 ---
@@ -148,13 +160,18 @@ packages/plugin-solid/
 ```json
 {
   "dependencies": {
-    "@solid-devtools/debugger": "^x.y.z"
-  },
-  "devDependencies": {
-    "@introspection/types": "workspace:*"
+    "@solid-devtools/debugger": "^x.y.z",
+    "@introspection/types": "workspace:*",
+    "@introspection/plugin-js-errors": "workspace:*"
   }
 }
 ```
+
+---
+
+## Scope exclusions (v1)
+
+- **No `watch()` API** — Unlike the WebGL plugin, v1 does not expose a `watch()` method for test code to subscribe to specific SolidJS events. The plugin is a passive recorder. Test code that needs to assert on reactive state should use Playwright's built-in waiting mechanisms against the DOM. A `watch()` API can be added in a future version if needed.
 
 ---
 
@@ -162,6 +179,6 @@ packages/plugin-solid/
 
 1. **Debugger output subscription** — The exact API for subscribing to the debugger's output messages needs to be verified by reading the `@solid-devtools/debugger` source. The Chrome extension uses a message bridge; we need to confirm there's a direct programmatic subscription path.
 
-2. **Navigation handling** — When the page navigates, `SolidDevtools$$` may be re-created. The browser script needs to re-detect and re-initialize the debugger. The `addInitScript` mechanism handles re-injection, but the debugger state will reset.
+2. **Navigation handling** — When the page navigates, `SolidDevtools$$` may be re-created. The browser script is re-injected via the framework's `script` property mechanism (same as other plugins), but the debugger state will reset. The config must be re-applied; the server should re-call `configure()` after navigation.
 
 3. **Performance** — Streaming `structureUpdates` on apps with large component trees may produce significant event volume. May need to add debouncing or batching in a future iteration.
