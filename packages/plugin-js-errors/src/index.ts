@@ -137,6 +137,7 @@ export function jsErrors(opts?: JsErrorsOptions): IntrospectionPlugin {
           }
 
           const errorEvent = normaliseCdpJsError(syntheticParams as Record<string, unknown>, 0)
+          ctx.emit(errorEvent)
           ctx.emit({ ...errorEvent, type: 'js.error.paused' })
 
           const url = await ctx.cdpSession.send('Runtime.evaluate', { expression: 'location.href', returnByValue: true })

@@ -12,7 +12,7 @@ export interface AttachOptions {
   outDir?: string
   testTitle?: string
   workerIndex?: number
-  plugins: IntrospectionPlugin[]   // required — use defaults() for standard behaviour
+  plugins?: IntrospectionPlugin[]
   verbose?: boolean
 }
 
@@ -24,7 +24,8 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
   const debug = createDebug('introspect', opts.verbose ?? false)
 
   debug('attach', { sessionId, testTitle, outDir })
-  const pluginMetas: PluginMeta[] = opts.plugins
+  const plugins = opts.plugins ?? []
+  const pluginMetas: PluginMeta[] = plugins
     .map(({ name, description, events, options }) => {
       const meta: PluginMeta = { name }
       if (description) meta.description = description
@@ -85,7 +86,7 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
   await cdp.send('Page.enable')
 
   // Push bridge — browser calls window.__introspect_push__(JSON.stringify({type, data}))
-  if (opts.plugins.length > 0) {
+  if (plugins.length > 0) {
     await cdp.send('Runtime.addBinding', { name: '__introspect_push__' })
     cdp.on('Runtime.bindingCalled', (bindingCall: { name: string; payload: string }) => {
       if (bindingCall.name !== '__introspect_push__') return
@@ -97,7 +98,7 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
   }
 
   // Inject scripts (future navigations) + evaluate immediately (current page)
-  for (const plugin of opts.plugins) {
+  for (const plugin of plugins) {
     debug('installing plugin', plugin.name)
     if (plugin.script) {
       await page.addInitScript({ content: plugin.script })
