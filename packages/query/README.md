@@ -2,6 +2,17 @@
 
 Programmatic access to introspection trace data for custom analysis and scripting.
 
+## Table of Contents
+
+- [Install](#install)
+- [Usage](#usage)
+- [API](#api)
+  - [createSession](#createsessiondir-sessionid)
+  - [Session](#session)
+  - [EventsAPI](#eventsapi)
+  - [AssetsAPI](#assetsapi)
+- [Event Types](#event-types)
+
 ## Install
 
 ```bash
