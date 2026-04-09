@@ -200,6 +200,37 @@ test('suppresses perf.long-task events when longTasks option is false', async ({
   expect(longTaskEvents.length).toBe(0)
 })
 
+test('emits perf.cwv event with metric cls for layout shifts without recent input', async ({ page }) => {
+  await page.route('**/*', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: `<html><body>
+        <div id="target" style="position:relative;top:0;width:100px;height:100px;background:red"></div>
+        <script>
+          setTimeout(() => {
+            document.getElementById('target').style.top = '200px';
+          }, 100);
+        </script>
+      </body></html>`,
+    })
+  )
+
+  const { outDir, handle } = await makeSession(page)
+  await handle.page.goto('http://localhost:9999/')
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  const events = await endSession(handle, outDir)
+  const clsEvents = events.filter(
+    (event: { type: string; data: { metric: string } }) =>
+      event.type === 'perf.cwv' && event.data.metric === 'cls'
+  )
+
+  expect(clsEvents.length).toBeGreaterThanOrEqual(1)
+  expect(typeof clsEvents[0].data.value).toBe('number')
+  expect(clsEvents[0].data.value).toBeGreaterThan(0)
+})
+
 test('emits perf.paint events for FP and FCP on navigation', async ({ page }) => {
   await page.route('**/*', route =>
     route.fulfill({

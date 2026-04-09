@@ -75,6 +75,13 @@
             },
           })),
         })
+        if (!layoutShift.hadRecentInput) {
+          push('perf.cwv', {
+            metric: 'cls',
+            value: layoutShift.value,
+            startTime: layoutShift.startTime,
+          })
+        }
       }
     })
     observer.observe({ type: 'layout-shift', buffered: true })
