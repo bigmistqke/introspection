@@ -65,10 +65,11 @@ function routeEvent(category: EventCategory, type: string, data: unknown): void 
     push(type, data)
   }
 
-  // For both stream and trigger, keep the latest state for getState()
-  if (category === 'structureUpdates') latestState.structure = data
-  else if (category === 'nodeUpdates') latestState.updates = data
-  else if (category === 'dependencyGraph') latestState.dgraph = data
+  if (mode === 'trigger') {
+    if (category === 'structureUpdates') latestState.structure = data
+    else if (category === 'nodeUpdates') latestState.updates = data
+    else if (category === 'dependencyGraph') latestState.dgraph = data
+  }
 }
 
 function flushBuffer(): void {
@@ -95,27 +96,32 @@ function initializeDebugger(): void {
   if (detected) return
   detected = true
 
-  createRoot(() => {
-    const instance = useDebugger()
-    debuggerInstance = instance
+  try {
+    createRoot(() => {
+      const instance = useDebugger()
+      debuggerInstance = instance
 
-    instance.toggleEnabled(true)
+      instance.toggleEnabled(true)
 
-    // Enable dependency graph module eagerly so data is available when config arrives
-    instance.emit({ kind: 'ToggleModule', data: { module: 'dgraph', enabled: true } })
+      // Enable dependency graph module eagerly so data is available when config arrives
+      instance.emit({ kind: 'ToggleModule', data: { module: 'dgraph', enabled: true } })
 
-    instance.listen((message: { kind: string; data: unknown }) => {
-      if (message.kind === 'StructureUpdates') {
-        routeEvent('structureUpdates', 'solid.structure', message.data)
-      } else if (message.kind === 'NodeUpdates') {
-        routeEvent('nodeUpdates', 'solid.updates', message.data)
-      } else if (message.kind === 'DgraphUpdate') {
-        routeEvent('dependencyGraph', 'solid.dgraph', message.data)
-      }
+      instance.listen((message: { kind: string; data: unknown }) => {
+        if (message.kind === 'StructureUpdates') {
+          routeEvent('structureUpdates', 'solid.structure', message.data)
+        } else if (message.kind === 'NodeUpdates') {
+          routeEvent('nodeUpdates', 'solid.updates', message.data)
+        } else if (message.kind === 'DgraphUpdate') {
+          routeEvent('dependencyGraph', 'solid.dgraph', message.data)
+        }
+      })
     })
-
-    push('solid.initialized', {})
-  })
+  } catch (error) {
+    detected = false
+    push('solid.warning', {
+      message: `Failed to initialize solid-devtools debugger: ${error instanceof Error ? error.message : String(error)}`,
+    })
+  }
 }
 
 // ─── SolidDevtools$$ detection ───────────────────────────────────────────────

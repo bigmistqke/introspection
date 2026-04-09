@@ -5,6 +5,11 @@ import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 // Side-effect import: brings the 'js.error' BusPayloadMap augmentation into scope
 import '@introspection/plugin-js-errors'
 
+// Re-export types from @solid-devtools/debugger for consumers parsing trace data
+export type { NodeID, NodeType } from '@solid-devtools/debugger/types'
+export type { StructureUpdates } from '@solid-devtools/debugger/types'
+export type { DGraphUpdate, SerializedDGraph } from '@solid-devtools/debugger/types'
+
 declare global {
   interface Window {
     __introspect_plugins__?: Record<string, unknown>
@@ -39,6 +44,7 @@ async function captureState(context: PluginContext): Promise<void> {
     await context.writeAsset({
       kind: 'solid-structure',
       content: JSON.stringify(state.structure),
+      ext: 'json',
       metadata: { timestamp: captureTimestamp },
     })
   }
@@ -47,6 +53,7 @@ async function captureState(context: PluginContext): Promise<void> {
     await context.writeAsset({
       kind: 'solid-dgraph',
       content: JSON.stringify(state.dgraph),
+      ext: 'json',
       metadata: { timestamp: captureTimestamp },
     })
   }
@@ -55,6 +62,7 @@ async function captureState(context: PluginContext): Promise<void> {
     await context.writeAsset({
       kind: 'solid-updates',
       content: JSON.stringify(state.updates),
+      ext: 'json',
       metadata: { timestamp: captureTimestamp },
     })
   }
