@@ -2,6 +2,14 @@
 
 Captures JS exceptions and unhandled promise rejections via CDP. Emits a `js.error` event on the bus for plugin coordination.
 
+## Table of Contents
+
+- [Install](#install)
+- [Usage](#usage)
+- [What it emits](#what-it-emits)
+- [Bus augmentation](#bus-augmentation)
+- [Scopes](#scopes)
+
 ## Install
 
 ```bash

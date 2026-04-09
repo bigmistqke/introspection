@@ -4,6 +4,16 @@ Introspection plugin that intercepts WebGL calls in the browser. Tracks uniforms
 
 Works with both `HTMLCanvasElement` and `OffscreenCanvas`. WebGL 1 and WebGL 2 contexts are both intercepted. `preserveDrawingBuffer` is forced to `true` so canvas captures always reflect actual render output.
 
+## Table of Contents
+
+- [Install](#install)
+- [Usage](#usage)
+- [webgl()](#webgl)
+- [plugin.captureCanvas(opts?)](#plugincapturecanvasopts)
+- [plugin.watch(opts)](#pluginwatchopts)
+- [Events emitted automatically](#events-emitted-automatically-no-watch-needed)
+- [Assets captured on snapshot](#assets-captured-on-snapshot)
+
 ## Install
 
 ```bash

@@ -2,6 +2,26 @@
 
 Shared TypeScript types for the introspection system. Used by all packages.
 
+## Table of Contents
+
+- [Events](#events)
+  - [TraceEvent](#traceevent)
+  - [Event types](#event-types)
+- [Supporting types](#supporting-types)
+  - [StackFrame](#stackframe)
+  - [ScopeFrame](#scopeframe)
+  - [BodySummary](#bodysummary)
+  - [OnErrorSnapshot](#onerrorsnapshot)
+- [Plugin interface](#plugin-interface)
+  - [IntrospectionPlugin](#introspectionplugin)
+  - [BusPayloadMap and BusTrigger](#buspayloadmap-and-bustrigger)
+  - [PluginContext](#plugincontext)
+  - [WatchHandle](#watchhandle)
+- [Session format](#session-format)
+  - [SessionMeta](#sessionmeta)
+  - [TraceFile](#tracefile)
+- [IntrospectHandle](#introspecthandle)
+
 ## Install
 
 ```bash

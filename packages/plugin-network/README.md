@@ -2,6 +2,13 @@
 
 Captures all HTTP network activity via CDP.
 
+## Table of Contents
+
+- [Install](#install)
+- [Usage](#usage)
+- [What it captures](#what-it-captures)
+- [Options](#options)
+
 ## Install
 
 ```bash

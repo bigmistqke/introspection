@@ -2,6 +2,15 @@
 
 Introspection plugin that captures SolidJS component structure, reactive updates, and dependency graph changes via `@solid-devtools/debugger`.
 
+## Table of Contents
+
+- [Install](#install)
+- [Requirements](#requirements)
+- [Usage](#usage)
+- [What it captures](#what-it-captures)
+- [solidDevtools(options?)](#soliddevtoolsoptions)
+- [Re-exported types](#re-exported-types)
+
 ## Install
 
 ```bash

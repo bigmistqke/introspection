@@ -4,6 +4,22 @@ Internal utilities used by `@introspection/playwright`. Handles CDP event normal
 
 You generally don't need to use this directly — `@introspection/playwright` provides the full integration. This package is documented for plugin authors and contributors.
 
+## Table of Contents
+
+- [Session I/O](#session-io)
+  - [initSessionDir](#initsessiondiroutdir-params)
+  - [appendEvent](#appeenteventoutdir-sessionid-event)
+  - [writeAsset](#writeassetopts)
+  - [finalizeSession](#finalizesessionoutdir-sessionid-endedat)
+- [CDP normalizers](#cdp-normalizers)
+  - [normaliseCdpNetworkRequest](#normalisecdpnetworkrequestparams-startedat)
+  - [normaliseCdpNetworkResponse](#normalisecdpnetworkresponseparams-startedat)
+  - [normaliseCdpJsError](#normalisecdpjserrorparams-startedat)
+- [Snapshot](#snapshot)
+  - [takeSnapshot](#takesnapshotopts)
+- [Body summarization](#body-summarization)
+  - [summariseBody](#summarisebodyrawjson)
+
 ## API
 
 ---

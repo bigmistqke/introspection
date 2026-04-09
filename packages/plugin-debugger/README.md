@@ -2,6 +2,15 @@
 
 Introspection plugin that captures debugger pauses with scope locals and call stack information.
 
+## Table of Contents
+
+- [Install](#install)
+- [Usage](#usage)
+- [Options](#options)
+- [Programmatic capture](#programmatic-capture)
+- [What it captures](#what-it-captures)
+- [Assets written](#assets-written)
+
 ## Install
 
 ```bash
