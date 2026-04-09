@@ -231,6 +231,28 @@ test('emits perf.cwv event with metric cls for layout shifts without recent inpu
   expect(clsEvents[0].data.value).toBeGreaterThan(0)
 })
 
+test('re-captures events after navigation', async ({ page }) => {
+  await page.route('**/*', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<html><body><h1>Page</h1></body></html>',
+    })
+  )
+
+  const { outDir, handle } = await makeSession(page)
+  await handle.page.goto('http://localhost:9999/')
+  await new Promise(resolve => setTimeout(resolve, 300))
+  await handle.page.goto('http://localhost:9999/other')
+  await new Promise(resolve => setTimeout(resolve, 300))
+
+  const events = await endSession(handle, outDir)
+  const paintEvents = events.filter((event: { type: string }) => event.type === 'perf.paint')
+
+  // Should have paint events from both navigations
+  expect(paintEvents.length).toBeGreaterThanOrEqual(2)
+})
+
 test('emits perf.paint events for FP and FCP on navigation', async ({ page }) => {
   await page.route('**/*', route =>
     route.fulfill({
