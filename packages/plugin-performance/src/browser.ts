@@ -9,7 +9,7 @@
     )
   }
 
-  const config = (window as unknown as { __introspect_perf_config__: { resources: boolean; longTasks: boolean } }).__introspect_perf_config__ ?? { resources: true, longTasks: true }
+  const config = (typeof __introspect_perf_config__ !== 'undefined' ? __introspect_perf_config__ : { resources: true, longTasks: true }) as { resources: boolean; longTasks: boolean }
 
   function observePaint(): void {
     const observer = new PerformanceObserver((list) => {
@@ -116,17 +116,36 @@
   observeResource()
 
   function observeInp(): void {
-    const observer = new PerformanceObserver((list) => {
+    let eventObserverFired = false
+
+    function handleEntry(entry: PerformanceEntry): void {
+      const eventEntry = entry as PerformanceEventTiming
+      push('perf.cwv', {
+        metric: 'inp',
+        value: eventEntry.duration,
+        startTime: eventEntry.startTime,
+      })
+    }
+
+    // Primary: 'event' observer captures all interactions with full timing
+    const eventObserver = new PerformanceObserver((list) => {
+      eventObserverFired = true
       for (const entry of list.getEntries()) {
-        const eventEntry = entry as PerformanceEventTiming
-        push('perf.cwv', {
-          metric: 'inp',
-          value: eventEntry.duration,
-          startTime: eventEntry.startTime,
-        })
+        handleEntry(entry)
       }
     })
-    observer.observe({ type: 'event', buffered: true, durationThreshold: 0 } as PerformanceObserverInit)
+    eventObserver.observe({ type: 'event', buffered: true, durationThreshold: 0 } as PerformanceObserverInit)
+
+    // Fallback: 'first-input' captures the first interaction in environments
+    // where the 'event' observer does not fire (e.g. headless Chromium with
+    // synthetic clicks). Skipped if 'event' observer already produced entries.
+    const firstInputObserver = new PerformanceObserver((list) => {
+      if (eventObserverFired) return
+      for (const entry of list.getEntries()) {
+        handleEntry(entry)
+      }
+    })
+    firstInputObserver.observe({ type: 'first-input', buffered: true })
   }
 
   observeInp()
