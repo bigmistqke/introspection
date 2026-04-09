@@ -20,10 +20,13 @@ Available plugins:
 | Plugin | Package | What it captures |
 |---|---|---|
 | `network()` | `@introspection/plugin-network` | HTTP requests, responses, bodies |
-| `jsError()` | `@introspection/plugin-js-error` | Exceptions with scope locals and DOM snapshots |
+| `jsError()` | `@introspection/plugin-js-error` | JS exceptions, emits bus('js.error') |
+| `debuggerPlugin()` | `@introspection/plugin-debugger` | Scope locals on exceptions, breakpoints, and `capture()` calls |
 | `webgl()` | `@introspection/plugin-webgl` | WebGL state, uniforms, draw calls, canvas PNGs |
+| `solidDevtools()` | `@introspection/plugin-solid` | SolidJS component tree and reactive updates |
+| `performance()` | `@introspection/plugin-performance` | Core Web Vitals, resource timing, long tasks |
 
-`defaults()` from `@introspection/playwright` bundles `network()` + `jsError()` for convenience.
+`defaults()` from `@introspection/playwright` bundles `network()` + `jsError()` + `debuggerPlugin()` for convenience.
 
 ## 2. Attach in Playwright tests
 
@@ -64,7 +67,23 @@ await plugin.captureCanvas()   // capture canvas PNG without full GL state
 await handle.snapshot()        // captures full GL state + canvas PNG per context
 ```
 
-## 4. Verify
+## 4. Debugger plugin and capture()
+
+The debugger plugin can capture local variables at arbitrary points in your code:
+
+```ts
+import { capture } from '@introspection/plugin-debugger/client'
+
+function calculate() {
+  const result = heavyComputation()
+  capture('after calculation')  // pauses, captures locals, resumes
+  return result
+}
+```
+
+Scopes are written to a `scopes` asset with the label as the `message` field.
+
+## 5. Verify
 
 ```bash
 # Run a test, then:

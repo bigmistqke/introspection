@@ -82,6 +82,7 @@ export function webgl(): WebGLPlugin {
           uniformCount: Object.keys(snapshot.uniforms).length,
           boundTextureCount: snapshot.textures.length,
           viewport: snapshot.viewport,
+          contentType: 'json',
         },
       })
     }
@@ -92,7 +93,7 @@ export function webgl(): WebGLPlugin {
         kind: 'webgl-canvas',
         content: Buffer.from(base64, 'base64'),
         ext: 'png',
-        metadata: { timestamp: captureTimestamp, contextId },
+        metadata: { timestamp: captureTimestamp, contextId, contentType: 'image' },
       })
     }
   }
@@ -158,7 +159,7 @@ export function webgl(): WebGLPlugin {
           kind: 'webgl-canvas',
           content: Buffer.from(base64, 'base64'),
           ext: 'png',
-          metadata: { timestamp: captureTimestamp, contextId },
+          metadata: { timestamp: captureTimestamp, contextId, contentType: 'image' },
         })
       }
     },

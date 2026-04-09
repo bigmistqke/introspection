@@ -5,7 +5,7 @@ description: Use when a Playwright test fails or an app behaves unexpectedly and
 
 # Debugging with introspect
 
-When a test fails or something behaves unexpectedly, use the `introspect` CLI to query the session trace before reading source files. The trace captures what actually happened at runtime: network requests and response bodies, JS errors with source-mapped stacks, the variable scope at crash time, and WebGL plugin data.
+When a test fails or something behaves unexpectedly, use the `introspect` CLI to query the session trace before reading source files. The trace captures what actually happened at runtime: network requests and response bodies, JS errors with source-mapped stacks, and plugin-specific data.
 
 ## Always start here
 
@@ -17,28 +17,23 @@ Plain-language overview: session label, failed network requests, JS errors. This
 
 ## Decision tree
 
-### JS error found → get the stack and scope
+### JS error found → get the stack
 
 ```bash
-introspect errors     # source-mapped stack traces
-introspect snapshot   # variable scope chain at crash time (default: last snapshot)
+introspect events --type js.error
 ```
 
-`snapshot` shows locals at the error site. If `response.data` was `undefined`, you'll see it here. Use `--filter` to select a specific snapshot:
+Stack traces are included in the `js.error` event data.
+
+### Network failure found → inspect the response
 
 ```bash
-introspect snapshot --filter 'snapshot.trigger === "js.error"'
+introspect events --type network.response --filter 'event.data.status >= 400'
+introspect assets --kind body
+introspect assets <path.json>
 ```
 
-### Network failure found → inspect the response body
-
-```bash
-introspect network                          # table of all requests + event IDs
-introspect body <eventId>                   # full response body
-introspect body <eventId> --path "$.errors" # extract a field with JSONPath
-```
-
-Get the event ID from the last column of `introspect network` output.
+List assets to find the body file, then display it.
 
 ### State looks wrong → query events programmatically
 
@@ -54,17 +49,27 @@ introspect eval 'events.filter(event => event.type === "mark").map(event => even
 introspect events --type webgl.uniform
 introspect events --type webgl.uniform --filter 'event.data.name === "u_time"'
 introspect events --type webgl.draw-arrays,webgl.draw-elements
-introspect eval 'events.filter(event => event.type === "webgl.texture-bind").length'
+introspect assets --kind webgl-canvas
+introspect assets <path.png>
 ```
+
+### Scopes (from debugger plugin)
+
+```bash
+introspect assets --kind scopes
+introspect assets <path.json>
+```
+
+Scopes assets contain local variables from call frames. Useful for seeing variable values at specific points, especially from `capture()` calls.
 
 ### Nothing obvious → browse events
 
 ```bash
 introspect events                                          # all events in order
 introspect events --type js.error,network.response        # filter by type
-introspect events --since "form submitted"                 # events after a mark
+introspect events --since "form submitted"                # events after a mark
 introspect events --filter 'event.data.status >= 400' --type network.response
-introspect events --format json | jq '.[].data.url'       # extract fields
+introspect events --format json | jq '.[].data.url'      # extract fields
 ```
 
 ## Event type reference
@@ -74,20 +79,25 @@ introspect events --format json | jq '.[].data.url'       # extract fields
 | `network.request` | HTTP request — url, method, headers, postData |
 | `network.response` | HTTP response — status, headers, body saved separately |
 | `network.error` | Request failed at network level |
-| `js.error` | Uncaught exception with source-mapped stack |
+| `js.error` | JS exception with source-mapped stack |
 | `browser.navigate` | Page navigation |
 | `playwright.action` | click, fill, goto, waitFor, etc. |
 | `mark` | Semantic label placed by test code via `handle.mark('...')` |
-| `asset` | File written to disk: snapshot JSON, canvas PNG, response body |
-| `webgl.context-created` | A WebGL context was created |
-| `webgl.uniform` | `gl.uniform*()` call (requires watch subscription) |
-| `webgl.draw-arrays` | `gl.drawArrays()` call (requires watch subscription) |
-| `webgl.draw-elements` | `gl.drawElements()` call (requires watch subscription) |
-| `webgl.texture-bind` | `gl.bindTexture()` call (requires watch subscription) |
+| `asset` | File written to disk — body, scopes, canvas, etc. |
+
+## Asset reference
+
+Use `introspect assets` to list and display assets. Filter by kind or content type:
+
+```bash
+introspect assets                    # list all
+introspect assets --kind scopes      # filter by kind
+introspect assets --kind webgl-canvas
+introspect assets <path>            # display asset content
+```
 
 ## Notes
 
 - All commands default to the most recent session. Use `--session <id>` to target a specific one.
-- `introspect body <eventId>` retrieves the saved response body for a `network.response` event.
-- `introspect snapshot` defaults to the most recent snapshot. Use `--filter` to select by trigger or other fields.
+- `introspect assets <path>` displays the asset. Text content (json, html) is shown as-is; images show dimensions.
 - WebGL events only appear if the `plugin-webgl` plugin was attached and `plugin.watch(...)` was called.

@@ -64,6 +64,7 @@ export interface AssetEvent extends BaseEvent {
   data: {
     path: string
     kind: string
+    contentType?: 'json' | 'html' | 'text' | 'image' | 'binary'
     summary?: BodySummary
     trigger?: string
     url?: string

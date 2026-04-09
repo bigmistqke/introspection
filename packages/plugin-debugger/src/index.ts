@@ -145,6 +145,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
               trigger: 'debugger.paused',
               url,
               scopeCount: scopes.length,
+              contentType: 'json',
             },
           })
         })()

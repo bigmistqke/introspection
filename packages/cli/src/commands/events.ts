@@ -1,6 +1,5 @@
 import { runInNewContext } from 'vm'
 import type { TraceFile, TraceEvent } from '@introspection/types'
-import { formatTimeline } from './timeline.js'
 
 const VALID_SOURCES = new Set(['cdp', 'agent', 'playwright', 'plugin'])
 
@@ -23,7 +22,6 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
     throw new Error('--last must be a positive integer')
   }
 
-  // Resolve --since against the full unfiltered event list before any other filtering
   let lowerBound = opts.after ?? -Infinity
   if (opts.since !== undefined) {
     const mark = trace.events.find(
@@ -47,6 +45,21 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
   return result
 }
 
+function formatTimeline(events: TraceEvent[]): string {
+  return events.map(event => {
+    const timestampStr = String(event.timestamp).padStart(6) + 'ms'
+    const src = event.source.padEnd(10)
+    let detail = event.type
+    if (event.type === 'network.request') detail += ` ${(event.data as { method: string }).method} ${(event.data as { url: string }).url}`
+    else if (event.type === 'network.response') detail += ` ${(event.data as { status: number }).status} ${(event.data as { url: string }).url}`
+    else if (event.type === 'js.error') detail += ` ${(event.data as { message: string }).message}`
+    else if (event.type === 'mark') detail += ` "${(event.data as { label: string }).label}"`
+    else if (event.type === 'playwright.action') detail += ` ${(event.data as { method: string }).method}(${(event.data as { args: unknown[] }).args[0] ?? ''})`
+    else if (event.type === 'asset') detail += ` ${(event.data as { kind: string }).kind} ${(event.data as { path: string }).path}`
+    return `[${timestampStr}] ${src} ${detail}`
+  }).join('\n')
+}
+
 export function formatEvents(trace: TraceFile, opts: EventFilterOpts): string {
   let filtered = applyEventFilters(trace, opts)
 
@@ -64,5 +77,5 @@ export function formatEvents(trace: TraceFile, opts: EventFilterOpts): string {
     return JSON.stringify(filtered, null, 2)
   }
 
-  return formatTimeline({ ...trace, events: filtered })
+  return formatTimeline(filtered)
 }

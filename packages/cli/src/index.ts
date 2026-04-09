@@ -2,17 +2,14 @@
 import { Command } from 'commander'
 import { TraceReader } from './trace-reader.js'
 import { buildSummary } from './commands/summary.js'
-import { formatErrors } from './commands/errors.js'
-import { formatSnapshot } from './commands/snapshot.js'
 import { formatNetworkTable } from './commands/network.js'
-import { queryBody } from './commands/body.js'
-import { formatDom } from './commands/dom.js'
 import { evalExpression } from './commands/eval.js'
 import { formatEvents } from './commands/events.js'
 import { formatPlugins } from './commands/plugins.js'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
+import { listAssets, readAsset, getAssetSessionDir } from './commands/assets.js'
 
 const BUNDLED_SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url))
 const program = new Command()
@@ -30,45 +27,40 @@ program.command('summary').option('--session <id>').action(async (opts) => {
   console.log(buildSummary(trace))
 })
 
-program.command('errors').option('--session <id>').action(async (opts) => {
-  const trace = await loadTrace(opts)
-  console.log(formatErrors(trace))
-})
-
-program.command('snapshot')
-  .option('--session <id>')
-  .option('--filter <expr>', 'JS expression to filter snapshots (snapshot), e.g. \'snapshot.trigger === "js.error"\'')
-  .action(async (opts) => {
-    const trace = await loadTrace(opts)
-    console.log(formatSnapshot(trace, opts.filter))
-  })
-
 program.command('network').option('--session <id>').option('--failed').option('--url <pattern>').action(async (opts) => {
   const trace = await loadTrace(opts)
   console.log(formatNetworkTable(trace.events, opts))
 })
 
-program.command('dom')
+program.command('assets')
+  .description('List and display assets')
   .option('--session <id>')
-  .option('--filter <expr>', 'JS expression to filter snapshots (snapshot), e.g. \'snapshot.trigger === "js.error"\'')
-  .action(async (opts) => {
+  .option('--kind <name>', 'Filter by asset kind (e.g. scopes, body)')
+  .option('--content-type <type>', 'Filter by content type (json, html, text, image)')
+  .argument('[path]', 'Asset path to display')
+  .action(async (path, opts) => {
     const trace = await loadTrace(opts)
-    console.log(formatDom(trace, opts.filter))
-  })
+    const baseDir = program.opts().dir as string
+    const assetsDir = getAssetSessionDir(trace, baseDir)
 
-program.command('body <eventId>')
-  .option('--session <id>')
-  .option('--path <jsonpath>')
-  .action(async (eventId, opts) => {
-    const r = new TraceReader(program.opts().dir as string)
-    let sessionId = opts.session
-    if (!sessionId) {
-      const trace = await r.loadLatest()
-      sessionId = trace.session.id
+    if (path) {
+      const { content, contentType } = await readAsset(assetsDir, path)
+      if (contentType === 'image') {
+        const sizeKB = (content as Buffer).length / 1024
+        console.log(`image: ${path} (${sizeKB.toFixed(1)}KB)`)
+      } else {
+        console.log(content)
+      }
+    } else {
+      const paths = await listAssets(trace, opts)
+      if (paths.length === 0) {
+        console.log('(no assets found)')
+        return
+      }
+      for (const p of paths) {
+        console.log(p)
+      }
     }
-    const raw = await r.readBody(sessionId, eventId)
-    if (!raw) { console.error(`No body found for event ${eventId}`); process.exit(1) }
-    console.log(queryBody(raw, { path: opts.path }))
   })
 
 program.command('eval <expression>').option('--session <id>').action(async (expression, opts) => {
@@ -131,16 +123,13 @@ skillsCmd
   .action(async (opts: { platform?: string; dir?: string }) => {
     const cwd = process.cwd()
 
-    // When --dir is given, --platform is ignored entirely
     if (opts.dir && opts.platform) {
       process.stderr.write('Warning: --platform is ignored when --dir is specified.\n')
     } else if (opts.platform && opts.platform !== 'claude') {
-      // Validate explicit --platform only when --dir is not overriding it
       console.error(`Unknown platform: ${opts.platform}. Supported platforms: claude`)
       process.exit(1)
     }
 
-    // Resolve platform
     let platform: 'claude' = 'claude'
     if (!opts.platform && !opts.dir) {
       const detected = await detectPlatform(cwd)
