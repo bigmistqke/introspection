@@ -50,6 +50,36 @@ test('emits perf.cwv event with metric lcp on navigation', async ({ page }) => {
   expect(typeof lcp.data.startTime).toBe('number')
 })
 
+test('emits perf.layout-shift events when layout shifts occur', async ({ page }) => {
+  await page.route('**/*', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: `<html><body>
+        <div id="target" style="position:relative;top:0;width:100px;height:100px;background:red"></div>
+        <script>
+          setTimeout(() => {
+            document.getElementById('target').style.top = '200px';
+          }, 100);
+        </script>
+      </body></html>`,
+    })
+  )
+
+  const { outDir, handle } = await makeSession(page)
+  await handle.page.goto('http://localhost:9999/')
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  const events = await endSession(handle, outDir)
+  const shiftEvents = events.filter((event: { type: string }) => event.type === 'perf.layout-shift')
+
+  expect(shiftEvents.length).toBeGreaterThanOrEqual(1)
+  const shift = shiftEvents[0]
+  expect(shift.source).toBe('plugin')
+  expect(typeof shift.data.score).toBe('number')
+  expect(typeof shift.data.hadRecentInput).toBe('boolean')
+})
+
 test('emits perf.paint events for FP and FCP on navigation', async ({ page }) => {
   await page.route('**/*', route =>
     route.fulfill({
