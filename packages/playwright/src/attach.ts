@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import type { Page } from '@playwright/test'
-import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginContext, PluginMeta } from '@introspection/types'
+import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginContext, PluginMeta, BusPayloadMap } from '@introspection/types'
 import {
   initSessionDir, appendEvent, writeAsset, finalizeSession, takeSnapshot, createBus, createDebug,
 } from '@introspection/core'
@@ -40,7 +40,9 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
   function timestamp(): number { return Date.now() - startedAt }
 
   function emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }) {
-    void appendEvent(outDir, sessionId, { id: randomUUID(), timestamp: timestamp(), ...event } as TraceEvent)
+    const full = { id: randomUUID(), timestamp: timestamp(), ...event } as TraceEvent
+    void appendEvent(outDir, sessionId, full)
+    void bus.emit(full.type, full as BusPayloadMap[typeof full.type])
   }
 
   const bus = createBus()

@@ -1,4 +1,4 @@
-import type { TraceEvent } from '@introspection/types'
+import type { TraceEvent } from '../types.js'
 
 interface NetworkOpts { failed?: boolean; url?: string }
 

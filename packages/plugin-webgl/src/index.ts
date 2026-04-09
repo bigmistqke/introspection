@@ -1,9 +1,56 @@
 // Loaded as raw text by esbuild (tsup.node.config.ts sets loader['.iife.js'] = 'text').
 // The import path is relative to src/ and resolved at build time — not a runtime path.
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
-import type { IntrospectionPlugin, PluginContext, WatchHandle } from '@introspection/types'
-// Side-effect import: brings the 'js.error' BusPayloadMap augmentation into scope
-import '@introspection/plugin-js-error'
+import type { IntrospectionPlugin, PluginContext, WatchHandle, BaseEvent } from '@introspection/types'
+// Type-only import: brings 'js.error' into TraceEventMap so bus.on('js.error') is typed
+import type {} from '@introspection/plugin-js-error'
+
+export interface WebGLContextCreatedEvent extends BaseEvent {
+  type: 'webgl.context-created'
+  data: { contextId: string }
+}
+
+export interface WebGLContextLostEvent extends BaseEvent {
+  type: 'webgl.context-lost'
+  data: { contextId: string }
+}
+
+export interface WebGLContextRestoredEvent extends BaseEvent {
+  type: 'webgl.context-restored'
+  data: { contextId: string }
+}
+
+export interface WebGLUniformEvent extends BaseEvent {
+  type: 'webgl.uniform'
+  data: { contextId: string; name: string; value: unknown; glType: string }
+}
+
+export interface WebGLDrawArraysEvent extends BaseEvent {
+  type: 'webgl.draw-arrays'
+  data: { contextId: string; primitive: string; first: number; count: number }
+}
+
+export interface WebGLDrawElementsEvent extends BaseEvent {
+  type: 'webgl.draw-elements'
+  data: { contextId: string; primitive: string; count: number; indexType: string; offset: number }
+}
+
+export interface WebGLTextureBindEvent extends BaseEvent {
+  type: 'webgl.texture-bind'
+  data: { contextId: string; unit: number; target: string; textureId: number | null }
+}
+
+declare module '@introspection/types' {
+  interface TraceEventMap {
+    'webgl.context-created': WebGLContextCreatedEvent
+    'webgl.context-lost': WebGLContextLostEvent
+    'webgl.context-restored': WebGLContextRestoredEvent
+    'webgl.uniform': WebGLUniformEvent
+    'webgl.draw-arrays': WebGLDrawArraysEvent
+    'webgl.draw-elements': WebGLDrawElementsEvent
+    'webgl.texture-bind': WebGLTextureBindEvent
+  }
+}
 
 declare global {
   interface Window {

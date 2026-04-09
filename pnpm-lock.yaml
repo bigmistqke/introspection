@@ -135,6 +135,15 @@ importers:
         specifier: ^9.0.0
         version: 9.0.0
     devDependencies:
+      '@introspection/plugin-console':
+        specifier: workspace:*
+        version: link:../plugin-console
+      '@introspection/plugin-js-error':
+        specifier: workspace:*
+        version: link:../plugin-js-error
+      '@introspection/plugin-network':
+        specifier: workspace:*
+        version: link:../plugin-network
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.17)

@@ -1,18 +1,18 @@
 import { randomUUID } from 'crypto'
-import type { NetworkRequestEvent, NetworkResponseEvent, JsErrorEvent, StackFrame } from '@introspection/types'
+import type { StackFrame } from '@introspection/types'
 
 function makeId(): string { return `evt-${randomUUID().slice(0, 8)}` }
 function toTimestamp(value: unknown, startedAt: number): number {
   return typeof value === 'number' ? Math.round(value * 1000 - startedAt) : 0
 }
 
-export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, startedAt: number): NetworkRequestEvent {
+export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, startedAt: number) {
   const req = (raw.request ?? {}) as Record<string, unknown>
   return {
     id: makeId(),
-    type: 'network.request',
+    type: 'network.request' as const,
     timestamp: toTimestamp(raw.wallTime ?? raw.timestamp, startedAt),
-    source: 'cdp',
+    source: 'cdp' as const,
     data: {
       cdpRequestId: raw.requestId as string,
       url: req.url as string,
@@ -23,13 +23,13 @@ export function normaliseCdpNetworkRequest(raw: Record<string, unknown>, started
   }
 }
 
-export function normaliseCdpNetworkResponse(raw: Record<string, unknown>, startedAt: number, cdpTimeOffset = 0): NetworkResponseEvent {
+export function normaliseCdpNetworkResponse(raw: Record<string, unknown>, startedAt: number, cdpTimeOffset = 0) {
   const response = (raw.response ?? {}) as Record<string, unknown>
   return {
     id: makeId(),
-    type: 'network.response',
+    type: 'network.response' as const,
     timestamp: typeof raw.timestamp === 'number' ? Math.round(raw.timestamp * 1000 + cdpTimeOffset - startedAt) : 0,
-    source: 'cdp',
+    source: 'cdp' as const,
     initiator: raw.requestId as string,
     data: {
       cdpRequestId: raw.requestId as string,
@@ -41,7 +41,7 @@ export function normaliseCdpNetworkResponse(raw: Record<string, unknown>, starte
   }
 }
 
-export function normaliseCdpJsError(raw: Record<string, unknown>, startedAt: number): JsErrorEvent {
+export function normaliseCdpJsError(raw: Record<string, unknown>, startedAt: number) {
   const details = (raw.exceptionDetails ?? {}) as Record<string, unknown>
   const exception = (details.exception ?? {}) as Record<string, unknown>
   const trace = details.stackTrace as { callFrames: Array<Record<string, unknown>> } | undefined
@@ -54,9 +54,9 @@ export function normaliseCdpJsError(raw: Record<string, unknown>, startedAt: num
   }))
   return {
     id: makeId(),
-    type: 'js.error',
+    type: 'js.error' as const,
     timestamp: toTimestamp(raw.timestamp, startedAt),
-    source: 'cdp',
+    source: 'cdp' as const,
     data: { message, stack },
   }
 }

@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
-import type { TraceFile, TraceEvent, AssetEvent } from '@introspection/types'
+import type { TraceFile, TraceEvent, AssetEvent } from './types.js'
 
 interface FilterOptions { type?: string; url?: string; failed?: boolean }
 

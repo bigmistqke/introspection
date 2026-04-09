@@ -9,35 +9,7 @@ export interface BaseEvent {
   initiator?: string  // id of event that caused this one (best-effort)
 }
 
-export interface NetworkRequestEvent extends BaseEvent {
-  type: 'network.request'
-  data: { cdpRequestId: string; url: string; method: string; headers: Record<string, string>; postData?: string }
-}
-
-export interface NetworkResponseEvent extends BaseEvent {
-  type: 'network.response'
-  data: {
-    cdpRequestId: string
-    requestId: string
-    url: string
-    status: number
-    headers: Record<string, string>
-    bodyRef?: string        // id for sidecar body file
-    bodySummary?: BodySummary
-  }
-}
-
-export interface NetworkErrorEvent extends BaseEvent {
-  type: 'network.error'
-  data: { url: string; errorText: string }
-}
-
-export interface JsErrorEvent extends BaseEvent {
-  type: 'js.error'
-  data: { message: string; stack: StackFrame[] }
-}
-
-// JsErrorPausedEvent removed — see debugger plugin for scope collection
+// ─── Core events (emitted by the framework, not plugins) ────────────────────
 
 export interface BrowserNavigateEvent extends BaseEvent {
   type: 'browser.navigate'
@@ -72,32 +44,37 @@ export interface AssetEvent extends BaseEvent {
   }
 }
 
-export interface PluginEvent extends BaseEvent {
-  source: 'plugin'
-  type: string   // e.g. 'webgl.uniform', 'redux.action'
-  data: Record<string, unknown>
+// ─── TraceEventMap ──────────────────────────────────────────────────────────
+//
+// Augmentable map of event type strings to their typed event interfaces.
+// Core declares framework events here. Plugins augment this interface
+// from their own packages using declaration merging:
+//
+//   declare module '@introspection/types' {
+//     interface TraceEventMap {
+//       'my-plugin.event': MyPluginEvent
+//     }
+//   }
+
+export interface TraceEventMap {
+  'browser.navigate': BrowserNavigateEvent
+  'mark': MarkEvent
+  'playwright.action': PlaywrightActionEvent
+  'playwright.result': PlaywrightResultEvent
+  'asset': AssetEvent
 }
 
-export type TraceEvent =
-  | NetworkRequestEvent
-  | NetworkResponseEvent
-  | NetworkErrorEvent
-  | JsErrorEvent
-  | BrowserNavigateEvent
-  | MarkEvent
-  | PlaywrightActionEvent
-  | PlaywrightResultEvent
-  | AssetEvent
-  | PluginEvent
+export type TraceEvent = TraceEventMap[keyof TraceEventMap]
 
 // ─── Bus ──────────────────────────────────────────────────────────────────────
+//
+// Every TraceEvent type is a valid bus trigger — the payload is the event itself.
+// ctx.emit() automatically fires on the bus, so any plugin can react to any
+// event type without coupling to the emitting plugin.
+//
+// Lifecycle triggers ('manual', 'detach') have fixed payloads and are bus-only.
 
-/**
- * Augmentable map of bus trigger names to their payload shapes.
- * Core declares 'manual' and 'detach'. Plugins augment this interface
- * from their own packages using declaration merging.
- */
-export interface BusPayloadMap {
+export type BusPayloadMap = TraceEventMap & {
   'manual': { trigger: 'manual'; timestamp: number }
   'detach': { trigger: 'detach'; timestamp: number }
 }
@@ -152,7 +129,6 @@ export interface IntrospectionPlugin {
   /** Browser-side IIFE script. Optional — not all plugins have browser-side code. */
   script?: string
   install(ctx: PluginContext): Promise<void>
-  // capture() removed — use ctx.bus.on(trigger, handler) inside install()
 }
 
 // ─── Supporting types ────────────────────────────────────────────────────────

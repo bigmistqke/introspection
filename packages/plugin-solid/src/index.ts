@@ -1,9 +1,26 @@
 // Loaded as raw text by esbuild (tsup.node.config.ts sets loader['.iife.js'] = 'text').
 // The import path is relative to src/ and resolved at build time — not a runtime path.
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
-import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
-// Side-effect import: brings the 'js.error' BusPayloadMap augmentation into scope
-import '@introspection/plugin-js-error'
+import type { IntrospectionPlugin, PluginContext, BaseEvent } from '@introspection/types'
+// Type-only import: brings 'js.error' into TraceEventMap so bus.on('js.error') is typed
+import type {} from '@introspection/plugin-js-error'
+
+export interface SolidDetectedEvent extends BaseEvent {
+  type: 'solid.detected'
+  data: Record<string, never>
+}
+
+export interface SolidWarningEvent extends BaseEvent {
+  type: 'solid.warning'
+  data: { message: string }
+}
+
+declare module '@introspection/types' {
+  interface TraceEventMap {
+    'solid.detected': SolidDetectedEvent
+    'solid.warning': SolidWarningEvent
+  }
+}
 
 // Re-export types from @solid-devtools/debugger for consumers parsing trace data
 export type { NodeID, NodeType } from '@solid-devtools/debugger/types'

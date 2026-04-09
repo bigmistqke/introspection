@@ -1,4 +1,4 @@
-import type { TraceFile, TraceEvent } from '@introspection/types'
+import type { TraceFile, TraceEvent } from '../types.js'
 
 export function buildSummary(trace: TraceFile): string {
   const lines: string[] = []

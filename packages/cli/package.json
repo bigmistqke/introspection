@@ -22,6 +22,9 @@
     "chalk": "^5.3.0"
   },
   "devDependencies": {
+    "@introspection/plugin-console": "workspace:*",
+    "@introspection/plugin-js-error": "workspace:*",
+    "@introspection/plugin-network": "workspace:*",
     "vitest": "^2.0.0"
   }
 }

@@ -1,7 +1,18 @@
 import { createDebug } from '@introspection/core'
-import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
+import type { IntrospectionPlugin, PluginContext, BaseEvent } from '@introspection/types'
 
 export type ConsoleLevel = 'log' | 'warn' | 'error' | 'info' | 'debug'
+
+export interface ConsoleEvent extends BaseEvent {
+  type: 'console'
+  data: { level: ConsoleLevel; message: string }
+}
+
+declare module '@introspection/types' {
+  interface TraceEventMap {
+    'console': ConsoleEvent
+  }
+}
 
 export interface ConsoleOptions {
   levels?: ConsoleLevel[]
@@ -42,10 +53,7 @@ export function consolePlugin(options?: ConsoleOptions): IntrospectionPlugin {
           source: 'plugin',
           type: 'console',
           timestamp: ctx.timestamp(),
-          data: {
-            level,
-            message,
-          },
+          data: { level, message },
         })
       })
     },

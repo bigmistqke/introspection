@@ -1,5 +1,5 @@
 import { runInNewContext } from 'vm'
-import type { TraceEvent } from '@introspection/types'
+import type { TraceEvent } from '../types.js'
 
 const VALID_SOURCES = new Set(['cdp', 'agent', 'playwright', 'plugin'])
 

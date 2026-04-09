@@ -1,4 +1,4 @@
-import type { SessionMeta } from '@introspection/types'
+import type { SessionMeta } from '../types.js'
 
 export function formatPlugins(session: SessionMeta): string {
   if (!session.plugins?.length) {
