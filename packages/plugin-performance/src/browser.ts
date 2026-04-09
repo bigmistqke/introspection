@@ -23,6 +23,25 @@
 
   observePaint()
 
+  function observeLcp(): void {
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        const lcpEntry = entry as PerformanceLargestContentfulPaint
+        push('perf.cwv', {
+          metric: 'lcp',
+          value: lcpEntry.renderTime || lcpEntry.loadTime,
+          element: lcpEntry.element?.tagName?.toLowerCase(),
+          url: lcpEntry.url || undefined,
+          size: lcpEntry.size,
+          startTime: lcpEntry.startTime,
+        })
+      }
+    })
+    observer.observe({ type: 'largest-contentful-paint', buffered: true })
+  }
+
+  observeLcp()
+
   window.__introspect_plugins__ = window.__introspect_plugins__ || {}
   ;(window.__introspect_plugins__ as Record<string, unknown>).performance = {}
 })()

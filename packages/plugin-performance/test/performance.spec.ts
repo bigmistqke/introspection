@@ -24,6 +24,32 @@ async function endSession(handle: IntrospectHandle, outDir: string) {
   }
 }
 
+test('emits perf.cwv event with metric lcp on navigation', async ({ page }) => {
+  await page.route('**/*', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<html><body><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" width="500" height="500" /></body></html>',
+    })
+  )
+
+  const { outDir, handle } = await makeSession(page)
+  await handle.page.goto('http://localhost:9999/')
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  const events = await endSession(handle, outDir)
+  const lcpEvents = events.filter(
+    (event: { type: string; data: { metric: string } }) =>
+      event.type === 'perf.cwv' && event.data.metric === 'lcp'
+  )
+
+  expect(lcpEvents.length).toBeGreaterThanOrEqual(1)
+  const lcp = lcpEvents[0]
+  expect(lcp.source).toBe('plugin')
+  expect(typeof lcp.data.value).toBe('number')
+  expect(typeof lcp.data.startTime).toBe('number')
+})
+
 test('emits perf.paint events for FP and FCP on navigation', async ({ page }) => {
   await page.route('**/*', route =>
     route.fulfill({
