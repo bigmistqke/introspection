@@ -21,7 +21,7 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.37)
 
-  demos/auth-race:
+  ctf/auth-race:
     devDependencies:
       '@introspection/playwright':
         specifier: workspace:*
@@ -39,7 +39,7 @@ importers:
         specifier: ^5.0.0
         version: 5.4.21(@types/node@22.19.17)
 
-  demos/black-canvas:
+  ctf/black-canvas:
     devDependencies:
       '@introspection/playwright':
         specifier: workspace:*
@@ -60,7 +60,7 @@ importers:
         specifier: ^5.0.0
         version: 5.4.21(@types/node@22.19.17)
 
-  demos/missing-scores:
+  ctf/missing-scores:
     devDependencies:
       '@introspection/playwright':
         specifier: workspace:*
@@ -78,7 +78,7 @@ importers:
         specifier: ^5.0.0
         version: 5.4.21(@types/node@22.19.17)
 
-  demos/silent-form-error:
+  ctf/silent-form-error:
     devDependencies:
       '@introspection/playwright':
         specifier: workspace:*
@@ -96,7 +96,7 @@ importers:
         specifier: ^5.0.0
         version: 5.4.21(@types/node@22.19.17)
 
-  demos/webgl-animation:
+  ctf/webgl-animation:
     devDependencies:
       '@introspection/playwright':
         specifier: workspace:*

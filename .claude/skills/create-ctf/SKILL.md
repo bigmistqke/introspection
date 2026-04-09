@@ -1,15 +1,15 @@
 ---
-name: create-demo
-description: Use when creating a new introspection demo with a hidden bug that an agent should discover using the introspect CLI
+name: create-ctf
+description: Use when creating a new CTF challenge with a hidden bug that an agent should discover using the introspect CLI
 ---
 
-# Create Demo
+# Create CTF
 
-Creates a self-contained Playwright demo with a deliberate hidden bug, verifies the introspect trace has the signals needed to find it, then hands off to the debug-demo skill.
+Creates a self-contained Playwright challenge with a deliberate hidden bug, verifies the introspect trace has the signals needed to find it, then hands off to the run-ctf skill.
 
 ## Steps
 
-### 1. Design the demo
+### 1. Design the challenge
 
 Determine the bug scenario from the user's message. If unclear, pick an unused scenario from `ROLE_PLAY.md`. The bug must:
 
@@ -17,28 +17,28 @@ Determine the bug scenario from the user's message. If unclear, pick an unused s
 - Map to at least one of these trace signals: `introspect errors`, `introspect snapshot`, `introspect body`, `introspect events --type webgl.*`
 - Cause a Playwright test assertion to fail in a way that doesn't reveal the root cause
 
-Choose a short kebab-case name for `demos/<name>/`.
+Choose a short kebab-case name for `ctf/<name>/`.
 
 ### 2. Create the files
 
-**`demos/<name>/app.html`**
+**`ctf/<name>/app.html`**
 - Self-contained single-file browser app (no bundler)
 - The bug is a logical defect in the JS — wrong key, off-by-one, null not checked, premature mutation, etc.
 - **No comments that name, hint at, or describe the bug**
 - Variable and function names must be natural — nothing like `isBuggy`, `WRONG_KEY`, `brokenFetch`
 - The bug should cause either: an uncaught/unhandled JS error, a network response body mismatch, or a WebGL render failure
 
-**`demos/<name>/test.spec.ts`**
+**`ctf/<name>/test.spec.ts`**
 - Uses `@introspection/playwright` `attach()` + `handle.detach()`
 - Routes the app HTML and any API responses via `page.route()` — no dev server
 - Uses `plugin-webgl` if the bug involves WebGL
 - The assertion tests visible behavior (pixel color, DOM element visibility, animation progress) — not internals
-- Imports follow the ESM `__dirname` pattern from existing demos
+- Imports follow the ESM `__dirname` pattern from existing challenges
 
-**`demos/<name>/playwright.config.ts`**
-- Copy from `demos/webgl-animation/playwright.config.ts` if WebGL is needed, otherwise minimal headless config
+**`ctf/<name>/playwright.config.ts`**
+- Copy from `ctf/webgl-animation/playwright.config.ts` if WebGL is needed, otherwise minimal headless config
 
-**`demos/<name>/package.json`**
+**`ctf/<name>/package.json`**
 - `devDependencies`: `@introspection/playwright`, `introspect`, `@playwright/test`, `typescript` — all `workspace:*` or `^version`
 - Add `@introspection/plugin-webgl` if WebGL is used
 
@@ -46,7 +46,7 @@ Choose a short kebab-case name for `demos/<name>/`.
 
 ```bash
 pnpm install
-cd demos/<name> && pnpm test
+cd ctf/<name> && pnpm test
 ```
 
 The test must **fail**. If it passes, the bug isn't effective — redesign.
@@ -83,7 +83,7 @@ For each step, verify:
 3. **`introspect snapshot --filter 'snapshot.trigger === "js.error"'`** — do the scope locals show the wrong value (null, undefined, wrong type)? Is the offending variable visible?
 4. **`introspect body <id>`** (if network bug) — does the response body show the key the code expected is missing or named differently?
 
-After running each command, ask: *could an agent reading only this output form a correct hypothesis without reading source?* If any step produces output that is empty, ambiguous, or points in the wrong direction, fix the demo and re-run from step 3.
+After running each command, ask: *could an agent reading only this output form a correct hypothesis without reading source?* If any step produces output that is empty, ambiguous, or points in the wrong direction, fix the challenge and re-run from step 3.
 
 The goal is that the chain `summary → errors/events → snapshot/body` is sufficient for a confident root cause — no step missing, no dead ends.
 
@@ -91,9 +91,9 @@ The goal is that the chain `summary → errors/events → snapshot/body` is suff
 
 If you edited `app.html` during verification (e.g. to strengthen a signal), restore the original buggy code before handing off.
 
-### 7. Hand off to debug-demo
+### 7. Hand off to run-ctf
 
-Call the `debug-demo` skill with the demo directory as the argument.
+Call the `run-ctf` skill with the challenge directory as the argument.
 
 ---
 

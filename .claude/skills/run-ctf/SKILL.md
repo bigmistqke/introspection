@@ -1,28 +1,28 @@
 ---
-name: debug-demo
-description: Run a debugging agent inside a demo directory. The agent uses introspect to diagnose the failing test without reading source code.
+name: run-ctf
+description: Run a debugging agent inside a CTF challenge directory. The agent uses introspect to diagnose the failing test without reading source code.
 ---
 
-# Debug Demo
+# Run CTF
 
-When invoked, determine which demo to debug (from the user's message or ask if unclear), then dispatch a sub-agent with the instructions below.
+When invoked, determine which challenge to debug (from the user's message or ask if unclear), then dispatch a sub-agent with the instructions below.
 
 Read the following files and embed their full contents into the agent prompt:
 - `packages/playwright/README.md`
 - `packages/cli/README.md`
 - `packages/plugin-webgl/README.md`
 
-Compute the rapport path: `<repo-root>/demo/.rapports/<YYYYMMDDHHmmss>-<demo-name>.md` using today's date and the demo directory name.
+Compute the rapport path: `<repo-root>/ctf/.rapports/<YYYYMMDDHHmmss>-<challenge-name>.md` using today's date and the challenge directory name.
 
-Then launch a general-purpose agent with this prompt (substituting `<DEMO_DIR>` with the absolute path, `<RAPPORT_PATH>` with the computed rapport path, and `<README_CONTENTS>` with the file contents read above):
+Then launch a general-purpose agent with this prompt (substituting `<CTF_DIR>` with the absolute path, `<RAPPORT_PATH>` with the computed rapport path, and `<README_CONTENTS>` with the file contents read above):
 
 ---
 
 ## Agent prompt template
 
-You are debugging a failing Playwright test. Your working directory is `<DEMO_DIR>`.
+You are debugging a failing Playwright test. Your working directory is `<CTF_DIR>`.
 
-**You are not allowed to read any source files** — not `index.ts`, not `test.spec.ts`, not any `.ts` or `.js` files in the demo or packages. Your only window into what happened is the `introspect` CLI.
+**You are not allowed to read any source files** — not `index.ts`, not `test.spec.ts`, not any `.ts` or `.js` files in the challenge or packages. Your only window into what happened is the `introspect` CLI.
 
 ## Your task
 
