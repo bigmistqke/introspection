@@ -61,7 +61,7 @@ No public methods — the plugin is passive. It observes automatically once inst
 
 ### `perf.cwv`
 
-One event per LCP, CLS, or INP entry observed by `PerformanceObserver`.
+One event per LCP, CLS, or INP entry observed by `PerformanceObserver`. For CLS, this emits the per-entry value from the `largest-contentful-paint` observer — individual layout shifts are captured separately in `perf.layout-shift`. For INP, the `event` observer uses `durationThreshold: 0` to capture all interactions.
 
 ```ts
 {
