@@ -19,10 +19,61 @@ export function jsErrors(opts?: JsErrorsOptions): IntrospectionPlugin {
 
   return {
     name: 'js-errors',
+    description: 'Captures uncaught exceptions and unhandled rejections with scope locals and DOM snapshots',
+    events: {
+      'js.error': 'Uncaught exception or unhandled rejection',
+      'js.error.paused': 'Debugger paused on exception — includes scope locals from call stack',
+    },
+    options: {
+      pauseOnExceptions: {
+        description: 'Whether to pause on "all" exceptions or only "uncaught" ones',
+        value: pauseState,
+      },
+    },
 
     async install(ctx: PluginContext): Promise<void> {
       await ctx.cdpSession.send('Debugger.enable')
       await ctx.cdpSession.send('Debugger.setPauseOnExceptions', { state: pauseState })
+
+      ctx.cdpSession.on('Runtime.exceptionThrown', (rawParams) => {
+        const parameters = rawParams as { exceptionDetails: Record<string, unknown> }
+
+        void (async () => {
+          const errorEvent = normaliseCdpJsError(
+            { exceptionDetails: parameters.exceptionDetails, timestamp: Date.now() / 1000 } as Record<string, unknown>,
+            0,
+          )
+          ctx.emit(errorEvent)
+
+          const url = await ctx.cdpSession.send('Runtime.evaluate', { expression: 'location.href', returnByValue: true })
+            .then((r) => ((r as { result: { value?: string } }).result.value ?? ''))
+            .catch(() => '')
+
+          const snapshot = await takeSnapshot({
+            cdpSession: { send: (method, params) => ctx.cdpSession.send(method, params) },
+            trigger: 'js.error',
+            url,
+            callFrames: [],
+          })
+
+          await ctx.writeAsset({
+            kind: 'snapshot',
+            content: JSON.stringify(snapshot),
+            metadata: {
+              timestamp: ctx.timestamp(),
+              trigger: 'js.error',
+              url: snapshot.url,
+              scopeCount: 0,
+            },
+          })
+
+          await ctx.bus.emit('js.error', {
+            trigger: 'js.error',
+            timestamp: ctx.timestamp(),
+            message: String(errorEvent.data.message ?? ''),
+          })
+        })()
+      })
 
       ctx.cdpSession.on('Debugger.paused', (rawParams) => {
         const parameters = rawParams as {
@@ -86,7 +137,7 @@ export function jsErrors(opts?: JsErrorsOptions): IntrospectionPlugin {
           }
 
           const errorEvent = normaliseCdpJsError(syntheticParams as Record<string, unknown>, 0)
-          ctx.emit(errorEvent)
+          ctx.emit({ ...errorEvent, type: 'js.error.paused' })
 
           const url = await ctx.cdpSession.send('Runtime.evaluate', { expression: 'location.href', returnByValue: true })
             .then((r) => ((r as { result: { value?: string } }).result.value ?? ''))
@@ -94,7 +145,7 @@ export function jsErrors(opts?: JsErrorsOptions): IntrospectionPlugin {
 
           const snapshot = await takeSnapshot({
             cdpSession: { send: (method, params) => ctx.cdpSession.send(method, params) },
-            trigger: 'js.error',
+            trigger: 'js.error.paused',
             url,
             callFrames: [],
           })
@@ -105,16 +156,10 @@ export function jsErrors(opts?: JsErrorsOptions): IntrospectionPlugin {
             content: JSON.stringify(mergedSnapshot),
             metadata: {
               timestamp: ctx.timestamp(),
-              trigger: 'js.error',
+              trigger: 'js.error.paused',
               url: mergedSnapshot.url,
               scopeCount: mergedSnapshot.scopes.length,
             },
-          })
-
-          await ctx.bus.emit('js.error', {
-            trigger: 'js.error',
-            timestamp: ctx.timestamp(),
-            message: String(errorEvent.data.message ?? ''),
           })
         })()
       })
