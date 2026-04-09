@@ -2,6 +2,17 @@
 
 Attaches CDP-based tracing to a Playwright `Page`. Captures network requests, JS errors with scope locals, DOM snapshots, and Playwright actions into a structured NDJSON session on disk.
 
+## Table of contents
+
+- [Install](#install)
+- [Usage](#usage)
+- [attach(page, opts)](#attachpage-opts)
+- [Plugins](#plugins)
+- [IntrospectHandle](#introspecthandle)
+- [What gets captured automatically](#what-gets-captured-automatically)
+- [Fixture](#fixture)
+- [Exports](#exports)
+
 ## Install
 
 ```bash
@@ -53,16 +64,16 @@ Opens a CDP session on the page and begins recording. CDP domains are enabled by
 Plugins are separate packages that depend only on `@introspection/types` and `@introspection/core` — they are host-agnostic. See each plugin's README for details:
 
 - [`@introspection/plugin-network`](../plugin-network/README.md) — `network()` — HTTP requests, responses, bodies
-- [`@introspection/plugin-js-error`](../plugin-js-error/README.md) — `jsErrors(opts?)` — exceptions with scope locals and DOM snapshots
+- [`@introspection/plugin-js-error`](../plugin-js-error/README.md) — `jsError()` — JS exceptions and bus event
+- [`@introspection/plugin-debugger`](../plugin-debugger/README.md) — `debuggerPlugin()` — scope locals and `capture()`
 - [`@introspection/plugin-webgl`](../plugin-webgl/README.md) — `webgl()` — WebGL state, uniforms, draw calls, canvas PNGs
 
-### `defaults(opts?)`
+### `defaults()`
 
-Convenience factory that returns `[network(), jsErrors(opts?.jsErrors)]`:
+Convenience factory that returns `[network(), jsError(), debuggerPlugin()]`:
 
 ```ts
 attach(page, { plugins: defaults() })
-attach(page, { plugins: defaults({ jsErrors: { pauseOnExceptions: 'all' } }) })
 ```
 
 ---
@@ -167,7 +178,7 @@ On test failure or timeout, the fixture automatically calls `handle.snapshot()` 
 ## Exports
 
 ```ts
-import { attach, network, jsErrors, defaults } from '@introspection/playwright'
-import type { AttachOptions, JsErrorsOptions, DefaultsOptions, BusPayloadMap, BusTrigger } from '@introspection/playwright'
+import { attach, network, jsError, debuggerPlugin, defaults } from '@introspection/playwright'
+import type { AttachOptions, DebuggerOptions, BusPayloadMap, BusTrigger } from '@introspection/playwright'
 import { introspectFixture } from '@introspection/playwright/fixture'
 ```

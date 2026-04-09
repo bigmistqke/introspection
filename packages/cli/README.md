@@ -2,6 +2,20 @@
 
 CLI for querying introspection traces recorded by `@introspection/playwright`.
 
+## Table of contents
+
+- [Install](#install)
+- [Global options](#global-options)
+- [Commands](#commands)
+  - [list](#list)
+  - [summary](#summary)
+  - [events](#events)
+  - [assets](#assets)
+  - [eval](#eval-expression)
+  - [plugins](#plugins)
+  - [skills list](#skills-list)
+  - [skills install](#skills-install)
+
 ## Install
 
 ```bash

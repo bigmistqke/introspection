@@ -8,6 +8,16 @@ The log is also designed to be consumed by AI assistants. Run `introspect summar
 
 ---
 
+## Table of contents
+
+- [How it works](#how-it-works)
+- [Packages](#packages)
+- [Plugins](#plugins)
+- [Quick start](#quick-start)
+- [Session format](#session-format)
+
+---
+
 ## How it works
 
 `attach(page, { plugins })` opens a CDP session alongside the Playwright test. Plugins (like `network()` and `jsError()`, bundled together as `defaults()`) subscribe to CDP events and translate them into a normalized event stream. A proxy-wrapped `page` object records Playwright actions into the same stream. Everything is appended to `events.ndjson` as it arrives — no batching, no end-of-test flush required.
