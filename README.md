@@ -36,6 +36,8 @@ Every capability is a plugin. If you don't wire it up, it won't log. Pass the pl
 | `network()` | [`@introspection/plugin-network`](packages/plugin-network/README.md) | HTTP requests, responses, and response bodies |
 | `jsErrors()` | [`@introspection/plugin-js-errors`](packages/plugin-js-errors/README.md) | Uncaught exceptions and unhandled rejections with scope locals and DOM snapshots |
 | `webgl()` | [`@introspection/plugin-webgl`](packages/plugin-webgl/README.md) | WebGL state, uniforms, draw calls, textures, and canvas PNGs |
+| `solidDevtools()` | [`@introspection/plugin-solid`](packages/plugin-solid/README.md) | SolidJS component structure, reactive updates, and dependency graph |
+| `performance()` | [`@introspection/plugin-performance`](packages/plugin-performance/README.md) | Core Web Vitals, resource timing, long tasks, layout shifts, and paint |
 
 `defaults()` from `@introspection/playwright` returns `[network(), jsErrors()]` — the standard set for most tests. Add domain-specific plugins alongside:
 
