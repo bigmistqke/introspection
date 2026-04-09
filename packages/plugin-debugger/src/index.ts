@@ -37,6 +37,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
     async install(ctx: PluginContext): Promise<void> {
       await ctx.cdpSession.send('Debugger.enable')
       await ctx.cdpSession.send('Debugger.setPauseOnExceptions', { state: pauseOnExceptions })
+      await ctx.cdpSession.send('Runtime.addBinding', { name: '__introspect_capture__' })
 
       for (const bp of options?.breakpoints ?? []) {
         await ctx.cdpSession.send('Debugger.setBreakpoint', {
@@ -44,6 +45,18 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
           condition: bp.condition,
         })
       }
+
+      let pendingCaptureLabel: string | undefined
+
+      ctx.cdpSession.on('Runtime.bindingCalled', (rawParams) => {
+        const params = rawParams as { name: string; payload: string }
+        if (params.name !== '__introspect_capture__') return
+        try {
+          const { label } = JSON.parse(params.payload) as { label?: string }
+          pendingCaptureLabel = label
+          void ctx.cdpSession.send('Debugger.pause').catch(() => {})
+        } catch { /* ignore malformed payload */ }
+      })
 
       ctx.cdpSession.on('Debugger.paused', (rawParams) => {
         const params = rawParams as {
@@ -57,7 +70,9 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
           }>
         }
 
-        if (!['exception', 'promiseRejection', 'breakpoint', 'debuggerStatement', 'step'].includes(params.reason)) {
+        const isCapture = params.reason === 'interrupted' && pendingCaptureLabel !== undefined
+        const validReasons = ['exception', 'promiseRejection', 'breakpoint', 'debuggerStatement', 'step']
+        if (!isCapture && !validReasons.includes(params.reason)) {
           void ctx.cdpSession.send('Debugger.resume').catch(() => {})
           return
         }
@@ -65,7 +80,11 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
         void (async () => {
           const timestamp = ctx.timestamp()
 
-          const stack: StackFrame[] = (params.callFrames ?? []).map(frame =>
+          // Skip first frame if this was a capture call (the capture() function itself)
+          const framesToSkip = isCapture ? 1 : 0
+          const frames = params.callFrames ?? []
+
+          const stack: StackFrame[] = frames.map(frame =>
             normaliseStackFrame({
               functionName: frame.functionName,
               url: frame.url,
@@ -75,7 +94,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
           )
 
           const scopes: ScopeFrame[] = []
-          for (const frame of (params.callFrames ?? []).slice(0, 5)) {
+          for (const frame of frames.slice(framesToSkip, framesToSkip + 5)) {
             const locals: Record<string, unknown> = {}
             for (const scope of frame.scopeChain.slice(0, 3)) {
               if (!scope.object.objectId) continue
@@ -102,14 +121,18 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
             .then((r) => ((r as { result: { value?: string } }).result.value ?? ''))
             .catch(() => '')
 
-          const message = params.reason === 'exception' || params.reason === 'promiseRejection'
-            ? String((params.data as Record<string, unknown>)?.exceptionDescription ?? '')
-            : undefined
+          let message: string | undefined
+          if (params.reason === 'exception' || params.reason === 'promiseRejection') {
+            message = String((params.data as Record<string, unknown>)?.exceptionDescription ?? '')
+          } else if (isCapture) {
+            message = pendingCaptureLabel
+            pendingCaptureLabel = undefined
+          }
 
           await ctx.writeAsset({
             kind: 'scopes',
             content: JSON.stringify({
-              reason: params.reason,
+              reason: isCapture ? 'capture' : params.reason,
               message,
               stack,
               url,

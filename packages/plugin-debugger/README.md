@@ -41,13 +41,29 @@ debuggerPlugin({
 | `pauseOnExceptions` | `'all' \| 'uncaught'` | `'uncaught'` | Whether to pause on all exceptions or only uncaught ones |
 | `breakpoints` | `Array` | `[]` | Programmatic breakpoints to set |
 
+## Programmatic capture
+
+Import `capture` from the client module and call it in your app code:
+
+```ts
+import { capture } from '@introspection/plugin-debugger/client'
+
+function calculate() {
+  const result = heavyComputation()
+  capture('after calculation')  // pauses, captures locals, resumes
+  return result
+}
+```
+
+`capture()` pauses the debugger, collects local variables from the call stack, and resumes — all without throwing an error. The captured scopes are written to a `scopes` asset with the label as the `message` field.
+
 ## What it captures
 
-When the debugger pauses (due to exception, breakpoint, or step), it collects:
+When the debugger pauses (due to exception, breakpoint, step, or `capture()`), it collects:
 
 - **Scopes** — local variables from up to 5 call frames, up to 3 scopes each, 20 properties per scope
 - **Stack** — full call stack with source-mapped URLs and line numbers
-- **Reason** — why the debugger paused (`exception`, `promiseRejection`, `breakpoint`, `debuggerStatement`, `step`)
+- **Reason** — why the debugger paused (`exception`, `promiseRejection`, `breakpoint`, `debuggerStatement`, `step`, `capture`)
 
 ## Assets written
 
@@ -56,8 +72,8 @@ When the debugger pauses (due to exception, breakpoint, or step), it collects:
   kind: 'scopes',
   trigger: 'debugger.paused',
   content: {
-    reason: 'exception' | 'promiseRejection' | 'breakpoint' | 'debuggerStatement' | 'step',
-    message?: string,
+    reason: 'exception' | 'promiseRejection' | 'breakpoint' | 'debuggerStatement' | 'step' | 'capture',
+    message?: string,      // exception description or capture label
     stack: StackFrame[],
     url: string,
     timestamp: number,

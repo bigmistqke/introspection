@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { debuggerPlugin } from '@introspection/plugin-debugger'
+import { capture } from '@introspection/plugin-debugger/client'
 
 test.describe('debuggerPlugin', () => {
   test('returns a valid plugin object', () => {
@@ -37,5 +38,11 @@ test.describe('debuggerPlugin', () => {
     const plugin = debuggerPlugin()
     expect(plugin.options).toBeDefined()
     expect(plugin.options?.pauseOnExceptions.description).toBeDefined()
+  })
+})
+
+test.describe('capture client', () => {
+  test('capture is a function', () => {
+    expect(typeof capture).toBe('function')
   })
 })
