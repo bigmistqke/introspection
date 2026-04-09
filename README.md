@@ -33,7 +33,8 @@ Plugins inject a browser-side script to intercept domain-specific APIs (e.g. Web
 | Package | Description |
 |---|---|
 | [`@introspection/playwright`](packages/playwright/README.md) | Attach tracing to a Playwright page — the main integration point |
-| [`introspect`](packages/cli/README.md) | CLI for querying traces: summary, events, list, eval, assets, plugins |
+| [`introspect`](packages/cli/README.md) | CLI for querying traces: summary, events, list, plugins |
+| [`@introspection/query`](packages/query/README.md) | Programmatic access to traces for custom analysis and scripting |
 | [`@introspection/core`](packages/core/README.md) | CDP normalizers, session I/O, event bus, snapshot utilities (used internally) |
 | [`@introspection/types`](packages/types/README.md) | Shared TypeScript types for events, plugins, and session format |
 
