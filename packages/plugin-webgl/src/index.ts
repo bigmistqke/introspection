@@ -99,6 +99,13 @@ export function webgl(): WebGLPlugin {
 
   return {
     name: 'webgl',
+    description: 'Captures WebGL state, uniforms, draw calls, textures, and canvas PNGs',
+    events: {
+      'webgl.context-created': 'New WebGL rendering context',
+      'webgl.uniform': 'Uniform variable update',
+      'webgl.draw-arrays': 'drawArrays call',
+      'webgl.texture-bind': 'Texture bind to a texture unit',
+    },
     script: BROWSER_SCRIPT,
 
     async install(ctx: PluginContext): Promise<void> {

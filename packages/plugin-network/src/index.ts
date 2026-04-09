@@ -4,6 +4,12 @@ import { summariseBody, normaliseCdpNetworkRequest, normaliseCdpNetworkResponse 
 export function network(): IntrospectionPlugin {
   return {
     name: 'network',
+    description: 'Captures HTTP requests, responses, and response bodies',
+    events: {
+      'network.request': 'Outgoing HTTP request',
+      'network.response': 'HTTP response with optional body summary',
+      'network.error': 'Failed or aborted request',
+    },
 
     async install(ctx: PluginContext): Promise<void> {
       await ctx.cdpSession.send('Network.enable')
