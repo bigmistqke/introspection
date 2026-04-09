@@ -1,5 +1,5 @@
 import { runInNewContext } from 'vm'
-import type { TraceFile, TraceEvent } from '@introspection/types'
+import type { TraceEvent } from '@introspection/types'
 
 const VALID_SOURCES = new Set(['cdp', 'agent', 'playwright', 'plugin'])
 
@@ -14,7 +14,7 @@ export interface EventFilterOpts {
   format?: 'text' | 'json'
 }
 
-export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): TraceEvent[] {
+export function applyEventFilters(events: TraceEvent[], opts: EventFilterOpts): TraceEvent[] {
   if (opts.source !== undefined && !VALID_SOURCES.has(opts.source)) {
     throw new Error(`unknown source "${opts.source}". Valid values: cdp, agent, playwright, plugin`)
   }
@@ -24,7 +24,7 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
 
   let lowerBound = opts.after ?? -Infinity
   if (opts.since !== undefined) {
-    const mark = trace.events.find(
+    const mark = events.find(
       event => event.type === 'mark' && (event.data as { label: string }).label === opts.since
     )
     if (!mark) throw new Error(`no mark event with label "${opts.since}" found`)
@@ -33,7 +33,7 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
 
   const types = opts.type ? opts.type.split(',').map(type => type.trim()).filter(Boolean) : null
 
-  let result = trace.events.filter(event => {
+  let result = events.filter(event => {
     if (types && !types.includes(event.type)) return false
     if (opts.source && event.source !== opts.source) return false
     if (event.timestamp <= lowerBound) return false
@@ -45,7 +45,7 @@ export function applyEventFilters(trace: TraceFile, opts: EventFilterOpts): Trac
   return result
 }
 
-function formatTimeline(events: TraceEvent[]): string {
+export function formatTimeline(events: TraceEvent[]): string {
   return events.map(event => {
     const timestampStr = String(event.timestamp).padStart(6) + 'ms'
     const src = event.source.padEnd(10)
@@ -60,8 +60,8 @@ function formatTimeline(events: TraceEvent[]): string {
   }).join('\n')
 }
 
-export function formatEvents(trace: TraceFile, opts: EventFilterOpts): string {
-  let filtered = applyEventFilters(trace, opts)
+export function formatEvents(events: TraceEvent[], opts: EventFilterOpts): string {
+  let filtered = applyEventFilters(events, opts)
 
   if (opts.filter) {
     filtered = filtered.filter(event => {

@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@introspection/query": "workspace:*",
     "@introspection/types": "workspace:*",
     "commander": "^12.0.0",
     "jsonpath-plus": "^9.0.0",

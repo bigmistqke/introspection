@@ -3,13 +3,12 @@ import { Command } from 'commander'
 import { TraceReader } from './trace-reader.js'
 import { buildSummary } from './commands/summary.js'
 import { formatNetworkTable } from './commands/network.js'
-import { evalExpression } from './commands/eval.js'
 import { formatEvents } from './commands/events.js'
 import { formatPlugins } from './commands/plugins.js'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
-import { listAssets, readAsset, getAssetSessionDir } from './commands/assets.js'
+import { createSession } from '@introspection/query'
 
 const BUNDLED_SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url))
 const program = new Command()
@@ -17,61 +16,49 @@ const program = new Command()
 program.name('introspect').description('Query Playwright test introspection traces').version('0.1.0')
   .option('--dir <path>', 'Trace output directory', resolve('.introspect'))
 
-async function loadTrace(opts: { session?: string }) {
-  const r = new TraceReader(program.opts().dir as string)
-  return opts.session ? r.load(opts.session) : r.loadLatest()
+async function loadSession(opts: { session?: string }) {
+  const dir = program.opts().dir as string
+  return opts.session ? createSession(dir, opts.session) : createSession(dir)
 }
 
 program.command('summary').option('--session <id>').action(async (opts) => {
-  const trace = await loadTrace(opts)
-  console.log(buildSummary(trace))
+  const session = await loadSession(opts)
+  const events = await session.events.ls()
+  console.log(buildSummary({ ...session, events }))
 })
 
 program.command('network').option('--session <id>').option('--failed').option('--url <pattern>').action(async (opts) => {
-  const trace = await loadTrace(opts)
-  console.log(formatNetworkTable(trace.events, opts))
+  const session = await loadSession(opts)
+  const events = await session.events.ls()
+  console.log(formatNetworkTable(events, opts))
 })
 
 program.command('assets')
   .description('List and display assets')
   .option('--session <id>')
-  .option('--kind <name>', 'Filter by asset kind (e.g. scopes, body)')
-  .option('--content-type <type>', 'Filter by content type (json, html, text, image)')
   .argument('[path]', 'Asset path to display')
   .action(async (path, opts) => {
-    const trace = await loadTrace(opts)
     const baseDir = program.opts().dir as string
-    const assetsDir = getAssetSessionDir(trace, baseDir)
+    const session = await createSession(baseDir, opts.session)
 
     if (path) {
-      const { content, contentType } = await readAsset(assetsDir, path)
-      if (contentType === 'image') {
-        const sizeKB = (content as Buffer).length / 1024
-        console.log(`image: ${path} (${sizeKB.toFixed(1)}KB)`)
+      const result = await session.assets.read(path)
+      if (typeof result === 'string') {
+        console.log(result)
       } else {
-        console.log(content)
+        console.log(`image: ${result.path} (${result.sizeKB.toFixed(1)}KB)`)
       }
     } else {
-      const paths = await listAssets(trace, opts)
-      if (paths.length === 0) {
+      const assets = await session.assets.ls()
+      if (assets.length === 0) {
         console.log('(no assets found)')
         return
       }
-      for (const p of paths) {
-        console.log(p)
+      for (const a of assets) {
+        console.log(a.data.path)
       }
     }
   })
-
-program.command('eval <expression>').option('--session <id>').action(async (expression, opts) => {
-  const trace = await loadTrace(opts)
-  try {
-    console.log(evalExpression(trace, expression))
-  } catch (error) {
-    console.error(`Error: ${(error as Error).message}`)
-    process.exit(1)
-  }
-})
 
 program.command('list').description('List available sessions').action(async () => {
   const dir = program.opts().dir as string
@@ -93,9 +80,9 @@ program.command('list').description('List available sessions').action(async () =
 })
 
 program.command('plugins').description('Show plugin metadata for a session').option('--session <id>').action(async (opts) => {
-  const trace = await loadTrace(opts)
-  const session = { ...trace.session, version: '2' as const }
-  console.log(formatPlugins(session))
+  const session = await loadSession(opts)
+  const sessionMeta = { id: session.id, version: '2' as const }
+  console.log(formatPlugins(sessionMeta))
 })
 
 const skillsCmd = program.command('skills').description('Manage AI skills for this project')
@@ -165,15 +152,16 @@ program
   .option('--since <label>', 'Keep events after the named mark event')
   .option('--last <n>', 'Keep only the last N events', (v) => parseInt(v, 10))
   .action(async (opts) => {
-    let trace
+    let session
     try {
-      trace = await loadTrace(opts)
+      session = await loadSession(opts)
     } catch (error) {
       console.error(String(error))
       process.exit(1)
     }
     try {
-      const out = formatEvents(trace, opts)
+      const events = await session.events.ls()
+      const out = formatEvents(events, opts)
       if (out) console.log(out)
     } catch (error) {
       console.error(`Error: ${(error as Error).message}`)

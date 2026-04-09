@@ -11,10 +11,10 @@ CLI for querying introspection traces recorded by `@introspection/playwright`.
   - [summary](#summary)
   - [events](#events)
   - [assets](#assets)
-  - [eval](#eval-expression)
   - [plugins](#plugins)
   - [skills list](#skills-list)
   - [skills install](#skills-install)
+- [JavaScript API](#javascript-api)
 
 ## Install
 
@@ -95,40 +95,15 @@ introspect events --format json | jq '.[].data.url'
 List and display assets written during the session.
 
 ```
-introspect assets [--session <id>] [--kind <name>] [--content-type <type>] [path]
+introspect assets [--session <id>] [path]
 ```
 
-| Flag | Description |
-|---|---|
-| `--kind <name>` | Filter by asset kind (e.g. `scopes`, `body`, `webgl-canvas`) |
-| `--content-type <type>` | Filter by content type (`json`, `html`, `text`, `image`) |
-
-Without a path argument, lists all assets (or filtered subset). With a path, displays the asset content.
+Without a path argument, lists all asset paths. With a path, displays the asset content.
 
 ```bash
 introspect assets                    # list all assets
-introspect assets --kind scopes      # list scope assets
 introspect assets abc123.json        # display asset content
 ```
-
----
-
-### `eval <expression>`
-
-Evaluate a JS expression against the full session trace object. The expression receives `{ session, events, snapshots }`.
-
-```
-introspect eval <expression> [--session <id>]
-```
-
-Examples:
-
-```bash
-introspect eval "events.filter(e => e.type === 'js.error').length"
-introspect eval "events.find(e => e.data?.url?.includes('/api/auth'))"
-```
-
-Exits with code 1 if the expression throws.
 
 ---
 
