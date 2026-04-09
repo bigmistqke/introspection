@@ -37,7 +37,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
     async install(ctx: PluginContext): Promise<void> {
       await ctx.cdpSession.send('Debugger.enable')
       await ctx.cdpSession.send('Debugger.setPauseOnExceptions', { state: pauseOnExceptions })
-      await ctx.cdpSession.send('Runtime.addBinding', { name: '__introspect_capture__' })
+      await ctx.cdpSession.send('Runtime.addBinding', { name: '__introspect_plugin_debugger_capture__' })
 
       for (const bp of options?.breakpoints ?? []) {
         await ctx.cdpSession.send('Debugger.setBreakpoint', {
@@ -50,7 +50,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
 
       ctx.cdpSession.on('Runtime.bindingCalled', (rawParams) => {
         const params = rawParams as { name: string; payload: string }
-        if (params.name !== '__introspect_capture__') return
+        if (params.name !== '__introspect_plugin_debugger_capture__') return
         try {
           const { label } = JSON.parse(params.payload) as { label?: string }
           pendingCaptureLabel = label

@@ -14,7 +14,8 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts && tsup --config tsup.client.config.ts",
-    "test": "echo \"no tests\""
+    "test": "echo \"no tests\"",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@introspection/core": "workspace:*",

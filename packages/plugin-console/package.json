@@ -10,7 +10,8 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
-    "test": "playwright test"
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@introspection/core": "workspace:*",

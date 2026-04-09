@@ -22,9 +22,10 @@ async function loadSession(opts: { session?: string }) {
 }
 
 program.command('summary').option('--session <id>').action(async (opts) => {
-  const session = await loadSession(opts)
-  const events = await session.events.ls()
-  console.log(buildSummary({ ...session, events }))
+  const dir = program.opts().dir as string
+  const reader = new TraceReader(dir)
+  const trace = opts.session ? await reader.load(opts.session) : await reader.loadLatest()
+  console.log(buildSummary(trace))
 })
 
 program.command('network').option('--session <id>').option('--failed').option('--url <pattern>').action(async (opts) => {
@@ -80,9 +81,10 @@ program.command('list').description('List available sessions').action(async () =
 })
 
 program.command('plugins').description('Show plugin metadata for a session').option('--session <id>').action(async (opts) => {
-  const session = await loadSession(opts)
-  const sessionMeta = { id: session.id, version: '2' as const }
-  console.log(formatPlugins(sessionMeta))
+  const dir = program.opts().dir as string
+  const reader = new TraceReader(dir)
+  const trace = opts.session ? await reader.load(opts.session) : await reader.loadLatest()
+  console.log(formatPlugins({ version: '2', ...trace.session }))
 })
 
 const skillsCmd = program.command('skills').description('Manage AI skills for this project')

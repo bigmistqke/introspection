@@ -1,3 +1,9 @@
+declare global {
+  interface Window {
+    __introspect_plugin_debugger_capture__: (label?: string) => void
+  }
+}
+
 export function capture(label?: string): void {
-  ;(window as Record<string, unknown>).__introspect_capture__(label)
+  window.__introspect_plugin_debugger_capture__(label)
 }

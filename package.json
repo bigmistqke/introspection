@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "test:watch": "vitest"
   },

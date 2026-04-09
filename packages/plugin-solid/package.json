@@ -10,7 +10,8 @@
   },
   "scripts": {
     "build": "tsup --config tsup.browser.config.ts && tsup --config tsup.node.config.ts",
-    "test": "playwright test"
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@solid-devtools/debugger": "^0.23.4",

@@ -10,7 +10,8 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
-    "test": "echo \"no tests\""
+    "test": "echo \"no tests\"",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@introspection/core": "workspace:*",
