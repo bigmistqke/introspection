@@ -26,7 +26,8 @@
     "@playwright/test": "^1.40.0",
     "@introspection/plugin-network": "workspace:*",
     "@introspection/plugin-js-error": "workspace:*",
-    "@introspection/plugin-debugger": "workspace:*"
+    "@introspection/plugin-debugger": "workspace:*",
+    "@introspection/plugin-redux": "workspace:*"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.40.0"

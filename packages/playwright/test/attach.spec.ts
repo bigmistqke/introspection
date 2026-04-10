@@ -8,6 +8,7 @@ import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 import { defaults } from '@introspection/plugin-defaults'
 import { network } from '@introspection/plugin-network'
 import { jsError } from '@introspection/plugin-js-error'
+import { redux } from '@introspection/plugin-redux'
 
 let dir: string
 test.beforeEach(async () => {
@@ -240,6 +241,36 @@ test('duplicate session ID throws an error', async ({ page }) => {
   await handle1.detach()
   await expect(attach(page, { outDir: dir, id: customId, plugins: [] }))
     .rejects.toThrow()
+})
+
+test('plugin-redux captures dispatch events via push bridge', async ({ page }) => {
+  await page.route('**/*', route =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body></body></html>' })
+  )
+  const handle = await attach(page, { outDir: dir, plugins: [redux()] })
+  await handle.page.goto('http://localhost:9999/')
+
+  // Simulate a Redux store in the browser
+  await page.evaluate(() => {
+    const store = {
+      dispatch(action: { type: string; payload?: unknown }) { return action },
+      getState() { return { count: 0 } },
+    };
+    (window as unknown as Record<string, unknown>).__REDUX_STORE__ = store
+    // Give the defineProperty setter time to patch
+    setTimeout(() => {
+      store.dispatch({ type: 'INCREMENT', payload: { amount: 1 } })
+    }, 50)
+  })
+
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const dispatch = events.find((event: { type: string }) => event.type === 'redux.dispatch')
+  expect(dispatch).toBeDefined()
+  expect(dispatch.data.action).toBe('INCREMENT')
+  expect(dispatch.data.payload).toEqual({ amount: 1 })
 })
 
 test('bus "detach" handler is called and can write assets', async ({ page }) => {
