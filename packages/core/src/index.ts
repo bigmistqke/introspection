@@ -1,5 +1,6 @@
 export * from './bus.js'
 export * from './cdp.js'
 export * from './debug.js'
+export * from './session.js'
 export * from './snapshot.js'
 export * from './session-writer.js'

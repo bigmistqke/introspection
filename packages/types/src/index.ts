@@ -7,6 +7,7 @@ export interface BaseEvent {
   timestamp: number   // ms since test start
   source: EventSource
   initiator?: string  // id of event that caused this one (best-effort)
+  pageId?: string     // identifies which page emitted this event
 }
 
 // ─── Core events (emitted by the framework, not plugins) ────────────────────
@@ -54,6 +55,36 @@ export interface AssetEvent extends BaseEvent {
   }
 }
 
+export interface PageAttachEvent extends BaseEvent {
+  type: 'page.attach'
+  data: { pageId: string }
+}
+
+export interface PageDetachEvent extends BaseEvent {
+  type: 'page.detach'
+  data: { pageId: string }
+}
+
+export interface DescribeStartEvent extends BaseEvent {
+  type: 'describe.start'
+  data: { label: string }
+}
+
+export interface DescribeEndEvent extends BaseEvent {
+  type: 'describe.end'
+  data: { label: string }
+}
+
+export interface TestStartEvent extends BaseEvent {
+  type: 'test.start'
+  data: { label: string; titlePath: string[] }
+}
+
+export interface TestEndEvent extends BaseEvent {
+  type: 'test.end'
+  data: { label: string; titlePath: string[]; status: string; duration?: number; error?: string }
+}
+
 // ─── TraceEventMap ──────────────────────────────────────────────────────────
 //
 // Augmentable map of event type strings to their typed event interfaces.
@@ -74,6 +105,12 @@ export interface TraceEventMap {
   'playwright.result': PlaywrightResultEvent
   'playwright.screenshot': PlaywrightScreenshotEvent
   'asset': AssetEvent
+  'page.attach': PageAttachEvent
+  'page.detach': PageDetachEvent
+  'describe.start': DescribeStartEvent
+  'describe.end': DescribeEndEvent
+  'test.start': TestStartEvent
+  'test.end': TestEndEvent
 }
 
 export type TraceEvent = TraceEventMap[keyof TraceEventMap]
@@ -112,7 +149,7 @@ export interface PluginContext {
     /** Subscribe to a raw CDP event. Call inside install(). */
     on(event: string, handler: (params: unknown) => void): void
   }
-  emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): void
+  emit(event: EmitInput): void
   writeAsset(opts: {
     kind: string
     content: string | Buffer
@@ -200,6 +237,28 @@ export interface TraceFile {
   snapshots: Snapshot[]
 }
 
+// ─── Session (returned by createSession()) ───────────────────────────────────
+
+export type EmitInput = Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }
+
+export interface Session {
+  id: string
+  emit(event: EmitInput): void
+  writeAsset(opts: {
+    kind: string
+    content: string | Buffer
+    ext?: string
+    metadata: { timestamp: number; [key: string]: unknown }
+    source?: EventSource
+  }): Promise<string>
+  timestamp(): number
+  bus: {
+    on<T extends BusTrigger>(trigger: T, handler: (payload: BusPayloadMap[T]) => void | Promise<void>): void
+    emit<T extends BusTrigger>(trigger: T, payload: BusPayloadMap[T]): Promise<void>
+  }
+  finalize(): Promise<void>
+}
+
 // ─── IntrospectHandle (returned by attach()) ──────────────────────────────────
 
 export interface DetachResult {
@@ -210,9 +269,11 @@ export interface DetachResult {
 }
 
 export interface IntrospectHandle {
+  session: Session
+  pageId: string
   page: import('@playwright/test').Page   // Proxy-wrapped page
   mark(label: string, data?: Record<string, unknown>): void
-  emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): void
+  emit(event: EmitInput): void
   writeAsset(opts: {
     kind: string
     content: string | Buffer

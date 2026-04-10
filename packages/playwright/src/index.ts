@@ -1,3 +1,7 @@
 export { attach } from './attach.js'
 export type { AttachOptions } from './attach.js'
-export type { BusPayloadMap, BusTrigger } from '@introspection/types'
+export { session } from './session.js'
+export type { SessionOptions, SessionContext } from './session.js'
+export { createSession } from '@introspection/core'
+export type { CreateSessionOptions } from '@introspection/core'
+export type { BusPayloadMap, BusTrigger, Session } from '@introspection/types'

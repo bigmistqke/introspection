@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto'
 import type { Page } from '@playwright/test'
-import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginContext, PluginMeta, BusPayloadMap } from '@introspection/types'
+import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginMeta, BusPayloadMap, Session, EmitInput } from '@introspection/types'
 import {
-  initSessionDir, appendEvent, writeAsset, finalizeSession, takeSnapshot, createBus, createDebug,
+  appendEvent, writeAsset, finalizeSession, takeSnapshot, createBus, createDebug, createSession,
 } from '@introspection/core'
 import { createPageProxy } from './proxy.js'
 import { PluginRegistry } from './plugin-registry.js'
@@ -15,17 +15,12 @@ export interface AttachOptions {
   workerIndex?: number
   plugins?: IntrospectionPlugin[]
   verbose?: boolean
+  session?: Session
 }
 
-export async function attach(page: Page, opts: AttachOptions): Promise<IntrospectHandle> {
-  const sessionId = opts.id ?? randomUUID()
-  const outDir = opts.outDir ?? '.introspect'
-  const testTitle = opts.testTitle ?? 'unknown test'
-  const startedAt = Date.now()
-  const debug = createDebug('introspect', opts.verbose ?? false)
-
-  debug('attach', { sessionId, testTitle, outDir })
-  const plugins = opts.plugins ?? []
+export async function attach(page: Page, options: AttachOptions = {}): Promise<IntrospectHandle> {
+  const debug = createDebug('introspect', options.verbose ?? false)
+  const plugins = options.plugins ?? []
   const pluginMetas: PluginMeta[] = plugins
     .map(({ name, description, events, options }) => {
       const meta: PluginMeta = { name }
@@ -34,35 +29,44 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
       if (options) meta.options = options
       return meta
     })
-  await initSessionDir(outDir, { id: sessionId, startedAt, label: testTitle, plugins: pluginMetas.length > 0 ? pluginMetas : undefined })
+
+  // Use provided session or create an implicit one
+  const ownsSession = !options.session
+  const session = options.session ?? await createSession({
+    id: options.id,
+    outDir: options.outDir,
+    label: options.testTitle,
+    plugins: pluginMetas.length > 0 ? pluginMetas : undefined,
+  })
+
+  const pageId = randomUUID().replace(/-/g, '').slice(0, 8)
+
+  debug('attach', { sessionId: session.id, pageId, testTitle: options.testTitle })
+
+  // Wrap session.emit to stamp pageId onto every event from this page
+  function emit(event: EmitInput) {
+    session.emit({ pageId, ...event })
+  }
+
+  const { bus, timestamp } = session
 
   const cdp = await page.context().newCDPSession(page)
   const cdpSend = cdp.send.bind(cdp) as (method: string, params?: Record<string, unknown>) => Promise<unknown>
 
-  function timestamp(): number { return Date.now() - startedAt }
-
-  function emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }) {
-    const full = { id: randomUUID(), timestamp: timestamp(), ...event } as TraceEvent
-    void appendEvent(outDir, sessionId, full)
-    void bus.emit(full.type, full as BusPayloadMap[typeof full.type])
-  }
-
-  const bus = createBus()
   const registry = new PluginRegistry()
 
-  function makePluginContext(plugin: IntrospectionPlugin): PluginContext {
+  function makePluginContext(plugin: IntrospectionPlugin) {
     return {
       page,
       cdpSession: {
-        send: (method, params) => cdpSend(method, params),
-        on: (event, handler) => cdp.on(event as Parameters<typeof cdp.on>[0], handler as Parameters<typeof cdp.on>[1]),
+        send: (method: string, params?: Record<string, unknown>) => cdpSend(method, params),
+        on: (event: string, handler: (params: unknown) => void) => cdp.on(event as Parameters<typeof cdp.on>[0], handler as Parameters<typeof cdp.on>[1]),
       },
       emit,
-      async writeAsset(wopts) {
-        return writeAsset({
-          directory: outDir, name: sessionId,
+      async writeAsset(wopts: { kind: string; content: string | Buffer; ext?: string; metadata: { timestamp: number; [key: string]: unknown }; source?: string }) {
+        return session.writeAsset({
           kind: wopts.kind, content: wopts.content, ext: wopts.ext,
-          metadata: wopts.metadata, source: wopts.source ?? 'plugin',
+          metadata: wopts.metadata, source: (wopts.source ?? 'plugin') as TraceEvent['source'],
         })
       },
       timestamp,
@@ -95,7 +99,7 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
       if (bindingCall.name !== '__introspect_push__') return
       try {
         const { type, data } = JSON.parse(bindingCall.payload) as { type: string; data: Record<string, unknown> }
-        emit({ type, source: 'plugin', data } as unknown as Parameters<typeof emit>[0])
+        emit({ type, source: 'plugin', data } as unknown as EmitInput)
       } catch { /* malformed push — ignore */ }
     })
   }
@@ -123,30 +127,33 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
     })()
   })
 
-  if (opts.titlePath) {
-    emit({ type: 'playwright.test.start', source: 'playwright', data: { titlePath: opts.titlePath } })
+  // Emit page.attach event
+  emit({ type: 'page.attach', source: 'playwright', data: { pageId } })
+
+  if (options.titlePath) {
+    emit({ type: 'playwright.test.start', source: 'playwright', data: { titlePath: options.titlePath } })
   }
 
   const proxiedPage = createPageProxy({
     emit: (event) => emit(event),
-    writeAsset: async (options) => writeAsset({
-      directory: outDir, name: sessionId,
-      kind: options.kind, content: options.content, ext: options.ext,
-      metadata: options.metadata, source: options.source ?? 'playwright',
+    writeAsset: async (wopts) => session.writeAsset({
+      kind: wopts.kind, content: wopts.content, ext: wopts.ext,
+      metadata: wopts.metadata, source: (wopts.source ?? 'playwright') as TraceEvent['source'],
     }),
     timestamp,
     page,
   })
 
   return {
+    session,
+    pageId,
     page: proxiedPage,
     mark(label: string, data?: Record<string, unknown>) {
       emit({ type: 'mark', source: 'agent', data: { label, extra: data } })
     },
     emit,
     async writeAsset(opts) {
-      return writeAsset({
-        directory: outDir, name: sessionId,
+      return session.writeAsset({
         kind: opts.kind, content: opts.content, ext: opts.ext,
         metadata: opts.metadata, source: opts.source ?? 'agent',
       })
@@ -157,8 +164,8 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
         trigger: 'manual',
         url: await page.evaluate(() => location.href).catch(() => ''),
       })
-      await writeAsset({
-        directory: outDir, name: sessionId, kind: 'snapshot',
+      await session.writeAsset({
+        kind: 'snapshot',
         content: JSON.stringify(snap),
         metadata: { timestamp: timestamp(), trigger: 'manual', url: snap.url, scopeCount: snap.scopes.length },
       })
@@ -168,8 +175,8 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
       debug('detach', detachResult?.status)
       if (detachResult) emit({ type: 'playwright.result', source: 'playwright', data: detachResult })
 
-      // Emit 'detach' — bus.emit() awaits all handlers (replaces the previous pending Set drain)
-      await bus.emit('detach', { trigger: 'detach', timestamp: timestamp() })
+      // Emit page.detach event
+      emit({ type: 'page.detach', source: 'playwright', data: { pageId } })
 
       // Bulk unwatch
       for (const [, subscription] of registry.all()) {
@@ -177,8 +184,12 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
         await cdp.send('Runtime.evaluate', { expression }).catch(() => {})
       }
 
-      await finalizeSession(outDir, sessionId, Date.now())
       try { await cdp.detach() } catch { /* non-fatal */ }
+
+      // Only finalize if we own the session (implicit session, not shared)
+      if (ownsSession) {
+        await session.finalize()
+      }
     },
   }
 }

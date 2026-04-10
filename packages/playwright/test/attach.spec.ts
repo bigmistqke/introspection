@@ -131,10 +131,11 @@ test('malformed plugin push is silently discarded', async ({ page }) => {
   await handle.detach()
 
   const events = await readEvents(dir)
-  // Only playwright.result from detach, no malformed event
-  const nonResult = events.filter((event: { type: string }) =>
-    event.type !== 'playwright.result' && event.type !== 'mark')
-  expect(nonResult).toHaveLength(0)
+  // Only page lifecycle + playwright.result from detach, no malformed event
+  const nonLifecycle = events.filter((event: { type: string }) =>
+    event.type !== 'playwright.result' && event.type !== 'mark'
+    && event.type !== 'page.attach' && event.type !== 'page.detach')
+  expect(nonLifecycle).toHaveLength(0)
 })
 
 test('plugin subscriptions survive navigation', async ({ page }) => {
