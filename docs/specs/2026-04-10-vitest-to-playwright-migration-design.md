@@ -153,11 +153,59 @@ All `.on('console')`, `.on('request')`, `.on('response')`, `.on('pageerror')`, `
 
 ---
 
+## Phase 4: Integration tests viewer migration
+
+The `services/integration-tests-viewer` currently reads `manifest.jsonl` and `meta.json` from the logs directory. Each manifest entry contains `{ path, name, suites, state, screenshot, viewport }` per test step. The viewer builds a tree (platform → suite → test steps), shows screenshots (with light/dark mode pairs), logs, and pass/fail state.
+
+### 4a. Data source migration
+
+The viewer's middleware (`middleware/index.ts`) currently:
+- Reads `manifest.jsonl` via `parseManifest()` to get test entries
+- Reads `meta.json` for run metadata (commit SHA, branch, timestamp, dirty flag, dark mode)
+- Serves screenshot PNGs and log files from the logs directory
+
+After migration, introspection sessions contain all this data:
+- `events.ndjson` has `playwright.test.start` (with titlePath = suites), `playwright.result` (with state), `playwright.screenshot` (with asset path)
+- `session.json` has session metadata (startedAt, label, plugins)
+- Screenshots are in the session's `assets/` directory
+
+The middleware needs to be rewritten to read introspection sessions instead of manifest/meta files.
+
+### 4b. Data mapping
+
+| manifest.jsonl field | Introspection equivalent |
+|---|---|
+| `path` | Derived from `titlePath` in `playwright.test.start` event |
+| `name` | Last element of `titlePath` |
+| `suites` | `titlePath` array (minus root empty string and leaf test name) |
+| `state` | `status` field in `playwright.result` event (`passed`→pass, `failed`→fail) |
+| `screenshot` | `path` field in `playwright.screenshot` event |
+| `viewport` | Can be read from `page.viewportSize()` — add to screenshot event metadata |
+
+| meta.json field | Introspection equivalent |
+|---|---|
+| `commitSha` | Add to session metadata at attach time (read from git) |
+| `branch` | Add to session metadata at attach time |
+| `timestamp` | `session.json` `startedAt` |
+| `dirty` | Add to session metadata at attach time |
+| `dm` | Configuration flag — add to session metadata or derive from presence of dark-mode screenshot events |
+
+### 4c. Viewer changes
+
+The viewer frontend (`src/`) currently consumes the `Job`, `Platform`, `Suite`, `Test` types built from manifest data. The types and tree-building logic (`tree.ts`) stay structurally the same — they just get populated from introspection data instead of manifest parsing. The `parseManifest` and `parseMeta` utilities in `logs/parse.ts` get replaced with an introspection session reader.
+
+### 4d. Logs panel
+
+The viewer currently serves `.log` files (pino JSON logs) alongside screenshots. After migration, the equivalent is the `events.ndjson` for each session. The viewer's log panel should display introspection events instead — this is a richer data source (typed events with timestamps vs raw pino lines).
+
+---
+
 ## Acceptance criteria
 
 - **Phase 1**: New introspection features (proxy writeAsset, titlePath events, plugin-redux) have passing tests in the introspection repo.
 - **Phase 2**: All existing test files run under `npx playwright test` with the same pass/fail results as `vitest run`.
 - **Phase 3**: `createGlobalPage` contains no logging/observability code. `testLogger` is removed. All test artifacts (screenshots, logs, events) are in introspection session directories.
+- **Phase 4**: The integration-tests-viewer reads from introspection sessions. `manifest.jsonl` and `meta.json` are no longer produced. The viewer shows the same information (screenshots, pass/fail, tree navigation) but backed by introspection data.
 
 ---
 
