@@ -31,7 +31,15 @@ Build missing introspection pieces first, then migrate the runner, then swap the
 
 New event type: `PlaywrightScreenshotEvent` with data `{ path: string, timestamp: number }`.
 
-### 1b. Test lifecycle events with titlePath
+### 1b. Custom session IDs
+
+Add an optional `id` field to `AttachOptions`. If provided, it is used as the session ID instead of `randomUUID()`. This allows human-readable, flat session directory names derived from the test hierarchy.
+
+The fixture builds the ID from `[projectName, ...testInfo.titlePath].filter(Boolean)`, slugifies each segment, and joins with `--`. Example: `browser-desktop--loading-suite--insecure-requests--01-prepare-page`.
+
+This makes run output directories browsable at a glance and eliminates the need to open `session.json` files to identify sessions.
+
+### 1c. Test lifecycle events with titlePath
 
 The `introspectFixture` gets access to `testInfo.titlePath`. Two events:
 
@@ -40,7 +48,7 @@ The `introspectFixture` gets access to `testInfo.titlePath`. Two events:
 
 This gives every session a pair of bracketing events per test, with the full describe chain.
 
-### 1c. `plugin-redux`
+### 1d. `plugin-redux`
 
 New plugin for capturing store dispatches. Browser-side script that hooks into the store's dispatch/middleware. Pushes structured events via `__introspect_push__`:
 
@@ -127,7 +135,7 @@ The introspect fixture installs:
 | Console capture | `plugin-console` (exists) |
 | Request/response logging | `plugin-network` (exists) |
 | Page errors | `plugin-js-error` (exists) |
-| Store dispatches | `plugin-redux` (new, phase 1c) |
+| Store dispatches | `plugin-redux` (new, phase 1d) |
 | Screenshots | Proxy extension (phase 1a) |
 
 `createGlobalPage` is gutted to only:
