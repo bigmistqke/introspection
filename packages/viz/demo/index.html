@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>@introspection/viz demo</title>
+  <style>
+    * { margin: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 24px; }
+    introspect-view { display: grid; grid-template-columns: 1fr 320px; gap: 16px; height: calc(100vh - 48px); }
+  </style>
+</head>
+<body>
+  <introspect-view>
+    <event-timeline></event-timeline>
+    <event-detail></event-detail>
+  </introspect-view>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
