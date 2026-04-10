@@ -26,9 +26,14 @@ export interface PlaywrightActionEvent extends BaseEvent {
   data: { method: string; args: unknown[] }
 }
 
+export interface PlaywrightTestStartEvent extends BaseEvent {
+  type: 'playwright.test.start'
+  data: { titlePath: string[] }
+}
+
 export interface PlaywrightResultEvent extends BaseEvent {
   type: 'playwright.result'
-  data: { status?: 'passed' | 'failed' | 'timedOut' | 'skipped'; duration?: number; error?: string }
+  data: { status?: 'passed' | 'failed' | 'timedOut' | 'skipped'; duration?: number; error?: string; titlePath?: string[] }
 }
 
 export interface PlaywrightScreenshotEvent extends BaseEvent {
@@ -65,6 +70,7 @@ export interface TraceEventMap {
   'browser.navigate': BrowserNavigateEvent
   'mark': MarkEvent
   'playwright.action': PlaywrightActionEvent
+  'playwright.test.start': PlaywrightTestStartEvent
   'playwright.result': PlaywrightResultEvent
   'playwright.screenshot': PlaywrightScreenshotEvent
   'asset': AssetEvent
@@ -200,6 +206,7 @@ export interface DetachResult {
   status: 'passed' | 'failed' | 'timedOut' | 'skipped'
   duration?: number
   error?: string
+  titlePath?: string[]
 }
 
 export interface IntrospectHandle {

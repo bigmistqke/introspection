@@ -11,6 +11,7 @@ export interface AttachOptions {
   outDir?: string
   id?: string
   testTitle?: string
+  titlePath?: string[]
   workerIndex?: number
   plugins?: IntrospectionPlugin[]
   verbose?: boolean
@@ -121,6 +122,10 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
       }
     })()
   })
+
+  if (opts.titlePath) {
+    emit({ type: 'playwright.test.start', source: 'playwright', data: { titlePath: opts.titlePath } })
+  }
 
   const proxiedPage = createPageProxy({
     emit: (event) => emit(event),
