@@ -31,10 +31,12 @@ jobs:
           script: |
             const fs = require('fs');
             const content = JSON.parse(fs.readFileSync(`releases-${process.env.GITHUB_SHA}.json`, 'utf8'));
-            const installCommands = Object.entries(content)
-              .map(([pkg, url]) => 'pnpm add ' + pkg + '@' + url)
+            const installCommands = content.packages
+              .map(p => 'pnpm add ' + p.name + '@' + p.url)
               .join('\n');
-            const newEntry = '### ' + process.env.GITHUB_SHA + '\n```bash\n' + installCommands + '\n```\n';
+            const overrides = content.packages
+              .reduce((acc, p) => { acc[p.name] = p.url; return acc; }, {});
+            const newEntry = '### ' + process.env.GITHUB_SHA + '\n```bash\n' + installCommands + '\n```\n\n```json\n' + JSON.stringify(overrides, null, 2) + '\n```\n';
             
             let readmeContent = '';
             try {
