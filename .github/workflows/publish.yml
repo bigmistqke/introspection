@@ -51,7 +51,7 @@ jobs:
                 sha: mainSha
               });
             }
-            await github.rest.git.createOrUpdateFile({
+            await github.rest.repos.createOrUpdateFileContents({
               owner: context.repo.owner,
               repo: context.repo.repo,
               path: `releases/${context.sha}.json`,
@@ -69,7 +69,7 @@ jobs:
               .map(([pkg, url]) => 'pnpm add ' + pkg + '@' + url)
               .join('\n');
             const readmeContent = '# Continuous Releases\n### ' + process.env.GITHUB_SHA + '\n```bash\n' + installCommands + '\n```\n';
-            await github.rest.git.createOrUpdateFile({
+            await github.rest.repos.createOrUpdateFileContents({
               owner: context.repo.owner,
               repo: context.repo.repo,
               path: 'README.md',
