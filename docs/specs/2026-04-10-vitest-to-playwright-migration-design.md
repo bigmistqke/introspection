@@ -6,7 +6,7 @@ Migrate `services/integration-tests` from Vitest + raw Playwright to Playwright 
 
 ## Context
 
-The integration tests currently use Vitest as the test runner with Playwright for browser automation. Vitest provides almost nothing here — no mocking, no inject, no snapshots. The setup includes heavy custom wrappers around `describe`/`it` (bail-on-failure logic), a global mutable page pattern, and manual console/network/error logging in `createGlobalPage`.
+The integration tests currently use Vitest as the test runner with Playwright for browser automation. Vitest usage is light — `vi.fn()` is used in the native/iOS platform settings for mocking channel functions, `inject()` passes the logs directory from globalSetup, and the custom `describe`/`it` wrappers implement bail-on-failure logic. The setup also relies on a global mutable page pattern and manual console/network/error logging in `createGlobalPage`.
 
 Playwright Test provides all of this natively (serial mode, fixtures, testInfo with titlePath), and the introspection fixture integrates directly.
 
@@ -60,10 +60,14 @@ Replaces `vitest.config.ts`. Key settings:
 
 - **Projects** — one per platform directory (`browser-desktop`, `browser-mobile`, etc.). Since we keep the suite-as-function pattern, projects just point to the test files under each `platforms/` directory.
 - **Workers** — maps from `pool: 'forks'` / `maxWorkers`.
-- **`globalSetup`** — stays the same (kill stale chromium, log setup). Playwright Test supports `globalSetup` natively.
-- **Reporters** — `CronitorReporter` ported to Playwright's `Reporter` interface. JSON reporter maps directly.
+- **`globalSetup`** — stays the same (kill stale chromium, log setup). Playwright Test supports `globalSetup` natively. The `provide`/`inject` pattern for `logsDirectory` becomes `process.env` since Playwright Test's globalSetup communicates via environment variables.
+- **Reporters** — `CronitorReporter` ported to Playwright's `Reporter` interface (phase 2), then rewritten to read from introspection sessions (phase 3). JSON reporter maps directly.
 - **`timeout`** — maps from `testTimeout`.
 - **`fullyParallel: false`** — default, since suites are sequential by design.
+
+### 2a-ii. `vi.fn()` replacement
+
+The native/iOS platform settings (`platforms/app-ios/settings.ts`) use `vi.fn()` extensively (~30 calls) for mocking native channel functions. Since Playwright Test has no built-in mock function, replace with a lightweight mock utility — either a thin `createMock` wrapper or a library like `tinyspy`. The mock API surface used is minimal: just creating callable functions with spy semantics.
 
 ### 2b. Wrapper replacements (clean break, no shims)
 
@@ -75,7 +79,7 @@ Replaces `vitest.config.ts`. Key settings:
 | `expect` | `expect` from `@playwright/test` |
 | `beforeAll`/`afterAll`/etc. | Same names from `@playwright/test` |
 
-The custom `Scope`/bail logic in `util/vitest.ts` is removed entirely — `serial` mode handles this. The `onAfterIt` callback pattern is replaced by Playwright's `afterEach`.
+The custom `Scope`/bail logic in `util/vitest.ts` is removed entirely — `serial` mode handles this. The `onAfterIt` callback pattern is replaced by Playwright's `afterEach` (current usage is static registration at describe time, not dynamic runtime registration, so this is a direct replacement).
 
 All renames are mechanical — no compatibility wrappers.
 
@@ -96,6 +100,19 @@ The test structure is intentional and preserved:
 - The leaf `test.describe` describes a scenario (configured with `mode: 'serial'`)
 - Each `test()` is a single action within the scenario
 - After each action, a screenshot is taken via the proxied `page.screenshot()`
+
+### 2f. Browser/context reuse
+
+The current `createGlobalPage` deliberately reuses browser and context instances when parameters haven't changed, preserving the HTTP cache (JS bundles, locale catalogs). In Playwright Test, each worker gets its own browser. Context reuse can be achieved via worker-scoped fixtures. Initially, accept per-test context creation (Playwright default) and measure performance impact. If significant, add a worker-scoped context fixture that matches the current reuse logic. Storage clearing between tests (localStorage, sessionStorage, IndexedDB) is handled implicitly by fresh contexts; if context reuse is added, explicit clearing must be restored.
+
+### 2g. Screenshot orchestration
+
+The current `afterEach` in `logs/index.ts` does more than a simple screenshot:
+- Takes light/dark mode paired screenshots when dark mode testing is enabled (switches `data-mode` attribute between shots)
+- Writes screenshots to structured paths with step-indexed naming
+- Appends entries to a `manifest.jsonl` for a test results viewer
+
+With the proxy-based screenshot approach, the light/dark orchestration logic moves to a Playwright `afterEach` fixture that calls `page.screenshot()` twice (the proxy captures both to introspection assets). The manifest viewer is replaced by introspection's own session data — the `playwright.screenshot` events carry the titlePath and step metadata that the manifest currently provides.
 
 ---
 
@@ -133,6 +150,21 @@ All `.on('console')`, `.on('request')`, `.on('response')`, `.on('pageerror')`, `
 `testLogger` is removed entirely. Introspection's `events.ndjson` is the single source of truth.
 
 `CronitorReporter` is rewritten to read from introspection sessions rather than `testLogger`.
+
+---
+
+## Acceptance criteria
+
+- **Phase 1**: New introspection features (proxy writeAsset, titlePath events, plugin-redux) have passing tests in the introspection repo.
+- **Phase 2**: All existing test files run under `npx playwright test` with the same pass/fail results as `vitest run`.
+- **Phase 3**: `createGlobalPage` contains no logging/observability code. `testLogger` is removed. All test artifacts (screenshots, logs, events) are in introspection session directories.
+
+---
+
+## Dropped concerns
+
+- **Playwright internal debug logger hook** — `createGlobalPage` monkey-patches Playwright's internal `debugLogger` to capture actionability logs (locator resolution, retries). This is fragile and not worth migrating. Playwright Test's built-in tracing (`--trace on`) provides equivalent or better actionability debugging.
+- **Fetch abort filtering** — the current fetch wrapper in `addInitScript` filters out intentionally aborted requests before logging. The CDP-based `plugin-network` does not have this filtering. The additional noise is acceptable; if not, a filter option can be added to `plugin-network` later.
 
 ---
 
