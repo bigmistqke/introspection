@@ -8,14 +8,69 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
         with:
           version: 10
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - run: pnpm install
       - run: pnpm build
-      - run: pnpx pkg-pr-new publish --compact './packages/*'
+      - run: echo "GITHUB_SHA=${{ github.sha }}" >> $GITHUB_ENV
+      - run: pnpx pkg-pr-new publish --compact './packages/*' --json "releases-${{ github.sha }}.json"
+      - name: Push to releases branch
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const content = JSON.parse(fs.readFileSync(`releases-${context.sha}.json`, 'utf8'));
+            const mainBranch = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            }).then(r => r.data.default_branch).catch(() => 'main');
+            const mainSha = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'heads/' + mainBranch
+            }).then(r => r.data.object.sha).catch(() => null);
+            const releasesRef = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'heads/releases'
+            }).then(r => r?.data?.object?.sha).catch(() => null);
+            if (!releasesRef) {
+              await github.rest.git.createRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'refs/heads/releases',
+                sha: mainSha
+              });
+            }
+            await github.rest.git.createOrUpdateFile({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: `releases/${context.sha}.json`,
+              message: `ci: add releases/${context.sha}.json`,
+              content: Buffer.from(JSON.stringify(content, null, 2)).toString('base64'),
+              branch: 'releases'
+            });
+      - name: Update README
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const content = JSON.parse(fs.readFileSync(`releases-${process.env.GITHUB_SHA}.json`, 'utf8'));
+            const installCommands = Object.entries(content)
+              .map(([pkg, url]) => 'pnpm add ' + pkg + '@' + url)
+              .join('\n');
+            const readmeContent = '# Continuous Releases\n### ' + process.env.GITHUB_SHA + '\n```bash\n' + installCommands + '\n```\n';
+            await github.rest.git.createOrUpdateFile({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: 'README.md',
+              message: 'ci: update README.md',
+              content: Buffer.from(readmeContent).toString('base64'),
+              branch: 'releases'
+            });
