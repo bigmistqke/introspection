@@ -212,6 +212,14 @@ export interface DetachResult {
 export interface IntrospectHandle {
   page: import('@playwright/test').Page   // Proxy-wrapped page
   mark(label: string, data?: Record<string, unknown>): void
+  emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): void
+  writeAsset(opts: {
+    kind: string
+    content: string | Buffer
+    ext?: string
+    metadata: { timestamp: number; [key: string]: unknown }
+    source?: EventSource
+  }): Promise<string>
   snapshot(): Promise<void>
   detach(result?: DetachResult): Promise<void>
 }

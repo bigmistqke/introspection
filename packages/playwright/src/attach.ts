@@ -143,6 +143,14 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
     mark(label: string, data?: Record<string, unknown>) {
       emit({ type: 'mark', source: 'agent', data: { label, extra: data } })
     },
+    emit,
+    async writeAsset(opts) {
+      return writeAsset({
+        directory: outDir, name: sessionId,
+        kind: opts.kind, content: opts.content, ext: opts.ext,
+        metadata: opts.metadata, source: opts.source ?? 'agent',
+      })
+    },
     async snapshot() {
       const snap = await takeSnapshot({
         cdpSession: { send: cdpSend },
