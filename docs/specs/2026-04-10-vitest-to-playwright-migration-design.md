@@ -182,13 +182,9 @@ The middleware needs to be rewritten to read introspection sessions instead of m
 | `screenshot` | `path` field in `playwright.screenshot` event |
 | `viewport` | Can be read from `page.viewportSize()` — add to screenshot event metadata |
 
-| meta.json field | Introspection equivalent |
-|---|---|
-| `commitSha` | Add to session metadata at attach time (read from git) |
-| `branch` | Add to session metadata at attach time |
-| `timestamp` | `session.json` `startedAt` |
-| `dirty` | Add to session metadata at attach time |
-| `dm` | Configuration flag — add to session metadata or derive from presence of dark-mode screenshot events |
+### Run-level metadata (`meta.json`)
+
+Git metadata (commitSha, branch, dirty) and run configuration (dm, timestamp) apply to the entire test run, not individual sessions. A `meta.json` file continues to exist at the run output directory root, sitting alongside the session directories. It is written by the Playwright reporter or globalSetup — the writing mechanism changes, but the file's role stays the same.
 
 ### 4c. Viewer changes
 
