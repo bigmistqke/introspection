@@ -74,3 +74,29 @@ test('function args in evaluate are sanitized to [function]', async ({ page }) =
   expect(evalAction).toBeDefined()
   expect(evalAction.data.args[0]).toBe('[function]')
 })
+
+test('proxied page.screenshot() saves asset and emits playwright.screenshot event', async ({ page }) => {
+  await page.route('**/*', route =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body>screenshot test</body></html>' })
+  )
+  const handle = await attach(page, { outDir: dir })
+  await handle.page.goto('http://localhost:9999/')
+  const buffer = await handle.page.screenshot()
+  expect(buffer).toBeInstanceOf(Buffer)
+  await new Promise(r => setTimeout(r, 100))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const screenshotEvent = events.find((e: { type: string }) => e.type === 'playwright.screenshot')
+  expect(screenshotEvent).toBeDefined()
+  expect(screenshotEvent.source).toBe('playwright')
+  expect(screenshotEvent.data.path).toContain('screenshot')
+  expect(screenshotEvent.data.viewport).toBeDefined()
+
+  // Verify the asset file exists
+  const entries = (await readdir(dir)).filter(e => !e.startsWith('.'))
+  const sessionDir = join(dir, entries[0])
+  const assetPath = join(sessionDir, screenshotEvent.data.path)
+  const assetContent = await readFile(assetPath)
+  expect(assetContent.length).toBeGreaterThan(0)
+})

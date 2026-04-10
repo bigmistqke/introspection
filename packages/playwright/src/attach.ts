@@ -121,7 +121,16 @@ export async function attach(page: Page, opts: AttachOptions): Promise<Introspec
     })()
   })
 
-  const proxiedPage = createPageProxy(page, (event) => emit(event))
+  const proxiedPage = createPageProxy({
+    emit: (event) => emit(event),
+    writeAsset: async (options) => writeAsset({
+      directory: outDir, name: sessionId,
+      kind: options.kind, content: options.content, ext: options.ext,
+      metadata: options.metadata, source: options.source ?? 'playwright',
+    }),
+    timestamp,
+    page,
+  })
 
   return {
     page: proxiedPage,

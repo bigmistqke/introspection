@@ -31,6 +31,11 @@ export interface PlaywrightResultEvent extends BaseEvent {
   data: { status?: 'passed' | 'failed' | 'timedOut' | 'skipped'; duration?: number; error?: string }
 }
 
+export interface PlaywrightScreenshotEvent extends BaseEvent {
+  type: 'playwright.screenshot'
+  data: { path: string; viewport?: { width: number; height: number } }
+}
+
 export interface AssetEvent extends BaseEvent {
   type: 'asset'
   data: {
@@ -61,6 +66,7 @@ export interface TraceEventMap {
   'mark': MarkEvent
   'playwright.action': PlaywrightActionEvent
   'playwright.result': PlaywrightResultEvent
+  'playwright.screenshot': PlaywrightScreenshotEvent
   'asset': AssetEvent
 }
 
