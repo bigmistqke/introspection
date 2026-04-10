@@ -1,16 +1,8 @@
-import type { IntrospectionPlugin, PluginContext, BaseEvent, StackFrame } from '@introspection/types'
+import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 import { normaliseCdpJsError } from '@introspection/core'
+import './event-types.js'
 
-export interface JsErrorEvent extends BaseEvent {
-  type: 'js.error'
-  data: { message: string; stack: StackFrame[] }
-}
-
-declare module '@introspection/types' {
-  interface TraceEventMap {
-    'js.error': JsErrorEvent
-  }
-}
+export type { JsErrorEvent } from './event-types.js'
 
 export function jsError(): IntrospectionPlugin {
   return {

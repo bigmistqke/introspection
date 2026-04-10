@@ -6,6 +6,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./dist/index.js"
+    },
+    "./event-types": {
+      "types": "./src/event-types.ts",
+      "import": "./dist/event-types.js"
     }
   },
   "scripts": {
