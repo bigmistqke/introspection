@@ -24,7 +24,7 @@ jobs:
       - run: pnpm install
       - run: pnpm build
       - run: echo "GITHUB_SHA=${{ github.sha }}" >> $GITHUB_ENV
-      - run: pnpx pkg-pr-new publish --compact './packages/*' --json "releases-${{ github.sha }}.json"
+      - run: pnpx pkg-pr-new publish './packages/*' --json "releases-${{ github.sha }}.json"
       - name: Update releases README
         uses: actions/github-script@v7
         with:
@@ -36,7 +36,7 @@ jobs:
               .join('\n');
             const overrides = content.packages
               .reduce((acc, p) => { acc[p.name] = p.url; return acc; }, {});
-            const newEntry = '### ' + process.env.GITHUB_SHA + '\n```bash\n' + installCommands + '\n```\n\n```json\n' + JSON.stringify(overrides, null, 2) + '\n```\n';
+            const newEntry = '### [' + process.env.GITHUB_SHA + '](https://github.com/bigmistqke/introspection/commit/' + process.env.GITHUB_SHA + ')\n#### Install Commands\n\n```bash\n' + installCommands + '\n```\n\n#### Overrides\n\n```json\n' + JSON.stringify(overrides, null, 2) + '\n```\n';
             
             let readmeContent = '';
             try {
