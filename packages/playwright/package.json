@@ -23,7 +23,10 @@
     "@introspection/types": "workspace:*"
   },
   "devDependencies": {
-    "@playwright/test": "^1.40.0"
+    "@playwright/test": "^1.40.0",
+    "@introspection/plugin-network": "workspace:*",
+    "@introspection/plugin-js-error": "workspace:*",
+    "@introspection/plugin-debugger": "workspace:*"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.40.0"

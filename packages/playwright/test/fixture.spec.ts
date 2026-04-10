@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { introspectFixture } from '../src/fixture.js'
-import { defaults } from '../src/plugins/defaults.js'
+import { defaults } from '@introspection/plugin-defaults'
 
 const outDir = mkdtempSync(join(tmpdir(), 'introspect-fixture-'))
 const { test, expect } = introspectFixture({ outDir, plugins: defaults() })

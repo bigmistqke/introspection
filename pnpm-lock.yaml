@@ -166,6 +166,15 @@ importers:
         specifier: workspace:*
         version: link:../types
     devDependencies:
+      '@introspection/plugin-debugger':
+        specifier: workspace:*
+        version: link:../plugin-debugger
+      '@introspection/plugin-js-error':
+        specifier: workspace:*
+        version: link:../plugin-js-error
+      '@introspection/plugin-network':
+        specifier: workspace:*
+        version: link:../plugin-network
       '@playwright/test':
         specifier: ^1.40.0
         version: 1.59.1
@@ -361,6 +370,24 @@ importers:
       '@playwright/test':
         specifier: ^1.40.0
         version: 1.59.1
+
+  playground/radio-garden-performance:
+    devDependencies:
+      '@introspection/playwright':
+        specifier: workspace:*
+        version: link:../../packages/playwright
+      '@introspection/plugin-defaults':
+        specifier: workspace:*
+        version: link:../../packages/plugin-defaults
+      '@introspection/plugin-performance':
+        specifier: workspace:*
+        version: link:../../packages/plugin-performance
+      '@playwright/test':
+        specifier: ^1.40.0
+        version: 1.59.1
+      introspect:
+        specifier: workspace:*
+        version: link:../../packages/cli
 
 packages:
 

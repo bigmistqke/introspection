@@ -5,7 +5,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { attach } from '../src/attach.js'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
-import { defaults } from '../src/plugins/defaults.js'
+import { defaults } from '@introspection/plugin-defaults'
 import { network } from '@introspection/plugin-network'
 import { jsError } from '@introspection/plugin-js-error'
 
