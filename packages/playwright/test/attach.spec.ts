@@ -224,6 +224,24 @@ test('ctx.writeAsset produces an asset event with source: plugin in events.ndjso
   expect(asset.data.kind).toBe('webgl-state')
 })
 
+test('custom session ID is used as directory name', async ({ page }) => {
+  const customId = 'browser-desktop--loading--prepare-page'
+  const handle = await attach(page, { outDir: dir, id: customId, plugins: [] })
+  await handle.detach()
+  const entries = await readdir(dir)
+  expect(entries).toContain(customId)
+  const meta = JSON.parse(await readFile(join(dir, customId, 'meta.json'), 'utf-8'))
+  expect(meta.id).toBe(customId)
+})
+
+test('duplicate session ID throws an error', async ({ page }) => {
+  const customId = 'duplicate-test'
+  const handle1 = await attach(page, { outDir: dir, id: customId, plugins: [] })
+  await handle1.detach()
+  await expect(attach(page, { outDir: dir, id: customId, plugins: [] }))
+    .rejects.toThrow()
+})
+
 test('bus "detach" handler is called and can write assets', async ({ page }) => {
   let detachCalled = false
   const plugin: IntrospectionPlugin = {

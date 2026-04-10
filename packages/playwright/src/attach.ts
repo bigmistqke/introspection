@@ -9,6 +9,7 @@ import { PluginRegistry } from './plugin-registry.js'
 
 export interface AttachOptions {
   outDir?: string
+  id?: string
   testTitle?: string
   workerIndex?: number
   plugins?: IntrospectionPlugin[]
@@ -16,7 +17,7 @@ export interface AttachOptions {
 }
 
 export async function attach(page: Page, opts: AttachOptions): Promise<IntrospectHandle> {
-  const sessionId = randomUUID()
+  const sessionId = opts.id ?? randomUUID()
   const outDir = opts.outDir ?? '.introspect'
   const testTitle = opts.testTitle ?? 'unknown test'
   const startedAt = Date.now()

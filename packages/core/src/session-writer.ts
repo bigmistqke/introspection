@@ -1,4 +1,4 @@
-import { writeFile, mkdir, appendFile, readFile } from 'fs/promises'
+import { writeFile, mkdir, appendFile, readFile, stat } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import type { TraceEvent, SessionMeta, BodySummary, EventSource, PluginMeta } from '@introspection/types'
@@ -40,6 +40,8 @@ export function summariseBody(raw: string): BodySummary {
 
 export async function initSessionDir(outDir: string, parameters: SessionInitParams): Promise<void> {
   const sessionDir = join(outDir, parameters.id)
+  const exists = await stat(sessionDir).then(() => true, () => false)
+  if (exists) throw new Error(`Session directory already exists: ${sessionDir}`)
   await mkdir(join(sessionDir, 'assets'), { recursive: true })
   const meta: SessionMeta = {
     version: '2',
