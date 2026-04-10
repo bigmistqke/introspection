@@ -7,6 +7,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
       contents: write
       pages: write
@@ -56,7 +58,11 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: 'heads/releases'
-            }).then(r => r.data.object.sha);
+            }).then(r => r.data.object.sha).catch(() => null);
+            
+            if (!releasesRef) {
+              throw new Error('releases branch not found. Please create it manually.');
+            }
             
             const message = 'ci: releases ' + process.env.GITHUB_SHA.slice(0, 7);
             const tree = await github.rest.git.createTree({
