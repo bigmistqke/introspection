@@ -7,6 +7,10 @@
       "types": "./src/index.ts",
       "import": "./dist/index.js"
     },
+    "./setup": {
+      "types": "./src/setup.ts",
+      "import": "./dist/setup.js"
+    },
     "./event-types": {
       "types": "./src/event-types.ts",
       "import": "./dist/event-types.js"
@@ -18,13 +22,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@solid-devtools/debugger": "^0.23.4",
     "@introspection/types": "workspace:*",
     "@introspection/plugin-js-error": "workspace:*"
+  },
+  "peerDependencies": {
+    "@solid-devtools/debugger": ">=0.23.0",
+    "solid-js": ">=1.7.0"
   },
   "devDependencies": {
     "@introspection/playwright": "workspace:*",
     "@playwright/test": "^1.40.0",
+    "@solid-devtools/debugger": "^0.23.4",
     "solid-js": "^1.9.0",
     "solid-devtools": "^0.30.0",
     "vite": "^6.0.0",

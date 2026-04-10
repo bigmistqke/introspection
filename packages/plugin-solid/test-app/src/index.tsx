@@ -1,4 +1,5 @@
 import 'solid-devtools'
+import '@introspection/plugin-solid/setup'
 import { createSignal } from 'solid-js'
 import { render } from 'solid-js/web'
 

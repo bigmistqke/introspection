@@ -292,9 +292,6 @@ importers:
       '@introspection/types':
         specifier: workspace:*
         version: link:../types
-      '@solid-devtools/debugger':
-        specifier: ^0.23.4
-        version: 0.23.4(solid-js@1.9.12)
     devDependencies:
       '@introspection/playwright':
         specifier: workspace:*
@@ -302,6 +299,9 @@ importers:
       '@playwright/test':
         specifier: ^1.40.0
         version: 1.59.1
+      '@solid-devtools/debugger':
+        specifier: ^0.23.4
+        version: 0.23.4(solid-js@1.9.12)
       solid-devtools:
         specifier: ^0.30.0
         version: 0.30.1(solid-js@1.9.12)(vite@6.4.2(@types/node@22.19.17)(jiti@2.6.1)(yaml@2.8.3))

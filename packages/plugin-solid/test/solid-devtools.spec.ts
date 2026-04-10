@@ -120,6 +120,6 @@ test.describe('solid devtools plugin', () => {
     )
     expect(warnings.length).toBeGreaterThanOrEqual(1)
     expect(warnings[0].source).toBe('plugin')
-    expect(warnings[0].data.message).toContain('SolidDevtools$$')
+    expect(warnings[0].data.message).toContain('@introspection/plugin-solid/setup')
   })
 })

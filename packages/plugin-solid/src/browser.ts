@@ -1,7 +1,8 @@
 // Browser-side SolidJS detection and event routing script.
 // Bundled as IIFE and embedded into index.ts at build time.
-// NO imports from @solid-devtools/debugger — the debugger is injected
-// on demand by the server after SolidDevtools$$ is detected.
+// NO imports from @solid-devtools/debugger — the debugger instance is
+// created by the user's app via '@introspection/plugin-solid/setup' and
+// exposed on globalThis.__introspect_solid_debugger__.
 
 type EventMode = 'stream' | 'trigger' | 'off'
 
@@ -41,7 +42,9 @@ const latestState: State = {
   dgraph: null,
 }
 
-let detected = false
+let debuggerConnected = false
+
+const DEBUGGER_GLOBAL_KEY = '__introspect_solid_debugger__'
 
 // ─── Event routing ───────────────────────────────────────────────────────────
 
@@ -85,49 +88,60 @@ function eventTypeToCategory(type: string): EventCategory | null {
   return null
 }
 
-// ─── SolidDevtools$$ detection ───────────────────────────────────────────────
+// ─── Debugger detection ─────────────────────────────────────────────────────
+// The setup module (@introspection/plugin-solid/setup) creates the debugger
+// instance and puts it on globalThis[DEBUGGER_GLOBAL_KEY]. We detect it here
+// and wire it into event routing via onDebuggerReady().
 
-function onDetected(): void {
-  if (detected) return
-  detected = true
-  // Signal the server to inject the debugger script
-  push('solid.detected', {})
+function connectDebugger(instance: unknown): void {
+  if (debuggerConnected) return
+
+  // Access the public API's onDebuggerReady to wire up event routing
+  const solidPlugin = (
+    (window as unknown as Record<string, unknown>).__introspect_plugins__ as Record<string, unknown>
+  )?.solid as { onDebuggerReady?: (instance: unknown) => void } | undefined
+  if (solidPlugin?.onDebuggerReady) {
+    solidPlugin.onDebuggerReady(instance)
+  }
 }
 
-function detectDevtools(): void {
-  if ((globalThis as Record<string, unknown>).SolidDevtools$$) {
-    onDetected()
+function detectDebugger(): void {
+  // Check if already present (setup module ran before this IIFE)
+  const existing = (globalThis as Record<string, unknown>)[DEBUGGER_GLOBAL_KEY]
+  if (existing) {
+    connectDebugger(existing)
     return
   }
 
-  let devtoolsValue: unknown = undefined
-  Object.defineProperty(globalThis, 'SolidDevtools$$', {
+  // Intercept when it gets set (setup module runs after this IIFE)
+  let debuggerValue: unknown = undefined
+  Object.defineProperty(globalThis, DEBUGGER_GLOBAL_KEY, {
     configurable: true,
     enumerable: true,
     get() {
-      return devtoolsValue
+      return debuggerValue
     },
     set(value: unknown) {
-      devtoolsValue = value
+      debuggerValue = value
       if (value) {
-        onDetected()
+        connectDebugger(value)
       }
     },
   })
 
   window.addEventListener('load', () => {
     setTimeout(() => {
-      if (!detected) {
+      if (!debuggerConnected) {
         push('solid.warning', {
           message:
-            'SolidDevtools$$ was not detected. Ensure solid-devtools is installed and the Solid app is loaded.',
+            'Solid debugger was not detected. Ensure @introspection/plugin-solid/setup is imported in your app entry.',
         })
       }
     }, 3000)
   })
 }
 
-detectDevtools()
+detectDebugger()
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -141,9 +155,14 @@ detectDevtools()
     flushBuffer()
   },
 
-  // Called by the injected module script after the debugger is initialized.
-  // The debugger v0.23 uses { name, details } instead of { kind, data }.
+  // Called when the debugger instance is available (either from detectDebugger
+  // or from the setup module calling it directly).
+  // The debugger v0.23 uses { name, details } message shape.
   onDebuggerReady(instance: { toggleEnabled: (enabled: boolean) => void; emit: (message: unknown) => void; listen: (listener: (message: { name: string; details: unknown }) => void) => () => void }): void {
+    if (debuggerConnected) return
+    debuggerConnected = true
+    push('solid.detected', {})
+
     instance.toggleEnabled(true)
 
     instance.listen((message: { name: string; details: unknown }) => {
