@@ -37,7 +37,7 @@ export function useAssetContent(
         loading: event.data.contentType !== 'image',
       }
 
-      setAssets(previous => [...previous, entry])
+      setAssets(previous => [entry, ...previous])
 
       if (event.data.contentType === 'image') continue
 

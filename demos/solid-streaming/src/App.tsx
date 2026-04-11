@@ -91,7 +91,7 @@ function SessionView(props: { session?: SessionReader }) {
       </div>
       <div class="layout">
         <div class="timeline">
-          <For each={allEvents()}>
+          <For each={[...allEvents()].reverse()}>
             {(event) => (
               <div
                 class="event"
