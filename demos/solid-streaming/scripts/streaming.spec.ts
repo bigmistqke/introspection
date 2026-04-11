@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test'
 import { attach } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
+import { solidDevtools } from '@introspection/plugin-solid'
 
 test('streaming demo auto-connects and streams events', async ({ page }) => {
   const handle = await attach(page, {
     testTitle: 'streaming demo',
-    plugins: defaults(),
+    plugins: [...defaults(), solidDevtools()],
     outDir: '.introspect',
   })
 
@@ -13,6 +14,16 @@ test('streaming demo auto-connects and streams events', async ({ page }) => {
 
   // Should auto-connect and start streaming
   await expect(handle.page.locator('.status')).toHaveText('connected', { timeout: 5000 })
+
+  // Wait a bit for SSE events to push
+  await handle.page.waitForTimeout(3000)
+
+  // Capture solid state + snapshot for debugging
+  await handle.snapshot()
+
+  // Check what the UI shows
+  const eventsText = await handle.page.locator('.count').first().textContent()
+  const allCounts = await handle.page.locator('.count').allTextContents()
 
   // Wait for events to stream in
   await handle.page.waitForSelector('.event', { timeout: 10000 })

@@ -1,5 +1,13 @@
-import { createSignal, onCleanup, createEffect, on, type Accessor } from 'solid-js'
-import type { TraceEvent, SessionReader, EventsFilter } from '@introspection/types'
+import type {
+  EventsFilter,
+  SessionReader,
+  TraceEvent,
+} from "@introspection/types";
+import { createDebug } from "@introspection/utils";
+import { createEffect, onCleanup, type Accessor } from "solid-js";
+import { createStore, reconcile } from "solid-js/store";
+
+let watchId = 0;
 
 /**
  * Bridges a SessionReader's query.watch() AsyncIterable into a Solid signal.
@@ -8,36 +16,71 @@ import type { TraceEvent, SessionReader, EventsFilter } from '@introspection/typ
 export function useWatchedQuery(
   getSession: Accessor<SessionReader | undefined>,
   filter?: EventsFilter,
+  options?: { filter?: EventsFilter; verbose?: boolean },
 ) {
-  const [events, setEvents] = createSignal<TraceEvent[]>([])
+  const id = ++watchId;
+  const label = filter ? JSON.stringify(filter) : "*";
+  const debug = createDebug(
+    `useWatchedQuery#${id}[${label}]`,
 
-  createEffect(on(getSession, (session) => {
+    options?.verbose ?? false,
+  );
+
+  const [events, setEvents] = createStore<TraceEvent[]>([]);
+
+  debug("created");
+
+  createEffect(() => {
+    const session = getSession();
+
+    debug("effect fired, session:", session ? session.id : "undefined");
+
     if (!session) {
-      setEvents([])
-      return
+      console.log("this happens????");
+      setEvents([]);
+      return;
     }
 
     const iterable = filter
       ? session.events.query.watch(filter)
-      : session.events.ls.watch()
+      : session.events.ls.watch();
 
-    const iterator = iterable[Symbol.asyncIterator]()
-    let stopped = false
+    debug("iterable created, using", filter ? "query.watch" : "ls.watch");
+
+    const iterator = iterable[Symbol.asyncIterator]();
+    let stopped = false;
 
     async function consume() {
+      debug("consume started");
       while (!stopped) {
-        const result = await iterator.next()
-        if (result.done) break
-        setEvents(result.value)
+        debug("calling next()");
+        const result = await iterator.next();
+        debug(
+          "next() resolved, done:",
+          result.done,
+          "count:",
+          result.done ? 0 : result.value.length,
+        );
+        if (result.done) break;
+        setEvents(reconcile(result.value));
+
+        debug(
+          "setEvents called with",
+          result.value.length,
+          "events, signal reads:",
+          events.length,
+        );
       }
+      debug("consume ended, stopped:", stopped);
     }
-    consume()
+    consume();
 
     onCleanup(() => {
-      stopped = true
-      iterator.return?.()
-    })
-  }))
+      debug("cleanup, stopping iterator");
+      stopped = true;
+      iterator.return?.();
+    });
+  });
 
-  return events
+  return events;
 }
