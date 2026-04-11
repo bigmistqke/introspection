@@ -29,10 +29,11 @@ The log is also designed to be consumed by AI assistants. Run `introspect summar
 | Package | Description |
 |---|---|
 | [`@introspection/playwright`](packages/playwright/README.md) | Attach tracing to a Playwright page — the main integration point |
-| [`@introspection/plugin-defaults`](packages/plugin-defaults/README.md) | Default plugin composition: `[network(), jsError(), debuggerPlugin(), consolePlugin()]` |
 | [`introspect`](packages/cli/README.md) | CLI for querying traces: summary, events, list, plugins |
-| [`@introspection/query`](packages/query/README.md) | Programmatic access to traces for custom analysis and scripting |
-| [`@introspection/core`](packages/core/README.md) | CDP normalizers, session I/O, event bus, snapshot utilities (used internally) |
+| [`@introspection/read`](packages/read/README.md) | Programmatic access to traces — adapter-based, environment-agnostic |
+| [`@introspection/write`](packages/write/) | Session recording — creates sessions, appends events, writes assets |
+| [`@introspection/utils`](packages/utils/) | Shared utilities: CDP normalizers, event bus, debug, snapshot |
+| [`@introspection/viz`](packages/viz/) | Web component host for building custom visualizations |
 | [`@introspection/types`](packages/types/README.md) | Shared TypeScript types for events, plugins, and session format |
 
 ## Plugins
@@ -41,13 +42,14 @@ Every capability is a plugin. If you don't wire it up, it won't log. Pass the pl
 
 | Plugin | Package | What it captures |
 |---|---|---|
-| `network()` | [`@introspection/plugin-network`](packages/plugin-network/README.md) | HTTP requests, responses, and response bodies |
-| `jsError()` | [`@introspection/plugin-js-error`](packages/plugin-js-error/README.md) | JS exceptions and unhandled rejections |
-| `debuggerPlugin()` | [`@introspection/plugin-debugger`](packages/plugin-debugger/README.md) | Debugger pauses with scope locals and call stack |
-| `consolePlugin()` | [`@introspection/plugin-console`](packages/plugin-console/README.md) | Browser console output |
-| `webgl()` | [`@introspection/plugin-webgl`](packages/plugin-webgl/README.md) | WebGL state, uniforms, draw calls, textures, and canvas PNGs |
-| `solidDevtools()` | [`@introspection/plugin-solid`](packages/plugin-solid/README.md) | SolidJS component structure, reactive updates, and dependency graph |
-| `performance()` | [`@introspection/plugin-performance`](packages/plugin-performance/README.md) | Core Web Vitals, resource timing, long tasks, layout shifts, and paint |
+| `defaults()` | [`@introspection/plugin-defaults`](plugins/plugin-defaults/README.md) | Composition: `[network(), jsError(), debuggerPlugin(), consolePlugin()]` |
+| `network()` | [`@introspection/plugin-network`](plugins/plugin-network/README.md) | HTTP requests, responses, and response bodies |
+| `jsError()` | [`@introspection/plugin-js-error`](plugins/plugin-js-error/README.md) | JS exceptions and unhandled rejections |
+| `debuggerPlugin()` | [`@introspection/plugin-debugger`](plugins/plugin-debugger/README.md) | Debugger pauses with scope locals and call stack |
+| `consolePlugin()` | [`@introspection/plugin-console`](plugins/plugin-console/README.md) | Browser console output |
+| `webgl()` | [`@introspection/plugin-webgl`](plugins/plugin-webgl/README.md) | WebGL state, uniforms, draw calls, textures, and canvas PNGs |
+| `solidDevtools()` | [`@introspection/plugin-solid`](plugins/plugin-solid/README.md) | SolidJS component structure, reactive updates, and dependency graph |
+| `performance()` | [`@introspection/plugin-performance`](plugins/plugin-performance/README.md) | Core Web Vitals, resource timing, long tasks, layout shifts, and paint |
 
 `defaults()` from `@introspection/plugin-defaults` returns `[network(), jsError(), debuggerPlugin(), consolePlugin()]` — the standard set for most tests. Add domain-specific plugins alongside:
 

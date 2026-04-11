@@ -1,130 +1,86 @@
-# @introspection/query
+# @introspection/read
 
-Programmatic access to introspection trace data for custom analysis and scripting.
-
-## Table of Contents
-
-- [Install](#install)
-- [Usage](#usage)
-- [API](#api)
-  - [listSessions](#listsessionsdir)
-  - [SessionSummary](#sessionsummary)
-  - [createSession](#createsessiondir-sessionid)
-  - [Session](#session)
-  - [EventsAPI](#eventsapi)
-  - [AssetsAPI](#assetsapi)
-- [Event Types](#event-types)
+Programmatic access to introspection trace data for custom analysis and scripting. Environment-agnostic — bring your own storage adapter.
 
 ## Install
 
 ```bash
-pnpm add @introspection/query
+pnpm add @introspection/read
 ```
 
 ## Usage
 
+### With the Node adapter
+
 ```ts
-import { createSession } from '@introspection/query'
+import { createSessionReader, listSessions } from '@introspection/read/node'
 
-const session = await createSession('.introspect')
+const sessions = await listSessions('.introspect')
+const session = await createSessionReader('.introspect', sessions[0].id)
 
-// List all events
 const allEvents = await session.events.ls()
-
-// Filter events by type
 const jsErrors = await session.events.query({ type: 'js.error' })
-const networkCalls = await session.events.query({ type: 'network.request' })
-
-// List all assets
 const assets = await session.assets.ls()
-
-// Read asset content
 const body = await session.assets.read('abc123.body.json')
+```
+
+### With a custom adapter
+
+```ts
+import { createSessionReader, type StorageAdapter } from '@introspection/read'
+
+const adapter: StorageAdapter = {
+  listDirectories: () => fetch('/api/sessions').then(r => r.json()),
+  readText: (path) => fetch(`/data/${path}`).then(r => r.text()),
+  fileSize: (path) => fetch(`/data/${path}`, { method: 'HEAD' })
+    .then(r => Number(r.headers.get('content-length'))),
+}
+
+const session = await createSessionReader(adapter, 'session-id')
 ```
 
 ## API
 
-### `listSessions(dir)`
-
-Lists all sessions in a traces directory, sorted by most recent first.
+### `StorageAdapter`
 
 ```ts
-import { listSessions } from '@introspection/query'
-
-const sessions = await listSessions('./traces')
-// Returns: [{ id: 'abc', label: 'test', startedAt: 1234567890, duration: 5000 }, ...]
-```
-
-### `SessionSummary`
-
-```ts
-interface SessionSummary {
-  id: string
-  label?: string
-  startedAt: number    // unix ms
-  endedAt?: number    // unix ms
-  duration?: number    // ms (endedAt - startedAt)
+interface StorageAdapter {
+  listDirectories(): Promise<string[]>
+  readText(path: string): Promise<string>
+  fileSize(path: string): Promise<number>
 }
 ```
 
-### `createSession(dir, sessionId?)`
+All paths are relative to the adapter's base (e.g. `"session-id/meta.json"`).
 
-Creates a session by loading trace data from disk.
+### `createSessionReader(adapter, sessionId?)`
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `dir` | `string` | Path to the traces directory |
-| `sessionId` | `string` | Specific session ID (optional, uses latest if omitted) |
+Creates a `SessionReader` by loading trace data through the adapter.
 
-Returns a `Session` object.
+### `listSessions(adapter)`
 
-### Session
+Lists all sessions, sorted by most recent first. Returns `SessionSummary[]`.
+
+### `SessionReader`
 
 ```ts
-interface Session {
-  dir: string
+interface SessionReader {
   id: string
   events: EventsAPI
   assets: AssetsAPI
 }
 ```
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `dir` | `string` | Path to traces directory |
-| `id` | `string` | Session ID |
-| `events` | `EventsAPI` | API for querying events |
-| `assets` | `AssetsAPI` | API for reading assets |
-
-### EventsAPI
+### `EventsAPI`
 
 ```ts
 interface EventsAPI {
   ls(): Promise<TraceEvent[]>
-  query(filters: EventsFilters): Promise<TraceEvent[]>
-}
-
-interface EventsFilters {
-  type?: string       // Event type (e.g., 'js.error', 'network.request', 'asset')
-  source?: string     // Event source (e.g., 'cdp', 'agent', 'playwright', 'plugin')
+  query(filter: EventsFilter): Promise<TraceEvent[]>
 }
 ```
 
-**Examples:**
-
-```ts
-// All events
-const all = await session.events.ls()
-
-// By type (comma-separated for multiple)
-const errors = await session.events.query({ type: 'js.error' })
-const networkAndErrors = await session.events.query({ type: 'network.request,js.error' })
-
-// By source
-const cdpEvents = await session.events.query({ source: 'cdp' })
-```
-
-### AssetsAPI
+### `AssetsAPI`
 
 ```ts
 interface AssetsAPI {
@@ -133,32 +89,12 @@ interface AssetsAPI {
 }
 ```
 
-**Examples:**
+### Node adapter (`@introspection/read/node`)
 
 ```ts
-// All assets
-const assets = await session.assets.ls()
-
-// Read text content (JSON bodies, snapshots, etc.)
-const body = await session.assets.read('abc123.body.json')
-const scopes = await session.assets.read('def456.scopes.json')
-
-// Read binary content (images return size info only)
-const canvas = await session.assets.read('ghi789.webgl-canvas.png')
-// Returns: { path: 'ghi789.webgl-canvas.png', sizeKB: 245.3 }
+import { createNodeAdapter, createSessionReader, listSessions } from '@introspection/read/node'
 ```
 
-## Event Types
-
-| Type | Description |
-|------|-------------|
-| `network.request` | Outgoing HTTP request |
-| `network.response` | HTTP response with optional body summary |
-| `network.error` | Failed or aborted request |
-| `js.error` | Uncaught JS exceptions and unhandled rejections |
-| `browser.navigate` | Page navigations and URL changes |
-| `playwright.action` | Tracked page proxy method calls |
-| `playwright.result` | Test result (passed/failed/timedOut/skipped) |
-| `mark` | User-defined timeline annotation |
-| `asset` | File written to assets directory |
-| `console` | Browser console output |
+- `createNodeAdapter(dir)` — creates a `StorageAdapter` backed by `fs`
+- `createSessionReader(dir, sessionId?)` — convenience wrapper
+- `listSessions(dir)` — convenience wrapper
