@@ -10,10 +10,6 @@
     "./setup": {
       "types": "./src/setup.ts",
       "import": "./dist/setup.js"
-    },
-    "./event-types": {
-      "types": "./src/event-types.ts",
-      "import": "./dist/event-types.js"
     }
   },
   "scripts": {

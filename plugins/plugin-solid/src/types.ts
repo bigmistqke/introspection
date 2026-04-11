@@ -1,7 +1,4 @@
-import '@introspection/plugin-js-error/event-types'
-import './event-types.js'
-
-export type { SolidDetectedEvent, SolidWarningEvent } from './event-types.js'
+export type { SolidDetectedEvent, SolidWarningEvent } from '@introspection/types'
 
 declare global {
   interface Window {

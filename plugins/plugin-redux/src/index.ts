@@ -1,7 +1,6 @@
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
-import './event-types.js'
 
-export type { ReduxDispatchEvent } from './event-types.js'
+export type { ReduxDispatchEvent } from '@introspection/types'
 
 export interface ReduxPluginOptions {
   /** Capture state before/after each dispatch. Can be expensive. Default: false */

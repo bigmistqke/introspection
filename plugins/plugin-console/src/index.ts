@@ -1,9 +1,7 @@
 import { createDebug } from '@introspection/utils'
-import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
-import './event-types.js'
-import type { ConsoleLevel } from './event-types.js'
+import type { IntrospectionPlugin, PluginContext, ConsoleLevel } from '@introspection/types'
 
-export type { ConsoleLevel, ConsoleEvent } from './event-types.js'
+export type { ConsoleLevel, ConsoleEvent } from '@introspection/types'
 
 export interface ConsoleOptions {
   levels?: ConsoleLevel[]

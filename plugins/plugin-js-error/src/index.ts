@@ -1,8 +1,7 @@
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 import { normaliseCdpJsError } from '@introspection/utils'
-import './event-types.js'
 
-export type { JsErrorEvent } from './event-types.js'
+export type { JsErrorEvent } from '@introspection/types'
 
 export function jsError(): IntrospectionPlugin {
   return {

@@ -1,10 +1,9 @@
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
-import './event-types.js'
 
 export type {
   PerfCwvEvent, PerfResourceEvent, PerfLongTaskEvent, PerfLayoutShiftEvent, PerfPaintEvent,
-} from './event-types.js'
+} from '@introspection/types'
 
 export interface PerformanceOptions {
   resources?: boolean

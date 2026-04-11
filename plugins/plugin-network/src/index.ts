@@ -1,8 +1,7 @@
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 import { summariseBody, normaliseCdpNetworkRequest, normaliseCdpNetworkResponse } from '@introspection/utils'
-import './event-types.js'
 
-export type { NetworkRequestEvent, NetworkResponseEvent, NetworkErrorEvent } from './event-types.js'
+export type { NetworkRequestEvent, NetworkResponseEvent, NetworkErrorEvent } from '@introspection/types'
 
 function detectContentType(body: string, contentTypeHeader: string): 'json' | 'html' | 'text' {
   const ct = contentTypeHeader.toLowerCase()

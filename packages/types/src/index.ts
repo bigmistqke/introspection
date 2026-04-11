@@ -85,11 +85,162 @@ export interface TestEndEvent extends BaseEvent {
   data: { label: string; titlePath: string[]; status: string; duration?: number; error?: string }
 }
 
+// ─── Plugin events: network ─────────────────────────────────────────────────
+
+export interface NetworkRequestEvent extends BaseEvent {
+  type: 'network.request'
+  data: { cdpRequestId: string; url: string; method: string; headers: Record<string, string>; postData?: string }
+}
+
+export interface NetworkResponseEvent extends BaseEvent {
+  type: 'network.response'
+  data: {
+    cdpRequestId: string
+    requestId: string
+    url: string
+    status: number
+    headers: Record<string, string>
+    bodyRef?: string
+    bodySummary?: BodySummary
+  }
+}
+
+export interface NetworkErrorEvent extends BaseEvent {
+  type: 'network.error'
+  data: { url: string; errorText: string }
+}
+
+// ─── Plugin events: js-error ────────────────────────────────────────────────
+
+export interface JsErrorEvent extends BaseEvent {
+  type: 'js.error'
+  data: { message: string; stack: StackFrame[] }
+}
+
+// ─── Plugin events: console ─────────────────────────────────────────────────
+
+export type ConsoleLevel = 'log' | 'warn' | 'error' | 'info' | 'debug'
+
+export interface ConsoleEvent extends BaseEvent {
+  type: 'console'
+  data: { level: ConsoleLevel; message: string }
+}
+
+// ─── Plugin events: performance ─────────────────────────────────────────────
+
+export interface PerfCwvEvent extends BaseEvent {
+  type: 'perf.cwv'
+  data: {
+    metric: 'lcp' | 'cls' | 'inp'
+    value: number
+    startTime?: number
+    element?: string
+    url?: string
+    size?: number
+  }
+}
+
+export interface PerfResourceEvent extends BaseEvent {
+  type: 'perf.resource'
+  data: {
+    name: string
+    initiatorType: string
+    transferSize: number
+    encodedBodySize: number
+    decodedBodySize: number
+    dns: number
+    tcp: number
+    tls: number
+    ttfb: number
+    download: number
+    total: number
+    renderBlocking?: string
+  }
+}
+
+export interface PerfLongTaskEvent extends BaseEvent {
+  type: 'perf.long-task'
+  data: { duration: number; startTime: number; attribution: string }
+}
+
+export interface PerfLayoutShiftEvent extends BaseEvent {
+  type: 'perf.layout-shift'
+  data: {
+    score: number
+    hadRecentInput: boolean
+    sources: Array<{
+      selector?: string
+      previousRect: { x: number; y: number; width: number; height: number }
+      currentRect: { x: number; y: number; width: number; height: number }
+    }>
+  }
+}
+
+export interface PerfPaintEvent extends BaseEvent {
+  type: 'perf.paint'
+  data: { name: string; startTime: number }
+}
+
+// ─── Plugin events: webgl ───────────────────────────────────────────────────
+
+export interface WebGLContextCreatedEvent extends BaseEvent {
+  type: 'webgl.context-created'
+  data: { contextId: string }
+}
+
+export interface WebGLContextLostEvent extends BaseEvent {
+  type: 'webgl.context-lost'
+  data: { contextId: string }
+}
+
+export interface WebGLContextRestoredEvent extends BaseEvent {
+  type: 'webgl.context-restored'
+  data: { contextId: string }
+}
+
+export interface WebGLUniformEvent extends BaseEvent {
+  type: 'webgl.uniform'
+  data: { contextId: string; name: string; value: unknown; glType: string }
+}
+
+export interface WebGLDrawArraysEvent extends BaseEvent {
+  type: 'webgl.draw-arrays'
+  data: { contextId: string; primitive: string; first: number; count: number }
+}
+
+export interface WebGLDrawElementsEvent extends BaseEvent {
+  type: 'webgl.draw-elements'
+  data: { contextId: string; primitive: string; count: number; indexType: string; offset: number }
+}
+
+export interface WebGLTextureBindEvent extends BaseEvent {
+  type: 'webgl.texture-bind'
+  data: { contextId: string; unit: number; target: string; textureId: number | null }
+}
+
+// ─── Plugin events: solid ───────────────────────────────────────────────────
+
+export interface SolidDetectedEvent extends BaseEvent {
+  type: 'solid.detected'
+  data: Record<string, never>
+}
+
+export interface SolidWarningEvent extends BaseEvent {
+  type: 'solid.warning'
+  data: { message: string }
+}
+
+// ─── Plugin events: redux ───────────────────────────────────────────────────
+
+export interface ReduxDispatchEvent extends BaseEvent {
+  type: 'redux.dispatch'
+  data: { action: string; payload?: unknown; stateBefore?: unknown; stateAfter?: unknown }
+}
+
 // ─── TraceEventMap ──────────────────────────────────────────────────────────
 //
-// Augmentable map of event type strings to their typed event interfaces.
-// Core declares framework events here. Plugins augment this interface
-// from their own packages using declaration merging:
+// All known event types. Third-party plugins can still augment this
+// interface via declaration merging:
 //
 //   declare module '@introspection/types' {
 //     interface TraceEventMap {
@@ -98,6 +249,7 @@ export interface TestEndEvent extends BaseEvent {
 //   }
 
 export interface TraceEventMap {
+  // Framework
   'browser.navigate': BrowserNavigateEvent
   'mark': MarkEvent
   'playwright.action': PlaywrightActionEvent
@@ -111,6 +263,33 @@ export interface TraceEventMap {
   'describe.end': DescribeEndEvent
   'test.start': TestStartEvent
   'test.end': TestEndEvent
+  // Network
+  'network.request': NetworkRequestEvent
+  'network.response': NetworkResponseEvent
+  'network.error': NetworkErrorEvent
+  // JS errors
+  'js.error': JsErrorEvent
+  // Console
+  'console': ConsoleEvent
+  // Performance
+  'perf.cwv': PerfCwvEvent
+  'perf.resource': PerfResourceEvent
+  'perf.long-task': PerfLongTaskEvent
+  'perf.layout-shift': PerfLayoutShiftEvent
+  'perf.paint': PerfPaintEvent
+  // WebGL
+  'webgl.context-created': WebGLContextCreatedEvent
+  'webgl.context-lost': WebGLContextLostEvent
+  'webgl.context-restored': WebGLContextRestoredEvent
+  'webgl.uniform': WebGLUniformEvent
+  'webgl.draw-arrays': WebGLDrawArraysEvent
+  'webgl.draw-elements': WebGLDrawElementsEvent
+  'webgl.texture-bind': WebGLTextureBindEvent
+  // Solid
+  'solid.detected': SolidDetectedEvent
+  'solid.warning': SolidWarningEvent
+  // Redux
+  'redux.dispatch': ReduxDispatchEvent
 }
 
 export type TraceEvent = TraceEventMap[keyof TraceEventMap]

@@ -2,13 +2,11 @@
 // The import path is relative to src/ and resolved at build time — not a runtime path.
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
 import type { IntrospectionPlugin, PluginContext, WatchHandle } from '@introspection/types'
-import '@introspection/plugin-js-error/event-types'
-import './event-types.js'
 
 export type {
   WebGLContextCreatedEvent, WebGLContextLostEvent, WebGLContextRestoredEvent,
   WebGLUniformEvent, WebGLDrawArraysEvent, WebGLDrawElementsEvent, WebGLTextureBindEvent,
-} from './event-types.js'
+} from '@introspection/types'
 
 declare global {
   interface Window {
