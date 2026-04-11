@@ -154,6 +154,8 @@ function SessionView(props: { session?: SessionReader }) {
 }
 
 function AssetPreview(props: { session?: SessionReader; event: AssetEvent }) {
+  const assetUrl = () => `/__introspect/stream/${props.event.data.path}`
+
   const [content] = createResource(
     () => props.event.data.path,
     (path) => {
@@ -167,7 +169,7 @@ function AssetPreview(props: { session?: SessionReader; event: AssetEvent }) {
     <div class="field">
       <div class="label">Asset Content</div>
       <Show when={props.event.data.contentType === 'image'}>
-        <span class="asset-binary">Image: {props.event.data.path} ({((props.event.data.size ?? 0) / 1024).toFixed(1)}KB)</span>
+        <img src={assetUrl()} class="asset-image" />
       </Show>
       <Show when={content.loading}>
         <span class="asset-loading">Loading asset...</span>
