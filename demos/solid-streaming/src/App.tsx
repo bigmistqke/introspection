@@ -42,7 +42,7 @@ export default function App() {
   const adapter = createFetchAdapter('/__introspect')
   const [session] = createResource(async () => {
     try {
-      return await createSessionReader(adapter)
+      return await createSessionReader(adapter, { verbose: true })
     } catch {
       return null
     }

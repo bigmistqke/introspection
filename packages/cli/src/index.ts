@@ -16,19 +16,19 @@ const program = new Command()
 program.name('introspect').description('Query Playwright test introspection traces').version('0.1.0')
   .option('--dir <path>', 'Trace output directory', resolve('.introspect'))
 
-async function loadSession(opts: { session?: string }) {
+async function loadSession(opts: { sessionId?: string }) {
   const dir = program.opts().dir as string
-  return opts.session ? createSessionReader(dir, opts.session) : createSessionReader(dir)
+  return createSessionReader(dir, opts)
 }
 
-program.command('summary').option('--session <id>').action(async (opts) => {
+program.command('summary').option('--session-id <id>').action(async (opts) => {
   const dir = program.opts().dir as string
   const reader = new TraceReader(dir)
-  const trace = opts.session ? await reader.load(opts.session) : await reader.loadLatest()
+  const trace = opts.sessionId ? await reader.load(opts.sessionId) : await reader.loadLatest()
   console.log(buildSummary(trace))
 })
 
-program.command('network').option('--session <id>').option('--failed').option('--url <pattern>').action(async (opts) => {
+program.command('network').option('--session-id <id>').option('--failed').option('--url <pattern>').action(async (opts) => {
   const session = await loadSession(opts)
   const events = await session.events.ls()
   console.log(formatNetworkTable(events, opts))
@@ -36,11 +36,11 @@ program.command('network').option('--session <id>').option('--failed').option('-
 
 program.command('assets')
   .description('List and display assets')
-  .option('--session <id>')
+  .option('--session-id <id>')
   .argument('[path]', 'Asset path to display')
   .action(async (path, opts) => {
     const baseDir = program.opts().dir as string
-    const session = await createSessionReader(baseDir, opts.session)
+    const session = await createSessionReader(baseDir, opts)
 
     if (path) {
       const asset = await session.assets.metadata(path)
@@ -84,10 +84,10 @@ program.command('list').description('List available sessions').action(async () =
   }
 })
 
-program.command('plugins').description('Show plugin metadata for a session').option('--session <id>').action(async (opts) => {
+program.command('plugins').description('Show plugin metadata for a session').option('--session-id <id>').action(async (opts) => {
   const dir = program.opts().dir as string
   const reader = new TraceReader(dir)
-  const trace = opts.session ? await reader.load(opts.session) : await reader.loadLatest()
+  const trace = opts.sessionId ? await reader.load(opts.sessionId) : await reader.loadLatest()
   console.log(formatPlugins({ version: '2', ...trace.session }))
 })
 
@@ -148,7 +148,7 @@ skillsCmd
 program
   .command('events')
   .description('Filter and transform trace events')
-  .option('--session <id>')
+  .option('--session-id <id>')
   .option('--filter <expr>', 'Boolean predicate per event (event), e.g. \'event.data.status >= 400\'')
   .option('--format <fmt>', 'Output format: text (default) or json')
   .option('--type <types>', 'Comma-separated event types to include')

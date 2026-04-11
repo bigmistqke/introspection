@@ -7,7 +7,7 @@ const selectElement = document.getElementById('session-select') as HTMLSelectEle
 const graphElement = document.querySelector('event-graph') as HTMLElement & { load(events: import('@introspection/types').TraceEvent[]): void }
 
 async function loadSession(sessionId: string) {
-  const session = await createSessionReader(adapter, sessionId)
+  const session = await createSessionReader(adapter, { sessionId })
   const events = await session.events.ls()
   graphElement.load(events)
 }

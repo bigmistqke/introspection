@@ -81,7 +81,7 @@ function renderDetail(event: TraceEvent) {
 }
 
 async function loadSession(sessionId: string) {
-  const session = await createSessionReader(adapter, sessionId)
+  const session = await createSessionReader(adapter, { sessionId })
   const events = await session.events.ls()
   renderTimeline(events)
   detailElement.innerHTML = '<span class="empty">Select an event</span>'

@@ -31,8 +31,8 @@ export function createNodeAdapter(dir: string): StorageAdapter {
   }
 }
 
-export async function createSessionReader(dir: string, sessionId?: string): Promise<SessionReader> {
-  return createSessionReaderFromAdapter(createNodeAdapter(dir), sessionId)
+export async function createSessionReader(dir: string, options?: { sessionId?: string; verbose?: boolean }): Promise<SessionReader> {
+  return createSessionReaderFromAdapter(createNodeAdapter(dir), options)
 }
 
 export async function listSessions(dir: string): Promise<SessionSummary[]> {

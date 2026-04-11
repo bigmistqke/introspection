@@ -43,10 +43,10 @@ function formatEvent(event: TraceEvent): string {
 
 export function SessionCard({ adapter, summary }: { adapter: StorageAdapter; summary: SessionSummary }) {
   const [expanded, setExpanded] = useState(false)
-  const { events, loading } = useSessionReader(adapter, summary.id)
+  const { events } = useSessionReader(adapter, summary.id)
 
   const result = events.find(event => event.type === 'playwright.result')
-  const status = result?.type === 'playwright.result' ? (result.data.status ?? 'unknown') : (loading ? '...' : 'unknown')
+  const status = result?.type === 'playwright.result' ? (result.data.status ?? 'unknown') : 'unknown'
   const duration = summary.duration
 
   const errorCount = events.filter(event => event.type === 'js.error').length
@@ -72,20 +72,15 @@ export function SessionCard({ adapter, summary }: { adapter: StorageAdapter; sum
       >
         <span style={{ fontWeight: 500 }}>{summary.label ?? summary.id}</span>
         <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#888' }}>
-          {!loading && <>
-            <span>{actionCount} actions</span>
-            <span>{requestCount} requests</span>
-            {errorCount > 0 && <span style={{ color: '#fc6c6c' }}>{errorCount} errors</span>}
-          </>}
+          <span>{actionCount} actions</span>
+          <span>{requestCount} requests</span>
+          {errorCount > 0 && <span style={{ color: '#fc6c6c' }}>{errorCount} errors</span>}
           {duration != null && <span>{duration}ms</span>}
           <span style={{ color: STATUS_COLORS[status] ?? '#888', fontWeight: 500 }}>{status}</span>
         </div>
       </div>
       {expanded && (
         <div style={{ padding: '0 16px 12px', borderTop: '1px solid #1a1a1a' }}>
-          {loading ? (
-            <p style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>Loading...</p>
-          ) : (
             <div style={{ marginTop: 8 }}>
               {events.map(event => (
                 <div key={event.id} style={{
@@ -100,7 +95,6 @@ export function SessionCard({ adapter, summary }: { adapter: StorageAdapter; sum
                 </div>
               ))}
             </div>
-          )}
         </div>
       )}
     </div>

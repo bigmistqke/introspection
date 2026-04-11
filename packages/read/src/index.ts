@@ -1,4 +1,5 @@
 import type { TraceEvent, AssetEvent, SessionReader, EventsFilter, Watchable, WatchableWithFilter } from '@introspection/types'
+import { createDebug } from '@introspection/utils'
 
 export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI, Watchable, WatchableWithFilter } from '@introspection/types'
 
@@ -52,17 +53,26 @@ export async function listSessions(adapter: StorageAdapter): Promise<SessionSumm
   return sessions.sort((a, b) => b.startedAt - a.startedAt)
 }
 
-export async function createSessionReader(adapter: StorageAdapter, sessionId?: string): Promise<SessionReader> {
-  const id = sessionId ?? (await getLatestSessionId(adapter))
+export interface CreateSessionReaderOptions {
+  sessionId?: string
+  verbose?: boolean
+}
+
+export async function createSessionReader(adapter: StorageAdapter, options?: CreateSessionReaderOptions): Promise<SessionReader> {
+  const debug = createDebug('session-reader', options?.verbose ?? false)
+
+  const id = options?.sessionId ?? (await getLatestSessionId(adapter))
   if (!id) throw new Error('No sessions found')
 
   const initialEvents = await loadEvents(adapter, id)
+  debug('loaded', initialEvents.length, 'events from', id)
 
   // Mutable event store
   const events: TraceEvent[] = [...initialEvents]
   const subscribers = new Set<() => void>()
 
   function notify() {
+    debug('notify', subscribers.size, 'subscribers,', events.length, 'total events')
     for (const callback of subscribers) {
       callback()
     }
@@ -90,7 +100,13 @@ export async function createSessionReader(adapter: StorageAdapter, sessionId?: s
     return result
   }
 
+  let watchCount = 0
+
   function createWatchIterable(filter?: EventsFilter): AsyncIterable<TraceEvent[]> {
+    const watchId = ++watchCount
+    const label = filter ? JSON.stringify(filter) : '*'
+    debug('watch.create', `#${watchId}`, label)
+
     return {
       [Symbol.asyncIterator]() {
         let resolve: ((value: IteratorResult<TraceEvent[]>) => void) | null = null
@@ -99,9 +115,11 @@ export async function createSessionReader(adapter: StorageAdapter, sessionId?: s
 
         const onUpdate = () => {
           if (resolve) {
+            const filtered = filterEvents(filter)
+            debug('watch.yield', `#${watchId}`, filtered.length, 'events')
             const current = resolve
             resolve = null
-            current({ value: filterEvents(filter), done: false })
+            current({ value: filtered, done: false })
           }
         }
 
@@ -113,11 +131,15 @@ export async function createSessionReader(adapter: StorageAdapter, sessionId?: s
             // Yield current snapshot immediately on first call
             if (needsInitial) {
               needsInitial = false
-              return Promise.resolve({ value: filterEvents(filter), done: false } as IteratorResult<TraceEvent[]>)
+              const filtered = filterEvents(filter)
+              debug('watch.initial', `#${watchId}`, filtered.length, 'events')
+              return Promise.resolve({ value: filtered, done: false } as IteratorResult<TraceEvent[]>)
             }
+            debug('watch.waiting', `#${watchId}`)
             return new Promise<IteratorResult<TraceEvent[]>>(r => { resolve = r })
           },
           return() {
+            debug('watch.stop', `#${watchId}`)
             done = true
             subscribers.delete(onUpdate)
             return Promise.resolve({ value: undefined as unknown as TraceEvent[], done: true })
@@ -139,6 +161,7 @@ export async function createSessionReader(adapter: StorageAdapter, sessionId?: s
       ls,
       query,
       push(event: TraceEvent) {
+        debug('push', event.type, event.id)
         events.push(event)
         notify()
       },

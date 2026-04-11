@@ -77,7 +77,7 @@ async function generate() {
   const sections: string[] = []
 
   for (const summary of sessions) {
-    const session = await createSessionReader(resolvedDirectory, summary.id)
+    const session = await createSessionReader(resolvedDirectory, { sessionId: summary.id })
     const events = await session.events.ls()
     sections.push(renderSession(summary.id, events))
   }
