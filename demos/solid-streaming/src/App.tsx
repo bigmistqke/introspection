@@ -10,13 +10,20 @@ const VERBOSE = false;
 
 const COLORS: Record<string, string> = {
   "playwright.action": "#6c9cfc",
+  "playwright.result": "#c084fc",
+  "playwright.screenshot": "#c084fc",
   "network.request": "#8bc38b",
   "network.response": "#59a359",
   "network.error": "#fc6c6c",
   "js.error": "#fc6c6c",
-  console: "#fcb86c",
-  "playwright.result": "#c084fc",
+  "console": "#fcb86c",
   "browser.navigate": "#e0e0e0",
+  "asset": "#e8a0e8",
+  "page.attach": "#888",
+  "page.detach": "#888",
+  "solid.detected": "#4c8dff",
+  "solid.structure": "#4c8dff",
+  "solid.warning": "#fcb86c",
 };
 
 function formatEvent(event: TraceEvent): string {
@@ -35,6 +42,8 @@ function formatEvent(event: TraceEvent): string {
       return `${event.data.status ?? "unknown"} (${event.data.duration}ms)`;
     case "browser.navigate":
       return `${event.data.from} → ${event.data.to}`;
+    case "asset":
+      return `[${event.data.kind}] ${event.data.contentType} ${event.data.path}`;
     default:
       return "";
   }
@@ -110,6 +119,7 @@ function SessionView(props: { session?: SessionReader }) {
                     {event.type}
                   </span>
                   <span class="summary"> {formatEvent(event)}</span>
+                  <span class="event-id">{event.id.slice(0, 8)}</span>
                 </span>
               </div>
             )}
