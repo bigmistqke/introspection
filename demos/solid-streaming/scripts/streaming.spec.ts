@@ -15,15 +15,8 @@ test('streaming demo auto-connects and streams events', async ({ page }) => {
   // Should auto-connect and start streaming
   await expect(handle.page.locator('.status')).toHaveText('connected', { timeout: 5000 })
 
-  // Wait a bit for SSE events to push
-  await handle.page.waitForTimeout(3000)
-
-  // Capture solid state + snapshot for debugging
-  await handle.snapshot()
-
-  // Check what the UI shows
-  const eventsText = await handle.page.locator('.count').first().textContent()
-  const allCounts = await handle.page.locator('.count').allTextContents()
+  // Screenshot: connected, events streaming in
+  await handle.page.screenshot()
 
   // Wait for events to stream in
   await handle.page.waitForSelector('.event', { timeout: 10000 })
@@ -35,11 +28,17 @@ test('streaming demo auto-connects and streams events', async ({ page }) => {
   // Wait for stream to complete
   await expect(handle.page.locator('.status')).toHaveText('done', { timeout: 15000 })
 
+  // Screenshot: stream complete, all events visible
+  await handle.page.screenshot()
+
   // Click an event to see detail
   await handle.page.locator('.event').first().click()
 
   // Detail panel should show event data
   await expect(handle.page.locator('.detail h3')).toBeVisible()
+
+  // Screenshot: event selected, detail panel showing
+  await handle.page.screenshot()
 
   await handle.detach({ status: 'passed', duration: 0 })
 })
