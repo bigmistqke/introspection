@@ -111,13 +111,14 @@ export interface TestEndEvent extends BaseEvent {
 
 export interface NetworkRequestEvent extends BaseEvent {
   type: 'network.request'
-  data: { cdpRequestId: string; url: string; method: string; headers: Record<string, string>; postData?: string }
+  data: { cdpRequestId: string; cdpTimestamp: number; cdpWallTime: number; url: string; method: string; headers: Record<string, string>; postData?: string }
 }
 
 export interface NetworkResponseEvent extends BaseEvent {
   type: 'network.response'
   data: {
     cdpRequestId: string
+    cdpTimestamp: number
     requestId: string
     url: string
     status: number
@@ -136,7 +137,7 @@ export interface NetworkErrorEvent extends BaseEvent {
 
 export interface JsErrorEvent extends BaseEvent {
   type: 'js.error'
-  data: { message: string; stack: StackFrame[] }
+  data: { cdpTimestamp: number; message: string; stack: StackFrame[] }
 }
 
 // ─── Plugin events: console ─────────────────────────────────────────────────
