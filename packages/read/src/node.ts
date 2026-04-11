@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from 'fs/promises'
+import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 import type { SessionReader } from '@introspection/types'
 import {
@@ -24,9 +24,9 @@ export function createNodeAdapter(dir: string): StorageAdapter {
     async readText(path: string) {
       return readFile(join(dir, path), 'utf-8')
     },
-    async fileSize(path: string) {
-      const fileStat = await stat(join(dir, path))
-      return fileStat.size
+    async readBinary(path: string) {
+      const buffer = await readFile(join(dir, path))
+      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer
     },
   }
 }

@@ -1,13 +1,13 @@
-import type { TraceEvent, AssetEvent, SessionReader, EventsFilter } from '@introspection/types'
+import type { TraceEvent, AssetEvent, SessionReader, EventsFilter, Watchable, WatchableWithFilter } from '@introspection/types'
 
-export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI } from '@introspection/types'
+export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI, Watchable, WatchableWithFilter } from '@introspection/types'
 
 // ─── Adapter ─────────────────────────────────────────────────────────────────
 
 export interface StorageAdapter {
   listDirectories(): Promise<string[]>
   readText(path: string): Promise<string>
-  fileSize(path: string): Promise<number>
+  readBinary?(path: string): Promise<ArrayBuffer>
 }
 
 // ─── Session summary ─────────────────────────────────────────────────────────
@@ -56,17 +56,96 @@ export async function createSessionReader(adapter: StorageAdapter, sessionId?: s
   const id = sessionId ?? (await getLatestSessionId(adapter))
   if (!id) throw new Error('No sessions found')
 
-  const { events } = await loadTrace(adapter, id)
+  const initialEvents = await loadEvents(adapter, id)
+
+  // Mutable event store
+  const events: TraceEvent[] = [...initialEvents]
+  const subscribers = new Set<() => void>()
+
+  function notify() {
+    for (const callback of subscribers) {
+      callback()
+    }
+  }
+
+  function filterEvents(filter?: EventsFilter): TraceEvent[] {
+    let result = events
+    if (filter?.type) {
+      const types = Array.isArray(filter.type) ? filter.type : [filter.type]
+      result = result.filter(event => types.includes(event.type))
+    }
+    if (filter?.source) {
+      const sources = Array.isArray(filter.source) ? filter.source : [filter.source]
+      result = result.filter(event => sources.includes(event.source))
+    }
+    if (filter?.since !== undefined) {
+      result = result.filter(event => event.timestamp >= filter.since!)
+    }
+    if (filter?.until !== undefined) {
+      result = result.filter(event => event.timestamp <= filter.until!)
+    }
+    if (filter?.initiator) {
+      result = result.filter(event => event.initiator === filter.initiator)
+    }
+    return result
+  }
+
+  function createWatchIterable(filter?: EventsFilter): AsyncIterable<TraceEvent[]> {
+    return {
+      [Symbol.asyncIterator]() {
+        let resolve: ((value: IteratorResult<TraceEvent[]>) => void) | null = null
+        let done = false
+
+        const onUpdate = () => {
+          if (resolve) {
+            const current = resolve
+            resolve = null
+            current({ value: filterEvents(filter), done: false })
+          }
+        }
+
+        subscribers.add(onUpdate)
+
+        return {
+          next() {
+            if (done) return Promise.resolve({ value: undefined as unknown as TraceEvent[], done: true })
+            return new Promise<IteratorResult<TraceEvent[]>>(r => { resolve = r })
+          },
+          return() {
+            done = true
+            subscribers.delete(onUpdate)
+            return Promise.resolve({ value: undefined as unknown as TraceEvent[], done: true })
+          },
+        }
+      },
+    }
+  }
+
+  function ls() { return Promise.resolve([...events]) }
+  ls.watch = function () { return createWatchIterable() }
+
+  function query(filter: EventsFilter) { return Promise.resolve(filterEvents(filter)) }
+  query.watch = function (filter: EventsFilter) { return createWatchIterable(filter) }
 
   return {
     id,
     events: {
-      ls: () => Promise.resolve(events),
-      query: (filter) => Promise.resolve(queryEvents(events, filter)),
+      ls,
+      query,
+      push(event: TraceEvent) {
+        events.push(event)
+        notify()
+      },
     },
     assets: {
       ls: () => Promise.resolve(events.filter((event): event is AssetEvent => event.type === 'asset')),
-      read: (path) => readAssetContent(adapter, id, path),
+      metadata: (path) => Promise.resolve(
+        events.find((event): event is AssetEvent => event.type === 'asset' && event.data.path === path),
+      ),
+      readText: (path) => adapter.readText(`${id}/assets/${path}`),
+      readBinary: adapter.readBinary
+        ? (path) => adapter.readBinary!(`${id}/assets/${path}`)
+        : undefined,
     },
   }
 }
@@ -92,43 +171,10 @@ async function getLatestSessionId(adapter: StorageAdapter): Promise<string | nul
   return metas[0].id
 }
 
-async function loadTrace(adapter: StorageAdapter, sessionId: string): Promise<{ events: TraceEvent[] }> {
+async function loadEvents(adapter: StorageAdapter, sessionId: string): Promise<TraceEvent[]> {
   const eventsRaw = await adapter.readText(`${sessionId}/events.ndjson`)
-  const events: TraceEvent[] = eventsRaw
+  return eventsRaw
     .split('\n')
     .filter(line => line.trim())
     .map(line => JSON.parse(line) as TraceEvent)
-
-  return { events }
-}
-
-function queryEvents(events: TraceEvent[], filter: EventsFilter): TraceEvent[] {
-  let result = events
-  if (filter.type) {
-    const types = filter.type.split(',').map(type => type.trim())
-    result = result.filter(event => types.includes(event.type))
-  }
-  if (filter.source) {
-    result = result.filter(event => event.source === filter.source)
-  }
-  return result
-}
-
-async function readAssetContent(
-  adapter: StorageAdapter,
-  sessionId: string,
-  path: string
-): Promise<string | { path: string; sizeKB: number }> {
-  const extension = path.split('.').pop()?.toLowerCase()
-  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(extension ?? '')
-
-  if (isImage) {
-    const size = await adapter.fileSize(`${sessionId}/assets/${path}`)
-    return {
-      path,
-      sizeKB: size / 1024,
-    }
-  }
-
-  return await adapter.readText(`${sessionId}/assets/${path}`)
 }

@@ -46,13 +46,14 @@ export async function writeAsset(opts: {
   const filename = `${id}.${kind}.${ext}`
   const path = `assets/${filename}`
   await writeFile(join(directory, name, path), content)
+  const size = typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength
   const { timestamp, ...rest } = metadata
   const event = {
     id: randomUUID().replace(/-/g, '').slice(0, 8),
     type: 'asset' as const,
     timestamp,
     source: (source ?? 'agent') as EventSource,
-    data: { path, kind, ...rest },
+    data: { path, kind, size, ...rest },
   }
   await appendFile(join(directory, name, 'events.ndjson'), JSON.stringify(event) + '\n')
   return path

@@ -43,11 +43,15 @@ program.command('assets')
     const session = await createSessionReader(baseDir, opts.session)
 
     if (path) {
-      const result = await session.assets.read(path)
-      if (typeof result === 'string') {
-        console.log(result)
+      const asset = await session.assets.metadata(path)
+      const contentType = asset?.data.contentType
+
+      if (contentType === 'image') {
+        const size = asset?.data.size
+        console.log(`image: ${path}${size ? ` (${(size / 1024).toFixed(1)}KB)` : ''}`)
       } else {
-        console.log(`image: ${result.path} (${result.sizeKB.toFixed(1)}KB)`)
+        const content = await session.assets.readText(path)
+        console.log(content)
       }
     } else {
       const assets = await session.assets.ls()

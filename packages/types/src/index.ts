@@ -42,17 +42,34 @@ export interface PlaywrightScreenshotEvent extends BaseEvent {
   data: { path: string; viewport?: { width: number; height: number } }
 }
 
+// ─── Asset data map ─────────────────────────────────────────────────────────
+//
+// Augmentable map of asset kind strings to their typed data shapes.
+// Third-party plugins can augment this via declaration merging:
+//
+//   declare module '@introspection/types' {
+//     interface AssetDataMap {
+//       'my-capture': { path: string; size?: number; contentType: 'image' }
+//     }
+//   }
+
+export interface AssetDataMap {
+  'body': { path: string; size?: number; contentType: 'json' | 'html' | 'text'; summary?: BodySummary; url?: string }
+  'screenshot': { path: string; size?: number; contentType: 'image' }
+  'snapshot': { path: string; size?: number; contentType: 'json'; trigger?: string; url?: string; scopeCount?: number }
+  'scopes': { path: string; size?: number; contentType: 'json' }
+  'solid-structure': { path: string; size?: number; contentType: 'json' }
+  'solid-dgraph': { path: string; size?: number; contentType: 'json' }
+  'solid-updates': { path: string; size?: number; contentType: 'json' }
+  'webgl-state': { path: string; size?: number; contentType: 'json' }
+  'webgl-canvas': { path: string; size?: number; contentType: 'image' }
+}
+
+export type AssetEventData = { [K in keyof AssetDataMap]: { kind: K } & AssetDataMap[K] }[keyof AssetDataMap]
+
 export interface AssetEvent extends BaseEvent {
   type: 'asset'
-  data: {
-    path: string
-    kind: string
-    contentType?: 'json' | 'html' | 'text' | 'image' | 'binary'
-    summary?: BodySummary
-    trigger?: string
-    url?: string
-    scopeCount?: number
-  }
+  data: AssetEventData
 }
 
 export interface PageAttachEvent extends BaseEvent {
@@ -441,18 +458,30 @@ export interface SessionWriter {
 // ─── SessionReader (returned by query adapters) ─────────────────────────────
 
 export interface EventsFilter {
-  type?: string
-  source?: string
+  type?: string | string[]
+  source?: EventSource | EventSource[]
+  since?: number
+  until?: number
+  initiator?: string
 }
 
+export type Watchable<T> =
+  (() => Promise<T>) & { watch(): AsyncIterable<T> }
+
+export type WatchableWithFilter<T, F> =
+  ((filter: F) => Promise<T>) & { watch(filter: F): AsyncIterable<T> }
+
 export interface EventsAPI {
-  ls(): Promise<TraceEvent[]>
-  query(filter: EventsFilter): Promise<TraceEvent[]>
+  ls: Watchable<TraceEvent[]>
+  query: WatchableWithFilter<TraceEvent[], EventsFilter>
+  push(event: TraceEvent): void
 }
 
 export interface AssetsAPI {
   ls(): Promise<AssetEvent[]>
-  read(path: string): Promise<string | { path: string; sizeKB: number }>
+  metadata(path: string): Promise<AssetEvent | undefined>
+  readText(path: string): Promise<string>
+  readBinary?(path: string): Promise<ArrayBuffer>
 }
 
 export interface SessionReader {

@@ -21,10 +21,10 @@ export function createFetchAdapter(baseUrl: string): StorageAdapter {
       return response.text()
     },
 
-    async fileSize(path: string) {
-      const response = await fetch(`${base}/${path}`, { method: 'HEAD' })
+    async readBinary(path: string) {
+      const response = await fetch(`${base}/${path}`)
       if (!response.ok) throw new Error(`Failed to fetch ${path}: ${response.status}`)
-      return Number(response.headers.get('content-length') ?? 0)
+      return response.arrayBuffer()
     },
   }
 }
