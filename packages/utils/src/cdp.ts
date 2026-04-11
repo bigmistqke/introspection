@@ -1,7 +1,6 @@
-import { randomUUID } from 'crypto'
 import type { StackFrame } from '@introspection/types'
 
-function makeId(): string { return `evt-${randomUUID().slice(0, 8)}` }
+function makeId(): string { return `evt-${crypto.randomUUID().slice(0, 8)}` }
 function toTimestamp(value: unknown, startedAt: number): number {
   return typeof value === 'number' ? Math.round(value * 1000 - startedAt) : 0
 }

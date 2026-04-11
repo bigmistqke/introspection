@@ -171,9 +171,9 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
       metadata: (path) => Promise.resolve(
         events.find((event): event is AssetEvent => event.type === 'asset' && event.data.path === path),
       ),
-      readText: (path) => adapter.readText(`${id}/assets/${path}`),
+      readText: (path) => adapter.readText(`${id}/${path}`),
       readBinary: adapter.readBinary
-        ? (path) => adapter.readBinary!(`${id}/assets/${path}`)
+        ? (path) => adapter.readBinary!(`${id}/${path}`)
         : undefined,
     },
   }
