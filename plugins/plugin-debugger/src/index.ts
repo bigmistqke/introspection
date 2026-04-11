@@ -131,6 +131,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
 
           await ctx.writeAsset({
             kind: 'scopes',
+            contentType: 'json',
             content: JSON.stringify({
               reason: isCapture ? 'capture' : params.reason,
               message,
@@ -142,10 +143,6 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
             ext: 'json',
             metadata: {
               timestamp,
-              trigger: 'debugger.paused',
-              url,
-              scopeCount: scopes.length,
-              contentType: 'json',
             },
           })
         })()

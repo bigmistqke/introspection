@@ -46,7 +46,7 @@ export function network(): IntrospectionPlugin {
             const body = responseBody.base64Encoded ? Buffer.from(responseBody.body, 'base64').toString('utf-8') : responseBody.body
             const summary = summariseBody(body)
             const contentType = detectContentType(body, (responseEvent.data as { headers?: Record<string, string> }).headers?.['content-type'] ?? '')
-            await ctx.writeAsset({ kind: 'body', content: body, metadata: { timestamp: ctx.timestamp(), summary, contentType } })
+            await ctx.writeAsset({ kind: 'body', contentType, content: body, metadata: { timestamp: ctx.timestamp(), summary } })
             ctx.emit({ ...responseEvent, data: { ...responseEvent.data, bodySummary: summary } })
           } catch {
             ctx.emit(responseEvent)

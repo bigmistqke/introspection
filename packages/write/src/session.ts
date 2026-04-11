@@ -39,13 +39,9 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
     emit,
     async writeAsset(options) {
       return writeAsset({
+        ...options,
         directory: outDir,
         name: id,
-        kind: options.kind,
-        content: options.content,
-        ext: options.ext,
-        metadata: options.metadata,
-        source: options.source ?? 'agent',
       })
     },
     timestamp,

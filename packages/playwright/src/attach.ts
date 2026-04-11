@@ -63,12 +63,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
         on: (event: string, handler: (params: unknown) => void) => cdp.on(event as Parameters<typeof cdp.on>[0], handler as Parameters<typeof cdp.on>[1]),
       },
       emit,
-      async writeAsset(wopts: { kind: string; content: string | Buffer; ext?: string; metadata: { timestamp: number; [key: string]: unknown }; source?: string }) {
-        return session.writeAsset({
-          kind: wopts.kind, content: wopts.content, ext: wopts.ext,
-          metadata: wopts.metadata, source: (wopts.source ?? 'plugin') as TraceEvent['source'],
-        })
-      },
+      writeAsset: session.writeAsset.bind(session),
       timestamp,
       async addSubscription(pluginName: string, spec: unknown) {
         const expression = `(() => { const p = window.__introspect_plugins__?.['${pluginName}']; return p ? p.watch(${JSON.stringify(spec)}) : null })()`
@@ -136,10 +131,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
 
   const proxiedPage = createPageProxy({
     emit: (event) => emit(event),
-    writeAsset: async (wopts) => session.writeAsset({
-      kind: wopts.kind, content: wopts.content, ext: wopts.ext,
-      metadata: wopts.metadata, source: (wopts.source ?? 'playwright') as TraceEvent['source'],
-    }),
+    writeAsset: async (wopts) => session.writeAsset(wopts),
     timestamp,
     page,
   })
@@ -153,10 +145,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
     },
     emit,
     async writeAsset(opts) {
-      return session.writeAsset({
-        kind: opts.kind, content: opts.content, ext: opts.ext,
-        metadata: opts.metadata, source: opts.source ?? 'agent',
-      })
+      return session.writeAsset(opts)
     },
     async snapshot() {
       const snap = await takeSnapshot({
@@ -166,6 +155,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
       })
       await session.writeAsset({
         kind: 'snapshot',
+        contentType: 'json',
         content: JSON.stringify(snap),
         metadata: { timestamp: timestamp(), trigger: 'manual', url: snap.url, scopeCount: snap.scopes.length },
       })

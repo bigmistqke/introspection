@@ -78,14 +78,10 @@ export function webgl(): WebGLPlugin {
     for (const snapshot of snapshots) {
       await ctx.writeAsset({
         kind: 'webgl-state',
+        contentType: 'json',
         content: JSON.stringify(snapshot),
         metadata: {
           timestamp: captureTimestamp,
-          contextId: snapshot.contextId,
-          uniformCount: Object.keys(snapshot.uniforms).length,
-          boundTextureCount: snapshot.textures.length,
-          viewport: snapshot.viewport,
-          contentType: 'json',
         },
       })
     }
@@ -94,9 +90,10 @@ export function webgl(): WebGLPlugin {
       const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
       await ctx.writeAsset({
         kind: 'webgl-canvas',
+        contentType: 'image',
         content: Buffer.from(base64, 'base64'),
         ext: 'png',
-        metadata: { timestamp: captureTimestamp, contextId, contentType: 'image' },
+        metadata: { timestamp: captureTimestamp },
       })
     }
   }
@@ -160,9 +157,10 @@ export function webgl(): WebGLPlugin {
         const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
         await pluginCtx.writeAsset({
           kind: 'webgl-canvas',
+          contentType: 'image',
           content: Buffer.from(base64, 'base64'),
           ext: 'png',
-          metadata: { timestamp: captureTimestamp, contextId, contentType: 'image' },
+          metadata: { timestamp: captureTimestamp },
         })
       }
     },

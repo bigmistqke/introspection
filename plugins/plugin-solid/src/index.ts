@@ -17,6 +17,7 @@ async function captureState(context: PluginContext): Promise<void> {
   if (state.structure !== null) {
     await context.writeAsset({
       kind: 'solid-structure',
+      contentType: 'json',
       content: JSON.stringify(state.structure),
       ext: 'json',
       metadata: { timestamp: captureTimestamp },
@@ -26,6 +27,7 @@ async function captureState(context: PluginContext): Promise<void> {
   if (state.dgraph !== null) {
     await context.writeAsset({
       kind: 'solid-dgraph',
+      contentType: 'json',
       content: JSON.stringify(state.dgraph),
       ext: 'json',
       metadata: { timestamp: captureTimestamp },
@@ -35,6 +37,7 @@ async function captureState(context: PluginContext): Promise<void> {
   if (state.updates !== null) {
     await context.writeAsset({
       kind: 'solid-updates',
+      contentType: 'json',
       content: JSON.stringify(state.updates),
       ext: 'json',
       metadata: { timestamp: captureTimestamp },

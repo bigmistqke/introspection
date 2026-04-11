@@ -45,6 +45,9 @@ export interface PlaywrightScreenshotEvent extends BaseEvent {
 // ─── Asset data map ─────────────────────────────────────────────────────────
 //
 // Augmentable map of asset kind strings to their typed data shapes.
+// `kind` identifies what produced the asset. `contentType` identifies
+// the content format for reading/rendering.
+//
 // Third-party plugins can augment this via declaration merging:
 //
 //   declare module '@introspection/types' {
@@ -53,9 +56,11 @@ export interface PlaywrightScreenshotEvent extends BaseEvent {
 //     }
 //   }
 
+export type AssetContentType = 'json' | 'html' | 'text' | 'image' | 'binary'
+
 export interface AssetDataMap {
   'body': { path: string; size?: number; contentType: 'json' | 'html' | 'text'; summary?: BodySummary; url?: string }
-  'screenshot': { path: string; size?: number; contentType: 'image' }
+  'screenshot': { path: string; size?: number; contentType: 'image'; viewport?: { width: number; height: number } }
   'snapshot': { path: string; size?: number; contentType: 'json'; trigger?: string; url?: string; scopeCount?: number }
   'scopes': { path: string; size?: number; contentType: 'json' }
   'solid-structure': { path: string; size?: number; contentType: 'json' }
@@ -346,13 +351,7 @@ export interface PluginContext {
     on(event: string, handler: (params: unknown) => void): void
   }
   emit(event: EmitInput): void
-  writeAsset(opts: {
-    kind: string
-    content: string | Buffer
-    ext?: string
-    metadata: { timestamp: number; [key: string]: unknown }
-    source?: EventSource
-  }): Promise<string>
+  writeAsset<K extends keyof AssetDataMap>(opts: WriteAssetOptions<K>): Promise<string>
   timestamp(): number
   /** Installs a browser-side watch and registers it for navigation recovery. */
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
@@ -433,20 +432,24 @@ export interface TraceFile {
   snapshots: Snapshot[]
 }
 
-// ─── SessionWriter (returned by createSession()) ────────────────────────────
+// ─── Shared write types ──────────────────────────────────────────────────────
 
 export type EmitInput = Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }
+
+export type WriteAssetOptions<K extends keyof AssetDataMap = keyof AssetDataMap> = {
+  kind: K
+  contentType: AssetDataMap[K] extends { contentType: infer C } ? C : AssetContentType
+  content: string | Buffer
+  ext?: string
+  metadata: { timestamp: number } & Omit<AssetDataMap[K], 'path' | 'size' | 'contentType'>
+}
+
+// ─── SessionWriter (returned by createSession()) ────────────────────────────
 
 export interface SessionWriter {
   id: string
   emit(event: EmitInput): void
-  writeAsset(opts: {
-    kind: string
-    content: string | Buffer
-    ext?: string
-    metadata: { timestamp: number; [key: string]: unknown }
-    source?: EventSource
-  }): Promise<string>
+  writeAsset<K extends keyof AssetDataMap>(opts: WriteAssetOptions<K>): Promise<string>
   timestamp(): number
   bus: {
     on<T extends BusTrigger>(trigger: T, handler: (payload: BusPayloadMap[T]) => void | Promise<void>): void
@@ -505,13 +508,7 @@ export interface IntrospectHandle {
   page: import('@playwright/test').Page   // Proxy-wrapped page
   mark(label: string, data?: Record<string, unknown>): void
   emit(event: EmitInput): void
-  writeAsset(opts: {
-    kind: string
-    content: string | Buffer
-    ext?: string
-    metadata: { timestamp: number; [key: string]: unknown }
-    source?: EventSource
-  }): Promise<string>
+  writeAsset<K extends keyof AssetDataMap>(opts: WriteAssetOptions<K>): Promise<string>
   snapshot(): Promise<void>
   detach(result?: DetachResult): Promise<void>
 }
