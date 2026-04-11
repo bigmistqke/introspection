@@ -6,10 +6,11 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "demos:viz-basic": "pnpm --filter @introspection/demo-viz-basic dev",
-    "demos:viz-streaming": "pnpm --filter @introspection/demo-viz-streaming dev",
-    "demos:viz-graph": "pnpm --filter @introspection/demo-viz-graph dev",
-    "demos:viz-session-list": "pnpm --filter @introspection/demo-viz-session-list dev"
+    "demos:static-report": "pnpm --filter @introspection/demo-static-report run generate",
+    "demos:vanilla-basic": "pnpm --filter @introspection/demo-vanilla-basic dev",
+    "demos:solid-streaming": "pnpm --filter @introspection/demo-solid-streaming dev",
+    "demos:wc-graph": "pnpm --filter @introspection/demo-wc-graph dev",
+    "demos:react-session-list": "pnpm --filter @introspection/demo-react-session-list dev"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

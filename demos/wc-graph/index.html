@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>wc-graph</title>
+  <style>
+    * { margin: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 24px; }
+    .controls { margin-bottom: 16px; }
+    select { background: #222; border: 1px solid #333; color: #ccc; padding: 6px 12px; border-radius: 4px; font-size: 13px; }
+    event-graph { display: block; height: calc(100vh - 90px); }
+    .error { color: #fc6c6c; padding: 12px; }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <select id="session-select"><option value="">Loading sessions...</option></select>
+  </div>
+  <event-graph></event-graph>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>vanilla-basic</title>
+  <style>
+    * { margin: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 24px; }
+    .controls { margin-bottom: 16px; display: flex; gap: 8px; }
+    select { background: #222; border: 1px solid #333; color: #ccc; padding: 6px 12px; border-radius: 4px; font-size: 13px; }
+    .layout { display: grid; grid-template-columns: 1fr 320px; gap: 16px; height: calc(100vh - 90px); }
+    #timeline { overflow-y: auto; background: #111; border-radius: 8px; padding: 12px; }
+    #detail { background: #111; border-radius: 8px; padding: 16px; overflow-y: auto; }
+    .event { display: grid; grid-template-columns: 60px 1fr; gap: 8px; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 13px; line-height: 1.4; }
+    .event:hover { background: #1a1a1a; }
+    .event.selected { background: #1e293b; }
+    .timestamp { color: #666; font-variant-numeric: tabular-nums; }
+    .type { font-weight: 500; }
+    .summary { color: #999; }
+    .empty { color: #666; font-style: italic; }
+    .field { margin-bottom: 8px; }
+    .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #666; margin-bottom: 2px; }
+    .value { font-size: 13px; font-family: 'SF Mono', 'Fira Code', monospace; word-break: break-all; }
+    pre { background: #0a0a0a; border-radius: 4px; padding: 8px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; color: #ccc; }
+    h3 { font-size: 14px; margin-bottom: 12px; color: #ccc; }
+    .error { color: #fc6c6c; padding: 12px; }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <select id="session-select"><option value="">Loading sessions...</option></select>
+  </div>
+  <div class="layout">
+    <div id="timeline"></div>
+    <div id="detail"><span class="empty">Select an event</span></div>
+  </div>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

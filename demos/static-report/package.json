@@ -1,0 +1,16 @@
+{
+  "name": "@introspection/demo-static-report",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "generate": "tsx generate.ts"
+  },
+  "dependencies": {
+    "@introspection/read": "workspace:*",
+    "@introspection/types": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0"
+  }
+}
