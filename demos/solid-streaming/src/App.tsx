@@ -1,10 +1,12 @@
 import { createFetchAdapter } from "@introspection/demo-shared/fetch-adapter";
 import { createSessionReader } from "@introspection/read";
-import type { SessionReader, TraceEvent } from "@introspection/types";
+import type { AssetEvent, SessionReader, TraceEvent } from "@introspection/types";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { useAssetContent } from "./hooks/useAssetContent.js";
 import { useEventSource } from "./hooks/useEventSource.js";
 import { useWatchedQuery } from "./hooks/useWatchedQuery.js";
+
+const VERBOSE = false;
 
 const COLORS: Record<string, string> = {
   "playwright.action": "#6c9cfc",
@@ -42,7 +44,7 @@ const adapter = createFetchAdapter("/__introspect");
 
 export default function App() {
   const [session] = createResource(() =>
-    createSessionReader(adapter, { verbose: false }),
+    createSessionReader(adapter, { verbose: VERBOSE }),
   );
 
   return (
@@ -55,14 +57,12 @@ export default function App() {
   );
 }
 
-const VERBOSE = true;
-
 function SessionView(props: { session?: SessionReader }) {
   const [selected, setSelected] = createSignal<TraceEvent | null>(null);
 
   const { status } = useEventSource("/events", () => props.session);
 
-  const allEvents = useWatchedQuery(() => props.session, null, {
+  const allEvents = useWatchedQuery(() => props.session, undefined, {
     verbose: VERBOSE,
   });
   const errors = useWatchedQuery(
@@ -141,38 +141,40 @@ function SessionView(props: { session?: SessionReader }) {
                   <div class="label">Data</div>
                   <pre>{JSON.stringify(event().data, null, 2)}</pre>
                 </div>
+                <Show when={event().type === 'asset' ? event() as AssetEvent : null}>
+                  {(assetEvent) => <AssetPreview session={props.session} event={assetEvent()} />}
+                </Show>
               </>
             )}
           </Show>
         </div>
       </div>
-      {/* <Show when={assets().length > 0}>
-        <div class="assets">
-          <h3>Assets ({assets().length})</h3>
-          <For each={assets()}>
-            {(asset) => (
-              <div class="asset-card">
-                <div class="asset-header">
-                  <span class="asset-kind">{asset.event.data.kind}</span>
-                  <span class="asset-path">{asset.event.data.path}</span>
-                  <Show when={asset.event.data.size}>
-                    <span class="asset-size">{((asset.event.data.size ?? 0) / 1024).toFixed(1)}KB</span>
-                  </Show>
-                </div>
-                <Show when={asset.loading}>
-                  <span class="asset-loading">Loading...</span>
-                </Show>
-                <Show when={!asset.loading && asset.content !== null}>
-                  <pre class="asset-content">{asset.content}</pre>
-                </Show>
-                <Show when={!asset.loading && asset.content === null && asset.event.data.contentType === 'image'}>
-                  <span class="asset-binary">Binary asset ({asset.event.data.kind})</span>
-                </Show>
-              </div>
-            )}
-          </For>
-        </div>
-      </Show> */}
     </>
   );
+}
+
+function AssetPreview(props: { session?: SessionReader; event: AssetEvent }) {
+  const [content] = createResource(
+    () => props.event.data.path,
+    (path) => {
+      if (!props.session) return null
+      if (props.event.data.contentType === 'image') return null
+      return props.session.assets.readText(path)
+    },
+  )
+
+  return (
+    <div class="field">
+      <div class="label">Asset Content</div>
+      <Show when={props.event.data.contentType === 'image'}>
+        <span class="asset-binary">Image: {props.event.data.path} ({((props.event.data.size ?? 0) / 1024).toFixed(1)}KB)</span>
+      </Show>
+      <Show when={content.loading}>
+        <span class="asset-loading">Loading asset...</span>
+      </Show>
+      <Show when={content()}>
+        {(text) => <pre class="asset-content">{text()}</pre>}
+      </Show>
+    </div>
+  )
 }
