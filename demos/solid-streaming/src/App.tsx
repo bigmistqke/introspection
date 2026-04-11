@@ -1,7 +1,9 @@
-import { createSignal, For, Show, onCleanup, createResource, Suspense, createEffect, on, type Accessor } from 'solid-js'
-import type { TraceEvent, SessionReader, EventsFilter } from '@introspection/types'
+import { createSignal, For, Show, createResource, Suspense } from 'solid-js'
+import type { TraceEvent, SessionReader } from '@introspection/types'
 import { createSessionReader } from '@introspection/read'
 import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
+import { useWatchedQuery } from './hooks/useWatchedQuery.js'
+import { useEventSource } from './hooks/useEventSource.js'
 
 const COLORS: Record<string, string> = {
   'playwright.action': '#6c9cfc',
@@ -35,88 +37,6 @@ function formatEvent(event: TraceEvent): string {
   }
 }
 
-/**
- * Bridges a SessionReader's query.watch() AsyncIterable into a Solid signal.
- * Re-subscribes when the session accessor changes.
- */
-function useWatchedQuery(
-  getSession: Accessor<SessionReader | undefined>,
-  filter?: EventsFilter,
-) {
-  const [events, setEvents] = createSignal<TraceEvent[]>([])
-
-  createEffect(on(getSession, (session) => {
-    if (!session) {
-      setEvents([])
-      return
-    }
-
-    const iterable = filter
-      ? session.events.query.watch(filter)
-      : session.events.ls.watch()
-
-    const iterator = iterable[Symbol.asyncIterator]()
-    let stopped = false
-
-    async function consume() {
-      while (!stopped) {
-        const result = await iterator.next()
-        if (result.done) break
-        setEvents(result.value)
-      }
-    }
-    consume()
-
-    onCleanup(() => {
-      stopped = true
-      iterator.return?.()
-    })
-  }))
-
-  return events
-}
-
-/**
- * Connects an EventSource (SSE) to a SessionReader, pushing events as they arrive.
- */
-function useEventSource(
-  url: string,
-  getSession: Accessor<SessionReader | undefined>,
-) {
-  const [status, setStatus] = createSignal<'idle' | 'connected' | 'done' | 'error'>('idle')
-  let source: EventSource | null = null
-
-  function connect() {
-    if (source) source.close()
-    setStatus('connected')
-
-    source = new EventSource(url)
-
-    source.addEventListener('message', (message) => {
-      const event = JSON.parse(message.data) as TraceEvent
-      getSession()?.events.push(event)
-    })
-
-    source.addEventListener('done', () => {
-      setStatus('done')
-      source?.close()
-      source = null
-    })
-
-    source.addEventListener('error', () => {
-      setStatus('error')
-      source?.close()
-      source = null
-    })
-  }
-
-  onCleanup(() => {
-    source?.close()
-  })
-
-  return { status, connect }
-}
-
 export default function App() {
   const adapter = createFetchAdapter('/__introspect')
   const [session] = createResource(() => createSessionReader(adapter))
@@ -130,13 +50,12 @@ export default function App() {
 
 function SessionView(props: { session?: SessionReader }) {
   const [selected, setSelected] = createSignal<TraceEvent | null>(null)
-  const getSession = () => props.session
 
-  const { status, connect } = useEventSource('/events', getSession)
+  const { status, connect } = useEventSource('/events', () => props.session)
 
-  const allEvents = useWatchedQuery(getSession)
-  const errors = useWatchedQuery(getSession, { type: 'js.error' })
-  const networkEvents = useWatchedQuery(getSession, { type: ['network.request', 'network.response'] })
+  const allEvents = useWatchedQuery(() => props.session)
+  const errors = useWatchedQuery(() => props.session, { type: 'js.error' })
+  const networkEvents = useWatchedQuery(() => props.session, { type: ['network.request', 'network.response'] })
 
   return (
     <>

@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "generate": "tsx generate.ts"
+    "generate": "tsx generate.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@introspection/read": "workspace:*",
