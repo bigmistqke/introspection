@@ -20,7 +20,7 @@ async function captureState(context: PluginContext): Promise<void> {
       contentType: 'json',
       content: JSON.stringify(state.structure),
       ext: 'json',
-      metadata: { timestamp: captureTimestamp },
+      
     })
   }
 
@@ -30,7 +30,7 @@ async function captureState(context: PluginContext): Promise<void> {
       contentType: 'json',
       content: JSON.stringify(state.dgraph),
       ext: 'json',
-      metadata: { timestamp: captureTimestamp },
+      
     })
   }
 
@@ -40,7 +40,7 @@ async function captureState(context: PluginContext): Promise<void> {
       contentType: 'json',
       content: JSON.stringify(state.updates),
       ext: 'json',
-      metadata: { timestamp: captureTimestamp },
+      
     })
   }
 }

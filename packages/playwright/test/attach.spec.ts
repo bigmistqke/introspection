@@ -216,7 +216,7 @@ test('ctx.writeAsset produces an asset event with source: plugin in events.ndjso
     async install(ctx) { savedCtx = ctx },
   }
   const handle = await attach(page, { outDir: dir, plugins: [plugin] })
-  await savedCtx!.writeAsset({ kind: 'webgl-state', content: '{"ok":true}', metadata: { timestamp: 5 } })
+  await savedCtx!.writeAsset({ kind: 'webgl-state', contentType: 'json', content: '{"ok":true}' })
   await handle.detach()
 
   const events = await readEvents(dir)
@@ -283,8 +283,8 @@ test('bus "detach" handler is called and can write assets', async ({ page }) => 
         detachCalled = true
         await ctx.writeAsset({
           kind: 'webgl-state',
+          contentType: 'json',
           content: '{"detached":true}',
-          metadata: { timestamp: ctx.timestamp() },
         })
       })
     },

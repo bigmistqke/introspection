@@ -47,10 +47,7 @@ export function createPageProxy(options: PageProxyOptions): Page {
               contentType: 'image',
               content: result as Buffer,
               ext: 'png',
-              metadata: {
-                timestamp: timestamp(),
-                ...(viewport ? { viewport } : {}),
-              },
+              metadata: viewport ? { viewport } : {},
             })
             emit({
               type: 'playwright.screenshot',

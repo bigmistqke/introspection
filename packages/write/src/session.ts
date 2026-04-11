@@ -42,6 +42,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
         ...options,
         directory: outDir,
         name: id,
+        timestamp,
       })
     },
     timestamp,

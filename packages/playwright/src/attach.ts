@@ -157,7 +157,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
         kind: 'snapshot',
         contentType: 'json',
         content: JSON.stringify(snap),
-        metadata: { timestamp: timestamp(), trigger: 'manual', url: snap.url, scopeCount: snap.scopes.length },
+        metadata: { trigger: 'manual', url: snap.url, scopeCount: snap.scopes.length },
       })
       await bus.emit('manual', { trigger: 'manual', timestamp: timestamp() })
     },

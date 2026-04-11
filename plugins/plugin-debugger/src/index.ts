@@ -141,9 +141,6 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
               scopes,
             }),
             ext: 'json',
-            metadata: {
-              timestamp,
-            },
           })
         })()
       })

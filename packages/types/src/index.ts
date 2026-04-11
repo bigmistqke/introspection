@@ -441,7 +441,7 @@ export type WriteAssetOptions<K extends keyof AssetDataMap = keyof AssetDataMap>
   contentType: AssetDataMap[K] extends { contentType: infer C } ? C : AssetContentType
   content: string | Buffer
   ext?: string
-  metadata: { timestamp: number } & Omit<AssetDataMap[K], 'path' | 'size' | 'contentType'>
+  metadata?: Omit<AssetDataMap[K], 'path' | 'size' | 'contentType'>
 }
 
 // ─── SessionWriter (returned by createSession()) ────────────────────────────

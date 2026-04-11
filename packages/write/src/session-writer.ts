@@ -32,21 +32,26 @@ export async function appendEvent(outDir: string, sessionId: string, event: Trac
 
 /** Writes content to assets/<id>.<kind>.<ext>, appends an asset event, and returns the relative path. */
 export async function writeAsset<K extends keyof import('@introspection/types').AssetDataMap>(
-  options: WriteAssetOptions<K> & { directory: string; name: string; id?: string; source?: EventSource },
+  options: WriteAssetOptions<K> & {
+    directory: string
+    name: string
+    id?: string
+    source?: EventSource
+    timestamp: () => number
+  },
 ): Promise<string> {
-  const { directory, name, kind, contentType, content, ext = 'json', metadata, source } = options
+  const { directory, name, kind, contentType, content, ext = 'json', metadata, source, timestamp } = options
   const id = options.id ?? randomUUID().replace(/-/g, '').slice(0, 8)
   const filename = `${id}.${kind}.${ext}`
   const path = `assets/${filename}`
   await writeFile(join(directory, name, path), content)
   const size = typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength
-  const { timestamp, ...rest } = metadata
   const event = {
     id: randomUUID().replace(/-/g, '').slice(0, 8),
     type: 'asset' as const,
-    timestamp,
+    timestamp: timestamp(),
     source: (source ?? 'agent') as EventSource,
-    data: { path, kind, contentType, size, ...rest },
+    data: { path, kind, contentType, size, ...(metadata ?? {}) },
   }
   await appendFile(join(directory, name, 'events.ndjson'), JSON.stringify(event) + '\n')
   return path

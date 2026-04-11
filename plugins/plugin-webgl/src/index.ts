@@ -93,7 +93,7 @@ export function webgl(): WebGLPlugin {
         contentType: 'image',
         content: Buffer.from(base64, 'base64'),
         ext: 'png',
-        metadata: { timestamp: captureTimestamp },
+        
       })
     }
   }
@@ -160,7 +160,7 @@ export function webgl(): WebGLPlugin {
           contentType: 'image',
           content: Buffer.from(base64, 'base64'),
           ext: 'png',
-          metadata: { timestamp: captureTimestamp },
+          
         })
       }
     },
