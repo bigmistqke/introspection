@@ -19,34 +19,33 @@ const COLORS: Record<string, string> = {
 }
 
 function formatEvent(event: TraceEvent): string {
-  const data = (event as Record<string, unknown>).data as Record<string, unknown>
   switch (event.type) {
     case 'playwright.action':
-      return `${data.method}(${(data.args as unknown[]).map(argument => JSON.stringify(argument)).join(', ')})`
+      return `${event.data.method}(${event.data.args.map(argument => JSON.stringify(argument)).join(', ')})`
     case 'network.request':
+      return `${event.data.method} ${event.data.url}`
     case 'network.response':
-      return `${data.method ?? data.status ?? ''} ${data.url}`
+      return `${event.data.status} ${event.data.url}`
     case 'network.error':
-      return `${data.url} — ${data.errorText}`
+      return `${event.data.url} — ${event.data.errorText}`
     case 'js.error':
-      return String(data.message ?? '')
+      return event.data.message
     case 'console':
-      return `[${data.level}] ${data.message}`
+      return `[${event.data.level}] ${event.data.message}`
     case 'playwright.result':
-      return `${data.status}${data.duration ? ` (${data.duration}ms)` : ''}`
+      return `${event.data.status ?? 'unknown'}${event.data.duration ? ` (${event.data.duration}ms)` : ''}`
     case 'browser.navigate':
-      return `${data.from} → ${data.to}`
+      return `${event.data.from} → ${event.data.to}`
     case 'mark':
-      return String(data.label ?? '')
+      return event.data.label
     default:
-      return JSON.stringify(data)
+      return JSON.stringify(event.data)
   }
 }
 
 function renderSession(sessionId: string, events: TraceEvent[]): string {
   const result = events.find(event => event.type === 'playwright.result')
-  const resultData = result ? (result as Record<string, unknown>).data as Record<string, unknown> : null
-  const status = (resultData?.status as string) ?? 'unknown'
+  const status = result?.type === 'playwright.result' ? (result.data.status ?? 'unknown') : 'unknown'
   const statusColor = status === 'passed' ? '#8bc38b' : status === 'failed' ? '#fc6c6c' : '#fcb86c'
 
   const rows = events.map(event => {

@@ -15,21 +15,21 @@ const COLORS: Record<string, string> = {
 }
 
 function formatEvent(event: TraceEvent): string {
-  const data = (event as Record<string, unknown>).data as Record<string, unknown>
   switch (event.type) {
     case 'playwright.action':
-      return `${data.method}(${(data.args as unknown[]).map(argument => JSON.stringify(argument)).join(', ')})`
+      return `${event.data.method}(${event.data.args.map(argument => JSON.stringify(argument)).join(', ')})`
     case 'network.request':
+      return `${event.data.method} ${event.data.url}`
     case 'network.response':
-      return `${data.method ?? data.status ?? ''} ${data.url}`
+      return `${event.data.status} ${event.data.url}`
     case 'js.error':
-      return String(data.message ?? '')
+      return event.data.message
     case 'console':
-      return `[${data.level}] ${data.message}`
+      return `[${event.data.level}] ${event.data.message}`
     case 'playwright.result':
-      return `${data.status} (${data.duration}ms)`
+      return `${event.data.status ?? 'unknown'} (${event.data.duration}ms)`
     case 'browser.navigate':
-      return `${data.from} → ${data.to}`
+      return `${event.data.from} → ${event.data.to}`
     default:
       return ''
   }
@@ -175,9 +175,7 @@ function SessionView(props: { session?: SessionReader }) {
         </div>
         <div class="detail">
           <Show when={selected()} fallback={<span class="empty">Select an event</span>}>
-            {(event) => {
-              const data = (event() as Record<string, unknown>).data
-              return (
+            {(event) => (
                 <>
                   <h3>{event().type}</h3>
                   <div class="field">
@@ -196,11 +194,10 @@ function SessionView(props: { session?: SessionReader }) {
                   </Show>
                   <div class="field">
                     <div class="label">Data</div>
-                    <pre>{JSON.stringify(data, null, 2)}</pre>
+                    <pre>{JSON.stringify(event().data, null, 2)}</pre>
                   </div>
                 </>
-              )
-            }}
+              )}
           </Show>
         </div>
       </div>

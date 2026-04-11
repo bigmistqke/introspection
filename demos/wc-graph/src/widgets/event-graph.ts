@@ -10,6 +10,27 @@ const COLORS: Record<string, string> = {
   'browser.navigate': '#e0e0e0',
 }
 
+function summarizeEvent(event: TraceEvent): string {
+  switch (event.type) {
+    case 'playwright.action':
+      return `${event.data.method}()`
+    case 'network.request':
+      return `${event.data.method} ${event.data.url.split('/').pop()}`
+    case 'network.response':
+      return `${event.data.status} ${event.data.url.split('/').pop()}`
+    case 'js.error':
+      return event.data.message.slice(0, 25)
+    case 'console':
+      return `[${event.data.level}] ${event.data.message}`.slice(0, 25)
+    case 'playwright.result':
+      return `${event.data.status ?? 'unknown'}`
+    case 'browser.navigate':
+      return event.data.to.split('/').pop() ?? ''
+    default:
+      return ''
+  }
+}
+
 interface GraphNode {
   event: TraceEvent
   x: number
@@ -63,9 +84,8 @@ class EventGraph extends HTMLElement {
     // Draw edges
     const nodeMap = new Map(nodes.map(node => [node.event.id, node]))
     for (const node of nodes) {
-      const initiatorId = (node.event as Record<string, unknown>).initiator as string | undefined
-      if (!initiatorId) continue
-      const parent = nodeMap.get(initiatorId)
+      if (!node.event.initiator) continue
+      const parent = nodeMap.get(node.event.initiator)
       if (!parent) continue
 
       context.beginPath()
@@ -86,8 +106,6 @@ class EventGraph extends HTMLElement {
     // Draw nodes
     for (const node of nodes) {
       const color = COLORS[node.event.type] ?? '#888'
-      const data = (node.event as Record<string, unknown>).data as Record<string, unknown>
-
       // Node background
       context.fillStyle = '#1a1a1a'
       context.beginPath()
@@ -108,13 +126,7 @@ class EventGraph extends HTMLElement {
       // Summary
       context.fillStyle = '#888'
       context.font = '10px system-ui'
-      let label = ''
-      if (data.method && data.url) label = `${data.method} ${(data.url as string).split('/').pop()}`
-      else if (data.method && data.args) label = `${data.method}()`
-      else if (data.status) label = String(data.status)
-      else if (data.message) label = (data.message as string).slice(0, 25)
-
-      context.fillText(label, node.x + 10, node.y + 25, nodeWidth - 16)
+      context.fillText(summarizeEvent(node.event), node.x + 10, node.y + 25, nodeWidth - 16)
     }
 
     // Tooltip on hover
@@ -129,8 +141,7 @@ class EventGraph extends HTMLElement {
       )
 
       if (hovered) {
-        const data = (hovered.event as Record<string, unknown>).data as Record<string, unknown>
-        tooltip.textContent = `${hovered.event.type} @ ${hovered.event.timestamp}ms — ${JSON.stringify(data)}`
+        tooltip.textContent = `${hovered.event.type} @ ${hovered.event.timestamp}ms — ${JSON.stringify(hovered.event.data)}`
         tooltip.style.display = 'block'
         tooltip.style.left = `${mouseEvent.clientX - rect.left + 12}px`
         tooltip.style.top = `${mouseEvent.clientY - rect.top - 30}px`
@@ -153,9 +164,8 @@ class EventGraph extends HTMLElement {
     const columnMap = new Map<string, number>()
 
     for (const event of events) {
-      const initiatorId = (event as Record<string, unknown>).initiator as string | undefined
-      const parentColumn = initiatorId ? (columnMap.get(initiatorId) ?? 0) : 0
-      const column = initiatorId ? parentColumn + 1 : 0
+      const parentColumn = event.initiator ? (columnMap.get(event.initiator) ?? 0) : 0
+      const column = event.initiator ? parentColumn + 1 : 0
       columnMap.set(event.id, column)
     }
 
