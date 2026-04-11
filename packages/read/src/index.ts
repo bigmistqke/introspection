@@ -95,6 +95,7 @@ export async function createSessionReader(adapter: StorageAdapter, sessionId?: s
       [Symbol.asyncIterator]() {
         let resolve: ((value: IteratorResult<TraceEvent[]>) => void) | null = null
         let done = false
+        let needsInitial = true
 
         const onUpdate = () => {
           if (resolve) {
@@ -109,6 +110,11 @@ export async function createSessionReader(adapter: StorageAdapter, sessionId?: s
         return {
           next() {
             if (done) return Promise.resolve({ value: undefined as unknown as TraceEvent[], done: true })
+            // Yield current snapshot immediately on first call
+            if (needsInitial) {
+              needsInitial = false
+              return Promise.resolve({ value: filterEvents(filter), done: false } as IteratorResult<TraceEvent[]>)
+            }
             return new Promise<IteratorResult<TraceEvent[]>>(r => { resolve = r })
           },
           return() {
