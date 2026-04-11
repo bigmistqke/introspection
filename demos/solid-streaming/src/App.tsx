@@ -4,6 +4,7 @@ import { createSessionReader } from '@introspection/read'
 import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
 import { useWatchedQuery } from './hooks/useWatchedQuery.js'
 import { useEventSource } from './hooks/useEventSource.js'
+import { useAssetContent } from './hooks/useAssetContent.js'
 
 const COLORS: Record<string, string> = {
   'playwright.action': '#6c9cfc',
@@ -39,11 +40,23 @@ function formatEvent(event: TraceEvent): string {
 
 export default function App() {
   const adapter = createFetchAdapter('/__introspect')
-  const [session] = createResource(() => createSessionReader(adapter))
+  const [session] = createResource(async () => {
+    try {
+      return await createSessionReader(adapter)
+    } catch {
+      return null
+    }
+  })
 
   return (
     <Suspense fallback={<p style={{ color: '#666' }}>Loading session...</p>}>
-      <SessionView session={session()} />
+      <Show when={session() !== null} fallback={
+        <p style={{ color: '#fc6c6c' }}>
+          No sessions found in .introspect/ — run a test first to generate session data.
+        </p>
+      }>
+        <SessionView session={session()!} />
+      </Show>
     </Suspense>
   )
 }
@@ -56,6 +69,7 @@ function SessionView(props: { session?: SessionReader }) {
   const allEvents = useWatchedQuery(() => props.session)
   const errors = useWatchedQuery(() => props.session, { type: 'js.error' })
   const networkEvents = useWatchedQuery(() => props.session, { type: ['network.request', 'network.response'] })
+  const assets = useAssetContent(() => props.session)
 
   return (
     <>
@@ -68,6 +82,9 @@ function SessionView(props: { session?: SessionReader }) {
         </span>
         <span class="count">{allEvents().length} events</span>
         <span class="count">{networkEvents().length} network</span>
+        <Show when={assets().length > 0}>
+          <span class="count">{assets().length} assets</span>
+        </Show>
         <Show when={errors().length > 0}>
           <span class="count error-count">{errors().length} errors</span>
         </Show>
@@ -120,6 +137,33 @@ function SessionView(props: { session?: SessionReader }) {
           </Show>
         </div>
       </div>
+      <Show when={assets().length > 0}>
+        <div class="assets">
+          <h3>Assets ({assets().length})</h3>
+          <For each={assets()}>
+            {(asset) => (
+              <div class="asset-card">
+                <div class="asset-header">
+                  <span class="asset-kind">{asset.event.data.kind}</span>
+                  <span class="asset-path">{asset.event.data.path}</span>
+                  <Show when={asset.event.data.size}>
+                    <span class="asset-size">{((asset.event.data.size ?? 0) / 1024).toFixed(1)}KB</span>
+                  </Show>
+                </div>
+                <Show when={asset.loading}>
+                  <span class="asset-loading">Loading...</span>
+                </Show>
+                <Show when={!asset.loading && asset.content !== null}>
+                  <pre class="asset-content">{asset.content}</pre>
+                </Show>
+                <Show when={!asset.loading && asset.content === null && asset.event.data.contentType === 'image'}>
+                  <span class="asset-binary">Binary asset ({asset.event.data.kind})</span>
+                </Show>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
     </>
   )
 }

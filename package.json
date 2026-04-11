@@ -9,6 +9,7 @@
     "demos:static-report": "pnpm --filter @introspection/demo-static-report run generate",
     "demos:vanilla-basic": "pnpm --filter @introspection/demo-vanilla-basic dev",
     "demos:solid-streaming": "pnpm --filter @introspection/demo-solid-streaming dev",
+    "demos:solid-streaming:test": "pnpm --filter @introspection/demo-solid-streaming test",
     "demos:wc-graph": "pnpm --filter @introspection/demo-wc-graph dev",
     "demos:react-session-list": "pnpm --filter @introspection/demo-react-session-list dev"
   },

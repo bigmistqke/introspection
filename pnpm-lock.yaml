@@ -179,6 +179,15 @@ importers:
         specifier: ^1.9.0
         version: 1.9.12
     devDependencies:
+      '@introspection/playwright':
+        specifier: workspace:*
+        version: link:../../packages/playwright
+      '@introspection/plugin-defaults':
+        specifier: workspace:*
+        version: link:../../plugins/plugin-defaults
+      '@playwright/test':
+        specifier: ^1.40.0
+        version: 1.59.1
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
