@@ -10,6 +10,22 @@ export interface CreateSessionWriterOptions {
   plugins?: PluginMeta[]
 }
 
+function createWriteQueue() {
+  let pending: Promise<void> = Promise.resolve()
+
+  function enqueue<T>(operation: () => Promise<T>): Promise<T> {
+    const result = pending.then(operation)
+    pending = result.then(() => {}, () => {})
+    return result
+  }
+
+  function flush(): Promise<void> {
+    return pending
+  }
+
+  return { enqueue, flush }
+}
+
 export async function createSessionWriter(options: CreateSessionWriterOptions = {}): Promise<SessionWriter> {
   const id = options.id ?? randomUUID()
   const outDir = options.outDir ?? '.introspect'
@@ -23,6 +39,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
   })
 
   const bus = createBus()
+  const queue = createWriteQueue()
 
   function timestamp(): number {
     return Date.now() - startedAt
@@ -30,7 +47,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
 
   function emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }) {
     const full = { id: randomUUID(), timestamp: timestamp(), ...event } as TraceEvent
-    void appendEvent(outDir, id, full)
+    queue.enqueue(() => appendEvent(outDir, id, full))
     void bus.emit(full.type, full as BusPayloadMap[typeof full.type])
   }
 
@@ -38,17 +55,21 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
     id,
     emit,
     async writeAsset(options) {
-      return writeAsset({
+      // Capture timestamp now (enqueue time), but the file write
+      // happens later when the queue processes this operation.
+      const capturedTimestamp = timestamp()
+      return queue.enqueue(() => writeAsset({
         ...options,
         directory: outDir,
         name: id,
-        timestamp,
-      })
+        timestamp: () => capturedTimestamp,
+      }))
     },
     timestamp,
     bus,
     async finalize() {
       await bus.emit('detach', { trigger: 'detach', timestamp: timestamp() })
+      await queue.flush()
       await finalizeSession(outDir, id, Date.now())
     },
   }
