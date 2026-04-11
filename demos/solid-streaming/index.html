@@ -4,7 +4,11 @@
   <meta charset="UTF-8" />
   <title>solid-streaming</title>
   <style>
-    * { margin: 0; box-sizing: border-box; }
+    * { margin: 0; box-sizing: border-box; scrollbar-width: thin; scrollbar-color: #333 transparent; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #444; }
     body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 24px; }
     .controls { margin-bottom: 16px; display: flex; gap: 8px; align-items: center; }
     .controls button {
