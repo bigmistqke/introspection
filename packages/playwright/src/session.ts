@@ -1,7 +1,7 @@
 import { test as base } from '@playwright/test'
 import type { TestType, PlaywrightTestArgs, PlaywrightWorkerArgs } from '@playwright/test'
 import type { SessionWriter, IntrospectionPlugin, PluginMeta } from '@introspection/types'
-import { createSession as createCoreSession } from '@introspection/core'
+import { createSessionWriter } from '@introspection/write'
 import { attach } from './attach.js'
 
 export interface SessionOptions {
@@ -33,7 +33,7 @@ export function session(
 
   base.describe(options.label ?? 'session', () => {
     base.beforeAll(async () => {
-      sessionRef = await createCoreSession({
+      sessionRef = await createSessionWriter({
         outDir: options.outDir,
         label: options.label,
         plugins: pluginMetas.length > 0 ? pluginMetas : undefined,

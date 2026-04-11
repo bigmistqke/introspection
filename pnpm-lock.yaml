@@ -119,9 +119,9 @@ importers:
 
   packages/cli:
     dependencies:
-      '@introspection/query':
+      '@introspection/read':
         specifier: workspace:*
-        version: link:../query
+        version: link:../read
       '@introspection/types':
         specifier: workspace:*
         version: link:../types
@@ -148,23 +148,20 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.17)
 
-  packages/core:
-    dependencies:
-      '@introspection/types':
-        specifier: workspace:*
-        version: link:../types
-
   packages/playwright:
     dependencies:
-      '@introspection/core':
-        specifier: workspace:*
-        version: link:../core
       '@introspection/plugin-defaults':
         specifier: workspace:*
         version: link:../../plugins/plugin-defaults
       '@introspection/types':
         specifier: workspace:*
         version: link:../types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../utils
+      '@introspection/write':
+        specifier: workspace:*
+        version: link:../write
     devDependencies:
       '@introspection/plugin-debugger':
         specifier: workspace:*
@@ -182,7 +179,7 @@ importers:
         specifier: ^1.40.0
         version: 1.59.1
 
-  packages/query:
+  packages/read:
     dependencies:
       '@introspection/types':
         specifier: workspace:*
@@ -201,6 +198,12 @@ importers:
         specifier: ^1.40.0
         version: 1.59.1
 
+  packages/utils:
+    dependencies:
+      '@introspection/types':
+        specifier: workspace:*
+        version: link:../types
+
   packages/viz:
     dependencies:
       '@introspection/types':
@@ -217,14 +220,23 @@ importers:
         specifier: ^6.0.0
         version: 6.4.2(@types/node@22.19.17)(jiti@2.6.1)(yaml@2.8.3)
 
+  packages/write:
+    dependencies:
+      '@introspection/types':
+        specifier: workspace:*
+        version: link:../types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../utils
+
   plugins/plugin-console:
     dependencies:
-      '@introspection/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
     devDependencies:
       '@introspection/playwright':
         specifier: workspace:*
@@ -241,12 +253,12 @@ importers:
 
   plugins/plugin-debugger:
     dependencies:
-      '@introspection/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
     devDependencies:
       tsup:
         specifier: ^8.0.0
@@ -282,12 +294,12 @@ importers:
 
   plugins/plugin-js-error:
     dependencies:
-      '@introspection/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
     devDependencies:
       tsup:
         specifier: ^8.0.0
@@ -298,12 +310,12 @@ importers:
 
   plugins/plugin-network:
     dependencies:
-      '@introspection/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
     devDependencies:
       tsup:
         specifier: ^8.0.0

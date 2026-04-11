@@ -8,7 +8,7 @@ import { formatPlugins } from './commands/plugins.js'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
-import { createSessionReader } from '@introspection/query/node'
+import { createSessionReader } from '@introspection/read/node'
 
 const BUNDLED_SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url))
 const program = new Command()

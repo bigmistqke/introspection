@@ -1,5 +1,5 @@
 {
-  "name": "@introspection/query",
+  "name": "@introspection/read",
   "version": "0.1.0",
   "type": "module",
   "exports": {

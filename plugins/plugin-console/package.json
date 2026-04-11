@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@introspection/core": "workspace:*",
+    "@introspection/utils": "workspace:*",
     "@introspection/types": "workspace:*"
   },
   "devDependencies": {

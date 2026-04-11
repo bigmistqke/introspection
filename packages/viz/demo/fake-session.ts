@@ -1,4 +1,4 @@
-import type { StorageAdapter } from '@introspection/query'
+import type { StorageAdapter } from '@introspection/read'
 
 const meta = JSON.stringify({
   version: '2',

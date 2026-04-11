@@ -1,28 +1,18 @@
 {
-  "name": "@introspection/plugin-network",
+  "name": "@introspection/utils",
   "version": "0.1.0",
   "type": "module",
   "exports": {
     ".": {
       "types": "./src/index.ts",
       "import": "./dist/index.js"
-    },
-    "./event-types": {
-      "types": "./src/event-types.ts",
-      "import": "./dist/event-types.js"
     }
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
-    "test": "echo \"no tests\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@introspection/utils": "workspace:*",
     "@introspection/types": "workspace:*"
-  },
-  "devDependencies": {
-    "tsup": "^8.0.0",
-    "typescript": "^5.0.0"
   }
 }

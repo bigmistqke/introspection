@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@introspection/query": "workspace:*",
+    "@introspection/read": "workspace:*",
     "@introspection/types": "workspace:*",
     "commander": "^12.0.0",
     "jsonpath-plus": "^9.0.0",

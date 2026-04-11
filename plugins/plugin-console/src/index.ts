@@ -1,4 +1,4 @@
-import { createDebug } from '@introspection/core'
+import { createDebug } from '@introspection/utils'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 import './event-types.js'
 import type { ConsoleLevel } from './event-types.js'

@@ -1,5 +1,5 @@
 {
-  "name": "@introspection/core",
+  "name": "@introspection/write",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -10,10 +10,10 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
-    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@introspection/types": "workspace:*"
+    "@introspection/types": "workspace:*",
+    "@introspection/utils": "workspace:*"
   }
 }

@@ -1,9 +1,8 @@
 import { randomUUID } from 'crypto'
 import type { Page } from '@playwright/test'
 import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginMeta, BusPayloadMap, SessionWriter, EmitInput } from '@introspection/types'
-import {
-  appendEvent, writeAsset, finalizeSession, takeSnapshot, createBus, createDebug, createSession,
-} from '@introspection/core'
+import { takeSnapshot, createDebug } from '@introspection/utils'
+import { appendEvent, writeAsset, finalizeSession, createSessionWriter } from '@introspection/write'
 import { createPageProxy } from './proxy.js'
 import { PluginRegistry } from './plugin-registry.js'
 
@@ -32,7 +31,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
 
   // Use provided session or create an implicit one
   const ownsSession = !options.session
-  const session = options.session ?? await createSession({
+  const session = options.session ?? await createSessionWriter({
     id: options.id,
     outDir: options.outDir,
     label: options.testTitle,
