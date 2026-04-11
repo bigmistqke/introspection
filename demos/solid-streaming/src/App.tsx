@@ -38,25 +38,14 @@ function formatEvent(event: TraceEvent): string {
   }
 }
 
+const adapter = createFetchAdapter('/__introspect')
+
 export default function App() {
-  const adapter = createFetchAdapter('/__introspect')
-  const [session] = createResource(async () => {
-    try {
-      return await createSessionReader(adapter, { verbose: true })
-    } catch {
-      return null
-    }
-  })
+  const [session] = createResource(() => createSessionReader(adapter, { verbose: true }))
 
   return (
-    <Suspense fallback={<p style={{ color: '#666' }}>Loading session...</p>}>
-      <Show when={session() !== null} fallback={
-        <p style={{ color: '#fc6c6c' }}>
-          No sessions found in .introspect/ — run a test first to generate session data.
-        </p>
-      }>
-        <SessionView session={session()!} />
-      </Show>
+    <Suspense fallback={<p style={{ color: '#666' }}>Connecting...</p>}>
+      <SessionView session={session()} />
     </Suspense>
   )
 }
@@ -64,7 +53,7 @@ export default function App() {
 function SessionView(props: { session?: SessionReader }) {
   const [selected, setSelected] = createSignal<TraceEvent | null>(null)
 
-  const { status, connect } = useEventSource('/events', () => props.session)
+  const { status } = useEventSource('/events', () => props.session)
 
   const allEvents = useWatchedQuery(() => props.session)
   const errors = useWatchedQuery(() => props.session, { type: 'js.error' })
@@ -74,9 +63,6 @@ function SessionView(props: { session?: SessionReader }) {
   return (
     <>
       <div class="controls">
-        <button onClick={connect}>
-          {status() === 'idle' ? 'Connect' : 'Reconnect'}
-        </button>
         <span class="status" classList={{ live: status() === 'connected' }}>
           {status()}
         </span>

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { attach } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
 
-test('streaming demo loads and connects to SSE', async ({ page }) => {
+test('streaming demo auto-connects and streams events', async ({ page }) => {
   const handle = await attach(page, {
     testTitle: 'streaming demo',
     plugins: defaults(),
@@ -11,21 +11,11 @@ test('streaming demo loads and connects to SSE', async ({ page }) => {
 
   await handle.page.goto('/')
 
-  // Should show the connect button
-  const connectButton = handle.page.getByRole('button', { name: 'Connect' })
-  await expect(connectButton).toBeVisible()
-
-  // Status should be idle
-  await expect(handle.page.locator('.status')).toHaveText('idle')
-
-  // Click connect
-  await connectButton.click()
-
-  // Status should change to connected
-  await expect(handle.page.locator('.status')).toHaveText('connected')
+  // Should auto-connect and start streaming
+  await expect(handle.page.locator('.status')).toHaveText('connected', { timeout: 5000 })
 
   // Wait for events to stream in
-  await handle.page.waitForSelector('.event', { timeout: 5000 })
+  await handle.page.waitForSelector('.event', { timeout: 10000 })
 
   // Should have multiple events in the timeline
   const eventCount = await handle.page.locator('.event').count()
@@ -40,10 +30,5 @@ test('streaming demo loads and connects to SSE', async ({ page }) => {
   // Detail panel should show event data
   await expect(handle.page.locator('.detail h3')).toBeVisible()
 
-  await handle.page.screenshot({ path: 'screenshots/streaming-complete.png' })
-
-  await handle.detach({
-    status: 'passed',
-    duration: 0,
-  })
+  await handle.detach({ status: 'passed', duration: 0 })
 })
