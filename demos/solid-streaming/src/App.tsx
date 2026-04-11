@@ -134,6 +134,10 @@ function SessionView(props: { session?: SessionReader }) {
               <>
                 <h3>{event().type}</h3>
                 <div class="field">
+                  <div class="label">ID</div>
+                  <div class="value">{event().id}</div>
+                </div>
+                <div class="field">
                   <div class="label">Timestamp</div>
                   <div class="value">{event().timestamp}ms</div>
                 </div>
