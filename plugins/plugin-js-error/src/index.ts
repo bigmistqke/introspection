@@ -14,11 +14,7 @@ export function jsError(): IntrospectionPlugin {
     async install(ctx: PluginContext): Promise<void> {
       ctx.cdpSession.on('Runtime.exceptionThrown', (rawParams) => {
         const parameters = rawParams as { exceptionDetails: Record<string, unknown> }
-        const errorEvent = normaliseCdpJsError(
-          { exceptionDetails: parameters.exceptionDetails, timestamp: Date.now() / 1000 } as Record<string, unknown>,
-          0,
-        )
-        ctx.emit(errorEvent)
+        ctx.emit(normaliseCdpJsError({ exceptionDetails: parameters.exceptionDetails } as Record<string, unknown>))
       })
     },
   }

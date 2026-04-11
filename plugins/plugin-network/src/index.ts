@@ -23,20 +23,8 @@ export function network(): IntrospectionPlugin {
     async install(ctx: PluginContext): Promise<void> {
       await ctx.cdpSession.send('Network.enable')
 
-      // Offset to convert CDP monotonic timestamps (seconds since Chrome start) to wall-clock ms.
-      // Computed from the first request's wallTime field and stored for use with response timestamps.
-      let cdpTimeOffset = 0
-
       ctx.cdpSession.on('Network.requestWillBeSent', (rawParams) => {
-        const parameters = rawParams as Record<string, unknown>
-        const typed = parameters as { wallTime?: number; timestamp?: number }
-        if (cdpTimeOffset === 0 && typeof typed.wallTime === 'number' && typeof typed.timestamp === 'number') {
-          cdpTimeOffset = Math.round(typed.wallTime * 1000 - typed.timestamp * 1000)
-        }
-        // Derive startedAt from ctx.timestamp() so that the normalised timestamp is
-        // a relative offset from session start, matching what emit() expects.
-        const startedAt = Date.now() - ctx.timestamp()
-        ctx.emit(normaliseCdpNetworkRequest(parameters, startedAt))
+        ctx.emit(normaliseCdpNetworkRequest(rawParams as Record<string, unknown>))
       })
 
       const pendingResponses = new Map<string, ReturnType<typeof normaliseCdpNetworkResponse>>()
@@ -44,8 +32,7 @@ export function network(): IntrospectionPlugin {
       ctx.cdpSession.on('Network.responseReceived', (rawParams) => {
         const parameters = rawParams as Record<string, unknown>
         const requestId = (parameters as { requestId: string }).requestId
-        const startedAt = Date.now() - ctx.timestamp()
-        pendingResponses.set(requestId, normaliseCdpNetworkResponse(parameters, startedAt, cdpTimeOffset))
+        pendingResponses.set(requestId, normaliseCdpNetworkResponse(parameters))
       })
 
       ctx.cdpSession.on('Network.loadingFinished', (rawParams) => {
