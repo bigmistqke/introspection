@@ -8,7 +8,7 @@ import { formatPlugins } from './commands/plugins.js'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
-import { createSession } from '@introspection/query/node'
+import { createSessionReader } from '@introspection/query/node'
 
 const BUNDLED_SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url))
 const program = new Command()
@@ -18,7 +18,7 @@ program.name('introspect').description('Query Playwright test introspection trac
 
 async function loadSession(opts: { session?: string }) {
   const dir = program.opts().dir as string
-  return opts.session ? createSession(dir, opts.session) : createSession(dir)
+  return opts.session ? createSessionReader(dir, opts.session) : createSessionReader(dir)
 }
 
 program.command('summary').option('--session <id>').action(async (opts) => {
@@ -40,7 +40,7 @@ program.command('assets')
   .argument('[path]', 'Asset path to display')
   .action(async (path, opts) => {
     const baseDir = program.opts().dir as string
-    const session = await createSession(baseDir, opts.session)
+    const session = await createSessionReader(baseDir, opts.session)
 
     if (path) {
       const result = await session.assets.read(path)

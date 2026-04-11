@@ -52,7 +52,7 @@ export async function listSessions(adapter: StorageAdapter): Promise<SessionSumm
   return sessions.sort((a, b) => b.startedAt - a.startedAt)
 }
 
-export async function createSession(adapter: StorageAdapter, sessionId?: string): Promise<SessionReader> {
+export async function createSessionReader(adapter: StorageAdapter, sessionId?: string): Promise<SessionReader> {
   const id = sessionId ?? (await getLatestSessionId(adapter))
   if (!id) throw new Error('No sessions found')
 

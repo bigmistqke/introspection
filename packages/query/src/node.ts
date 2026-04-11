@@ -4,7 +4,7 @@ import type { SessionReader } from '@introspection/types'
 import {
   type StorageAdapter,
   type SessionSummary,
-  createSession as createSessionFromAdapter,
+  createSessionReader as createSessionReaderFromAdapter,
   listSessions as listSessionsFromAdapter,
 } from './index.js'
 
@@ -31,8 +31,8 @@ export function createNodeAdapter(dir: string): StorageAdapter {
   }
 }
 
-export async function createSession(dir: string, sessionId?: string): Promise<SessionReader> {
-  return createSessionFromAdapter(createNodeAdapter(dir), sessionId)
+export async function createSessionReader(dir: string, sessionId?: string): Promise<SessionReader> {
+  return createSessionReaderFromAdapter(createNodeAdapter(dir), sessionId)
 }
 
 export async function listSessions(dir: string): Promise<SessionSummary[]> {
