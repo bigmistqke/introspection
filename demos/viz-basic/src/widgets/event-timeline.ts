@@ -1,5 +1,4 @@
-import { requestSession } from '../../src/index.js'
-import type { SessionReader } from '@introspection/types'
+import { requestSession } from '@introspection/viz'
 
 const COLORS: Record<string, string> = {
   'playwright.action': '#6c9cfc',
@@ -54,13 +53,10 @@ class EventTimeline extends HTMLElement {
       `
 
       row.addEventListener('click', () => {
-        // Deselect previous
         this.shadowRoot!.querySelector('[aria-selected="true"]')?.setAttribute('aria-selected', 'false')
         row.setAttribute('aria-selected', 'true')
-
         this.dispatchEvent(new CustomEvent('event-select', {
-          bubbles: true,
-          composed: true,
+          bubbles: true, composed: true,
           detail: { event },
         }))
       })
@@ -73,7 +69,6 @@ class EventTimeline extends HTMLElement {
 function formatEvent(event: Record<string, unknown>): string {
   const data = event.data as Record<string, unknown> | undefined
   if (!data) return ''
-
   switch (event.type) {
     case 'playwright.action':
       return `${data.method}(${(data.args as unknown[]).map(argument => JSON.stringify(argument)).join(', ')})`

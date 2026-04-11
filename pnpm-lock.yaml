@@ -117,6 +117,79 @@ importers:
         specifier: ^5.0.0
         version: 5.4.21(@types/node@22.19.17)
 
+  demos/viz-basic:
+    dependencies:
+      '@introspection/read':
+        specifier: workspace:*
+        version: link:../../packages/read
+      '@introspection/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@introspection/viz':
+        specifier: workspace:*
+        version: link:../../packages/viz
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.2(@types/node@22.19.17)(jiti@2.6.1)(yaml@2.8.3)
+
+  demos/viz-graph:
+    dependencies:
+      '@introspection/read':
+        specifier: workspace:*
+        version: link:../../packages/read
+      '@introspection/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@introspection/viz':
+        specifier: workspace:*
+        version: link:../../packages/viz
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.2(@types/node@22.19.17)(jiti@2.6.1)(yaml@2.8.3)
+
+  demos/viz-session-list:
+    dependencies:
+      '@introspection/read':
+        specifier: workspace:*
+        version: link:../../packages/read
+      '@introspection/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@introspection/viz':
+        specifier: workspace:*
+        version: link:../../packages/viz
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.2(@types/node@22.19.17)(jiti@2.6.1)(yaml@2.8.3)
+
+  demos/viz-streaming:
+    dependencies:
+      '@introspection/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@introspection/viz':
+        specifier: workspace:*
+        version: link:../../packages/viz
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.2(@types/node@22.19.17)(jiti@2.6.1)(yaml@2.8.3)
+
   packages/cli:
     dependencies:
       '@introspection/read':
@@ -216,9 +289,6 @@ importers:
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
-      vite:
-        specifier: ^6.0.0
-        version: 6.4.2(@types/node@22.19.17)(jiti@2.6.1)(yaml@2.8.3)
 
   packages/write:
     dependencies:

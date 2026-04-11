@@ -1,4 +1,4 @@
-import { requestSession } from '../../src/index.js'
+import { requestSession } from '@introspection/viz'
 
 class EventDetail extends HTMLElement {
   async connectedCallback() {
@@ -14,19 +14,13 @@ class EventDetail extends HTMLElement {
         .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #666; margin-bottom: 2px; }
         .value { font-size: 13px; font-family: 'SF Mono', 'Fira Code', monospace; word-break: break-all; }
         pre {
-          background: #0a0a0a;
-          border-radius: 4px;
-          padding: 8px;
-          font-size: 12px;
-          overflow-x: auto;
-          white-space: pre-wrap;
-          color: #ccc;
+          background: #0a0a0a; border-radius: 4px; padding: 8px;
+          font-size: 12px; overflow-x: auto; white-space: pre-wrap; color: #ccc;
         }
       </style>
       <div class="empty">Select an event</div>
     `
 
-    // Listen for selections from sibling widgets
     this.closest('introspect-session')?.addEventListener('event-select', ((event: CustomEvent) => {
       this.#renderEvent(event.detail.event)
     }) as EventListener)
@@ -34,9 +28,7 @@ class EventDetail extends HTMLElement {
 
   #renderEvent(event: Record<string, unknown>) {
     if (!this.shadowRoot) return
-
     const style = this.shadowRoot.querySelector('style')!.outerHTML
-
     this.shadowRoot.innerHTML = `
       ${style}
       <h3>${event.type}</h3>

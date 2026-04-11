@@ -5,7 +5,11 @@
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "demos:viz-basic": "pnpm --filter @introspection/demo-viz-basic dev",
+    "demos:viz-streaming": "pnpm --filter @introspection/demo-viz-streaming dev",
+    "demos:viz-graph": "pnpm --filter @introspection/demo-viz-graph dev",
+    "demos:viz-session-list": "pnpm --filter @introspection/demo-viz-session-list dev"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
