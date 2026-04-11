@@ -237,11 +237,11 @@ export interface TraceFile {
   snapshots: Snapshot[]
 }
 
-// ─── Session (returned by createSession()) ───────────────────────────────────
+// ─── SessionWriter (returned by createSession()) ────────────────────────────
 
 export type EmitInput = Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }
 
-export interface Session {
+export interface SessionWriter {
   id: string
   emit(event: EmitInput): void
   writeAsset(opts: {
@@ -259,6 +259,29 @@ export interface Session {
   finalize(): Promise<void>
 }
 
+// ─── SessionReader (returned by query adapters) ─────────────────────────────
+
+export interface EventsFilter {
+  type?: string
+  source?: string
+}
+
+export interface EventsAPI {
+  ls(): Promise<TraceEvent[]>
+  query(filter: EventsFilter): Promise<TraceEvent[]>
+}
+
+export interface AssetsAPI {
+  ls(): Promise<AssetEvent[]>
+  read(path: string): Promise<string | { path: string; sizeKB: number }>
+}
+
+export interface SessionReader {
+  id: string
+  events: EventsAPI
+  assets: AssetsAPI
+}
+
 // ─── IntrospectHandle (returned by attach()) ──────────────────────────────────
 
 export interface DetachResult {
@@ -269,7 +292,7 @@ export interface DetachResult {
 }
 
 export interface IntrospectHandle {
-  session: Session
+  session: SessionWriter
   pageId: string
   page: import('@playwright/test').Page   // Proxy-wrapped page
   mark(label: string, data?: Record<string, unknown>): void

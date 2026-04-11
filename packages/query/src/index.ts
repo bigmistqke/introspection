@@ -1,13 +1,16 @@
-import { readdir, readFile, stat } from 'fs/promises'
-import { join } from 'path'
-import type { TraceFile, TraceEvent, AssetEvent } from '@introspection/types'
+import type { TraceEvent, AssetEvent, SessionReader, EventsFilter } from '@introspection/types'
 
-export interface Session {
-  dir: string
-  id: string
-  events: EventsAPI
-  assets: AssetsAPI
+export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI } from '@introspection/types'
+
+// ─── Adapter ─────────────────────────────────────────────────────────────────
+
+export interface StorageAdapter {
+  listDirectories(): Promise<string[]>
+  readText(path: string): Promise<string>
+  fileSize(path: string): Promise<number>
 }
+
+// ─── Session summary ─────────────────────────────────────────────────────────
 
 export interface SessionSummary {
   id: string
@@ -17,15 +20,17 @@ export interface SessionSummary {
   duration?: number
 }
 
-export async function listSessions(dir: string): Promise<SessionSummary[]> {
-  const sessionIds = await listSessionIds(dir)
+// ─── Query functions ─────────────────────────────────────────────────────────
+
+export async function listSessions(adapter: StorageAdapter): Promise<SessionSummary[]> {
+  const sessionIds = await adapter.listDirectories()
   if (sessionIds.length === 0) return []
 
   const sessions: SessionSummary[] = []
 
   for (const id of sessionIds) {
     try {
-      const raw = await readFile(join(dir, id, 'meta.json'), 'utf-8')
+      const raw = await adapter.readText(`${id}/meta.json`)
       const meta = JSON.parse(raw) as {
         id: string
         startedAt: number
@@ -47,49 +52,35 @@ export async function listSessions(dir: string): Promise<SessionSummary[]> {
   return sessions.sort((a, b) => b.startedAt - a.startedAt)
 }
 
-export interface EventsFilters {
-  type?: string
-  source?: string
-}
+export async function createSession(adapter: StorageAdapter, sessionId?: string): Promise<SessionReader> {
+  const id = sessionId ?? (await getLatestSessionId(adapter))
+  if (!id) throw new Error('No sessions found')
 
-export interface EventsAPI {
-  ls(): Promise<TraceEvent[]>
-  query(filters: EventsFilters): Promise<TraceEvent[]>
-}
-
-export interface AssetsAPI {
-  ls(): Promise<AssetEvent[]>
-  read(path: string): Promise<string | { path: string; sizeKB: number }>
-}
-
-export async function createSession(dir: string, sessionId?: string): Promise<Session> {
-  const id = sessionId ?? (await getLatestSessionId(dir))
-  if (!id) throw new Error(`No sessions found in ${dir}`)
-
-  const trace = await loadTrace(dir, id)
+  const { events } = await loadTrace(adapter, id)
 
   return {
-    dir,
     id,
     events: {
-      ls: () => Promise.resolve(trace.events),
-      query: (filters) => Promise.resolve(queryEvents(trace.events, filters)),
+      ls: () => Promise.resolve(events),
+      query: (filter) => Promise.resolve(queryEvents(events, filter)),
     },
     assets: {
-      ls: () => Promise.resolve(trace.events.filter((e): e is AssetEvent => e.type === 'asset')),
-      read: (path) => readAssetContent(dir, id, path),
+      ls: () => Promise.resolve(events.filter((event): event is AssetEvent => event.type === 'asset')),
+      read: (path) => readAssetContent(adapter, id, path),
     },
   }
 }
 
-async function getLatestSessionId(dir: string): Promise<string | null> {
-  const sessions = await listSessionIds(dir)
-  if (sessions.length === 0) return null
+// ─── Internal helpers ────────────────────────────────────────────────────────
+
+async function getLatestSessionId(adapter: StorageAdapter): Promise<string | null> {
+  const sessionIds = await adapter.listDirectories()
+  if (sessionIds.length === 0) return null
 
   const metas = await Promise.all(
-    sessions.map(async id => {
+    sessionIds.map(async id => {
       try {
-        const raw = await readFile(join(dir, id, 'meta.json'), 'utf-8')
+        const raw = await adapter.readText(`${id}/meta.json`)
         const meta = JSON.parse(raw) as { startedAt: number }
         return { id, startedAt: meta.startedAt }
       } catch {
@@ -101,63 +92,43 @@ async function getLatestSessionId(dir: string): Promise<string | null> {
   return metas[0].id
 }
 
-async function listSessionIds(dir: string): Promise<string[]> {
-  try {
-    const entries = await readdir(dir, { withFileTypes: true })
-    return entries.filter(e => e.isDirectory()).map(e => e.name)
-  } catch {
-    return []
-  }
-}
-
-async function loadTrace(dir: string, sessionId: string): Promise<TraceFile> {
-  const sessionDir = join(dir, sessionId)
-  const metaRaw = await readFile(join(sessionDir, 'meta.json'), 'utf-8')
-  const meta = JSON.parse(metaRaw) as { version: string; id: string; startedAt: number; endedAt?: number; label?: string }
-
-  const eventsRaw = await readFile(join(sessionDir, 'events.ndjson'), 'utf-8')
+async function loadTrace(adapter: StorageAdapter, sessionId: string): Promise<{ events: TraceEvent[] }> {
+  const eventsRaw = await adapter.readText(`${sessionId}/events.ndjson`)
   const events: TraceEvent[] = eventsRaw
     .split('\n')
     .filter(line => line.trim())
     .map(line => JSON.parse(line) as TraceEvent)
 
-  return {
-    version: '2',
-    session: { id: meta.id, startedAt: meta.startedAt, endedAt: meta.endedAt, label: meta.label },
-    events,
-    snapshots: [],
-  }
+  return { events }
 }
 
-function queryEvents(events: TraceEvent[], filters: EventsFilters): TraceEvent[] {
+function queryEvents(events: TraceEvent[], filter: EventsFilter): TraceEvent[] {
   let result = events
-  if (filters.type) {
-    const types = filters.type.split(',').map(t => t.trim())
-    result = result.filter(e => types.includes(e.type))
+  if (filter.type) {
+    const types = filter.type.split(',').map(type => type.trim())
+    result = result.filter(event => types.includes(event.type))
   }
-  if (filters.source) {
-    result = result.filter(e => e.source === filters.source)
+  if (filter.source) {
+    result = result.filter(event => event.source === filter.source)
   }
   return result
 }
 
 async function readAssetContent(
-  dir: string,
+  adapter: StorageAdapter,
   sessionId: string,
   path: string
 ): Promise<string | { path: string; sizeKB: number }> {
-  const filePath = join(dir, sessionId, 'assets', path)
-  const fileStat = await stat(filePath)
-
-  const ext = path.split('.').pop()?.toLowerCase()
-  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext ?? '')
+  const extension = path.split('.').pop()?.toLowerCase()
+  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(extension ?? '')
 
   if (isImage) {
+    const size = await adapter.fileSize(`${sessionId}/assets/${path}`)
     return {
       path,
-      sizeKB: fileStat.size / 1024,
+      sizeKB: size / 1024,
     }
   }
 
-  return await readFile(filePath, 'utf-8')
+  return await adapter.readText(`${sessionId}/assets/${path}`)
 }

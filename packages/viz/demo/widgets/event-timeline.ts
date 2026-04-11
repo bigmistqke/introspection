@@ -1,4 +1,5 @@
-import { requestContext, type IntrospectionContext } from '../../src/index.js'
+import { requestSession } from '../../src/index.js'
+import type { SessionReader } from '@introspection/types'
 
 const COLORS: Record<string, string> = {
   'playwright.action': '#6c9cfc',
@@ -10,10 +11,8 @@ const COLORS: Record<string, string> = {
 }
 
 class EventTimeline extends HTMLElement {
-  #context: IntrospectionContext | null = null
-
   async connectedCallback() {
-    this.#context = await requestContext(this)
+    const session = await requestSession(this)
 
     this.attachShadow({ mode: 'open' })
     this.shadowRoot!.innerHTML = `
@@ -37,24 +36,11 @@ class EventTimeline extends HTMLElement {
       </style>
     `
 
-    this.#render()
-
-    this.#context.subscribe(() => this.#render())
-  }
-
-  #render() {
-    if (!this.#context || !this.shadowRoot) return
-
-    const events = this.#context.session.events
-    const selectedId = this.#context.selection.eventId
-
-    const existing = this.shadowRoot.querySelectorAll('.event')
-    existing.forEach(element => element.remove())
+    const events = await session.events.ls()
 
     for (const event of events) {
       const row = document.createElement('div')
       row.className = 'event'
-      row.setAttribute('aria-selected', String(event.id === selectedId))
 
       const color = COLORS[event.type] ?? '#888'
       const summary = formatEvent(event)
@@ -68,7 +54,15 @@ class EventTimeline extends HTMLElement {
       `
 
       row.addEventListener('click', () => {
-        this.#context!.select({ eventId: event.id })
+        // Deselect previous
+        this.shadowRoot!.querySelector('[aria-selected="true"]')?.setAttribute('aria-selected', 'false')
+        row.setAttribute('aria-selected', 'true')
+
+        this.dispatchEvent(new CustomEvent('event-select', {
+          bubbles: true,
+          composed: true,
+          detail: { event },
+        }))
       })
 
       this.shadowRoot!.appendChild(row)

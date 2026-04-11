@@ -1,6 +1,6 @@
 import { test as base } from '@playwright/test'
 import type { TestType, PlaywrightTestArgs, PlaywrightWorkerArgs } from '@playwright/test'
-import type { Session, IntrospectionPlugin, PluginMeta } from '@introspection/types'
+import type { SessionWriter, IntrospectionPlugin, PluginMeta } from '@introspection/types'
 import { createSession as createCoreSession } from '@introspection/core'
 import { attach } from './attach.js'
 
@@ -29,7 +29,7 @@ export function session(
       return meta
     })
 
-  let sessionRef: Session | null = null
+  let sessionRef: SessionWriter | null = null
 
   base.describe(options.label ?? 'session', () => {
     base.beforeAll(async () => {
@@ -62,7 +62,7 @@ export function session(
 
 function createProxiedTest(
   original: TestType<PlaywrightTestArgs, PlaywrightWorkerArgs>,
-  getSession: () => Session | null,
+  getSession: () => SessionWriter | null,
   plugins: IntrospectionPlugin[],
 ): TestType<PlaywrightTestArgs, PlaywrightWorkerArgs> {
   // Wrap test(name, fn) to emit test.start/test.end and auto-attach page

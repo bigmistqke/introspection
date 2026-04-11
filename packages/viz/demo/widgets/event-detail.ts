@@ -1,10 +1,8 @@
-import { requestContext, type IntrospectionContext } from '../../src/index.js'
+import { requestSession } from '../../src/index.js'
 
 class EventDetail extends HTMLElement {
-  #context: IntrospectionContext | null = null
-
   async connectedCallback() {
-    this.#context = await requestContext(this)
+    await requestSession(this)
 
     this.attachShadow({ mode: 'open' })
     this.shadowRoot!.innerHTML = `
@@ -28,20 +26,14 @@ class EventDetail extends HTMLElement {
       <div class="empty">Select an event</div>
     `
 
-    this.#context.subscribe(() => this.#render())
+    // Listen for selections from sibling widgets
+    this.closest('introspect-session')?.addEventListener('event-select', ((event: CustomEvent) => {
+      this.#renderEvent(event.detail.event)
+    }) as EventListener)
   }
 
-  #render() {
-    if (!this.#context || !this.shadowRoot) return
-
-    const selectedId = this.#context.selection.eventId
-    if (!selectedId) {
-      this.shadowRoot.innerHTML = this.shadowRoot.innerHTML
-      return
-    }
-
-    const event = this.#context.session.events.find(event => event.id === selectedId)
-    if (!event) return
+  #renderEvent(event: Record<string, unknown>) {
+    if (!this.shadowRoot) return
 
     const style = this.shadowRoot.querySelector('style')!.outerHTML
 
@@ -64,7 +56,7 @@ class EventDetail extends HTMLElement {
       ` : ''}
       <div class="field">
         <div class="label">Data</div>
-        <pre>${JSON.stringify((event as Record<string, unknown>).data, null, 2)}</pre>
+        <pre>${JSON.stringify(event.data, null, 2)}</pre>
       </div>
     `
   }

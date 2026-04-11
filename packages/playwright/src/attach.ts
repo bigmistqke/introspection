@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import type { Page } from '@playwright/test'
-import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginMeta, BusPayloadMap, Session, EmitInput } from '@introspection/types'
+import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginMeta, BusPayloadMap, SessionWriter, EmitInput } from '@introspection/types'
 import {
   appendEvent, writeAsset, finalizeSession, takeSnapshot, createBus, createDebug, createSession,
 } from '@introspection/core'
@@ -15,7 +15,7 @@ export interface AttachOptions {
   workerIndex?: number
   plugins?: IntrospectionPlugin[]
   verbose?: boolean
-  session?: Session
+  session?: SessionWriter
 }
 
 export async function attach(page: Page, options: AttachOptions = {}): Promise<IntrospectHandle> {

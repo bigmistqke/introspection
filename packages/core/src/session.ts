@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import type { Session, TraceEvent, BusPayloadMap, PluginMeta, EventSource } from '@introspection/types'
+import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EventSource } from '@introspection/types'
 import { initSessionDir, appendEvent, writeAsset, finalizeSession } from './session-writer.js'
 import { createBus } from './bus.js'
 
@@ -10,7 +10,7 @@ export interface CreateSessionOptions {
   plugins?: PluginMeta[]
 }
 
-export async function createSession(options: CreateSessionOptions = {}): Promise<Session> {
+export async function createSession(options: CreateSessionOptions = {}): Promise<SessionWriter> {
   const id = options.id ?? randomUUID()
   const outDir = options.outDir ?? '.introspect'
   const startedAt = Date.now()
