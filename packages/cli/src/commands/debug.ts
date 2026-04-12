@@ -62,10 +62,10 @@ export async function runDebug(opts: DebugOptions) {
     await handle.flush()
     await handle.detach()
 
-    console.log(`\n✓ Session saved to: ${handle.sessionId}`)
-    console.log(`  Query with: introspect events --session-id ${handle.sessionId}`)
+    console.log(`\n✓ Session saved to: ${handle.session.id}`)
+    console.log(`  Query with: introspect events --session-id ${handle.session.id}`)
 
-    return handle.sessionId
+    return handle.session.id
   } finally {
     await browser.close()
   }
