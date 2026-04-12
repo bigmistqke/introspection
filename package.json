@@ -1,6 +1,7 @@
 {
   "name": "introspection-monorepo",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",

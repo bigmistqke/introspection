@@ -7,7 +7,12 @@
       "Bash(claude plugin:*)",
       "Bash(pnpm --filter plugin-webgl build)",
       "Bash(pnpm --filter plugin-webgl test)",
-      "Bash(pnpm -r --filter '!ctf/**' --filter '!demos/**' run test)"
+      "Bash(pnpm -r --filter '!ctf/**' --filter '!demos/**' run test)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm install:*)",
+      "Bash(./node_modules/.bin/vitest run:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

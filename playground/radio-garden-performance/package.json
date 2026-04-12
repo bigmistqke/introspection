@@ -1,0 +1,16 @@
+{
+  "name": "@introspection/playground-radio-garden-performance",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "capture": "node capture.ts"
+  },
+  "devDependencies": {
+    "@introspection/playwright": "workspace:*",
+    "@introspection/plugin-defaults": "workspace:*",
+    "@introspection/plugin-performance": "workspace:*",
+    "@playwright/test": "^1.40.0",
+    "introspect": "workspace:*"
+  }
+}

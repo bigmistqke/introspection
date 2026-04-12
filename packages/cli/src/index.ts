@@ -4,6 +4,7 @@ import { buildSummary } from './commands/summary.js'
 import { formatNetworkTable } from './commands/network.js'
 import { formatEvents } from './commands/events.js'
 import { formatPlugins } from './commands/plugins.js'
+import { runDebug } from './commands/debug.js'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
@@ -19,6 +20,16 @@ async function loadSession(opts: { sessionId?: string }) {
   const dir = program.opts().dir as string
   return createSessionReader(dir, opts)
 }
+
+program
+  .command('debug <url>')
+  .description('Debug a live page with introspection')
+  .option('--config <path>', 'Path to introspect.config.ts', './introspect.config.ts')
+  .option('--playwright <script>', 'Playwright script to run (file or inline)')
+  .action(async (url, opts) => {
+    const dir = program.opts().dir as string
+    await runDebug({ url, config: opts.config, playwright: opts.playwright, dir })
+  })
 
 program.command('summary').option('--session-id <id>').action(async (opts) => {
   const session = await loadSession(opts)
