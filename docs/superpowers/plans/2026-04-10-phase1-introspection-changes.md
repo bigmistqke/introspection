@@ -626,7 +626,7 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
 
   return {
     name: 'redux',
-    description: 'Captures Redux/Rematch store dispatches',
+    description: 'Captures store dispatches from Redux, Zustand, Valtio, and Redux DevTools–compatible libraries',
     events: {
       'redux.dispatch': 'Store dispatch with action type and optional payload/state',
     },

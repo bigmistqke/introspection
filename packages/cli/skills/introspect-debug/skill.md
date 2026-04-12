@@ -85,7 +85,7 @@ introspect events --format json | jq '.[].metadata.url'  # extract fields
 | `js.error` | JS exception with source-mapped stack |
 | `console` | Console output (`log` / `warn` / `error` / `info` / `debug`) |
 | `debugger.capture` | Scope snapshot from a `capture()` call or exception pause |
-| `redux.dispatch` | Redux/Rematch dispatch — action type, optional payload/state |
+| `redux.dispatch` | Store dispatch from Redux, Zustand, Valtio, or Redux DevTools–compatible libraries — action type, optional payload/state |
 | `perf.cwv` | Core Web Vitals (LCP, CLS, INP) |
 | `perf.resource` / `perf.long-task` / `perf.layout-shift` / `perf.paint` | Timing-derived performance events |
 | `webgl.context-created` / `.context-lost` / `.context-restored` | WebGL context lifecycle |
