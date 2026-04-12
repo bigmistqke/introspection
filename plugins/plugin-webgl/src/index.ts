@@ -79,8 +79,7 @@ export function webgl(): WebGLPlugin {
 
     for (const snapshot of snapshots) {
       const asset = await ctx.writeAsset({
-        kind: 'webgl-state',
-        contentType: 'json',
+        kind: 'json',
         content: JSON.stringify(snapshot),
       })
       assets.push(asset)
@@ -89,8 +88,7 @@ export function webgl(): WebGLPlugin {
     for (const { contextId, dataUrl } of canvases) {
       const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
       const asset = await ctx.writeAsset({
-        kind: 'webgl-canvas',
-        contentType: 'image',
+        kind: 'image',
         content: Buffer.from(base64, 'base64'),
         ext: 'png',
       })
@@ -102,7 +100,7 @@ export function webgl(): WebGLPlugin {
         type: 'mark' as const,
         source: 'plugin',
         assets,
-        data: { label: 'webgl.capture' },
+        metadata: { label: 'webgl.capture' },
       })
     }
   }
@@ -166,8 +164,7 @@ export function webgl(): WebGLPlugin {
         if (opts?.contextId !== undefined && contextId !== opts.contextId) continue
         const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
         const asset = await pluginCtx.writeAsset({
-          kind: 'webgl-canvas',
-          contentType: 'image',
+          kind: 'image',
           content: Buffer.from(base64, 'base64'),
           ext: 'png',
         })
@@ -178,7 +175,7 @@ export function webgl(): WebGLPlugin {
           type: 'mark' as const,
           source: 'plugin',
           assets: captureAssets,
-          data: { label: 'webgl.canvas-capture' },
+          metadata: { label: 'webgl.canvas-capture' },
         })
       }
     },

@@ -18,8 +18,7 @@ async function captureState(context: PluginContext): Promise<void> {
 
   if (state.structure !== null) {
     assets.push(await context.writeAsset({
-      kind: 'solid-structure',
-      contentType: 'json',
+      kind: 'json',
       content: JSON.stringify(state.structure),
       ext: 'json',
     }))
@@ -27,8 +26,7 @@ async function captureState(context: PluginContext): Promise<void> {
 
   if (state.dgraph !== null) {
     assets.push(await context.writeAsset({
-      kind: 'solid-dgraph',
-      contentType: 'json',
+      kind: 'json',
       content: JSON.stringify(state.dgraph),
       ext: 'json',
     }))
@@ -36,8 +34,7 @@ async function captureState(context: PluginContext): Promise<void> {
 
   if (state.updates !== null) {
     assets.push(await context.writeAsset({
-      kind: 'solid-updates',
-      contentType: 'json',
+      kind: 'json',
       content: JSON.stringify(state.updates),
       ext: 'json',
     }))
@@ -48,7 +45,7 @@ async function captureState(context: PluginContext): Promise<void> {
       type: 'mark' as const,
       source: 'plugin',
       assets,
-      data: { label: 'solid.state' },
+      metadata: { label: 'solid.state' },
     })
   }
 }

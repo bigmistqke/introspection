@@ -13,19 +13,19 @@ const COLORS: Record<string, string> = {
 function summarizeEvent(event: TraceEvent): string {
   switch (event.type) {
     case 'playwright.action':
-      return `${event.data.method}()`
+      return `${event.metadata.method}()`
     case 'network.request':
-      return `${event.data.method} ${event.data.url.split('/').pop()}`
+      return `${event.metadata.method} ${event.metadata.url.split('/').pop()}`
     case 'network.response':
-      return `${event.data.status} ${event.data.url.split('/').pop()}`
+      return `${event.metadata.status} ${event.metadata.url.split('/').pop()}`
     case 'js.error':
-      return event.data.message.slice(0, 25)
+      return event.metadata.message.slice(0, 25)
     case 'console':
-      return `[${event.data.level}] ${event.data.message}`.slice(0, 25)
+      return `[${event.metadata.level}] ${event.metadata.message}`.slice(0, 25)
     case 'playwright.result':
-      return `${event.data.status ?? 'unknown'}`
+      return `${event.metadata.status ?? 'unknown'}`
     case 'browser.navigate':
-      return event.data.to.split('/').pop() ?? ''
+      return event.metadata.to.split('/').pop() ?? ''
     default:
       return ''
   }
@@ -141,7 +141,7 @@ class EventGraph extends HTMLElement {
       )
 
       if (hovered) {
-        tooltip.textContent = `${hovered.event.type} @ ${hovered.event.timestamp}ms — ${JSON.stringify(hovered.event.data)}`
+        tooltip.textContent = `${hovered.event.type} @ ${hovered.event.timestamp}ms — ${JSON.stringify(hovered.event.metadata ?? {})}`
         tooltip.style.display = 'block'
         tooltip.style.left = `${mouseEvent.clientX - rect.left + 12}px`
         tooltip.style.top = `${mouseEvent.clientY - rect.top - 30}px`

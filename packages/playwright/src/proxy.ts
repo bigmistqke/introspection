@@ -31,7 +31,7 @@ export function createPageProxy(options: PageProxyOptions): Page {
           emit({
             type: 'playwright.action',
             source: 'playwright',
-            data: { method: prop as string, args: sanitizeArgs(args) },
+            metadata: { method: prop as string, args: sanitizeArgs(args) },
           })
           return (original as Function).apply(target, args)
         }
@@ -41,19 +41,15 @@ export function createPageProxy(options: PageProxyOptions): Page {
         return async (...args: unknown[]) => {
           const result = await (original as Function).apply(target, args)
           if (prop === 'screenshot') {
-            const viewport = target.viewportSize()
             const asset = await writeAsset({
-              kind: 'screenshot',
-              contentType: 'image',
+              kind: 'image',
               content: result as Buffer,
               ext: 'png',
-              metadata: viewport ? { viewport } : {},
             })
             emit({
               type: 'playwright.screenshot',
               source: 'playwright',
               assets: [asset],
-              data: {},
             })
           }
           return result

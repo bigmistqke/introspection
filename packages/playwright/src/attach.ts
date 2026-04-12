@@ -123,10 +123,10 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
   })
 
   // Emit page.attach event
-  emit({ type: 'page.attach', source: 'playwright', data: { pageId } })
+  emit({ type: 'page.attach', source: 'playwright', metadata: { pageId } })
 
   if (options.titlePath) {
-    emit({ type: 'playwright.test.start', source: 'playwright', data: { titlePath: options.titlePath } })
+    emit({ type: 'playwright.test.start', source: 'playwright', metadata: { titlePath: options.titlePath } })
   }
 
   const proxiedPage = createPageProxy({
@@ -141,7 +141,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
     pageId,
     page: proxiedPage,
     mark(label: string, data?: Record<string, unknown>) {
-      emit({ type: 'mark', source: 'agent', data: { label, extra: data } })
+      emit({ type: 'mark', source: 'agent', metadata: { label, extra: data } })
     },
     emit,
     async writeAsset(opts) {
@@ -154,20 +154,18 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
         url: await page.evaluate(() => location.href).catch(() => ''),
       })
       const asset = await session.writeAsset({
-        kind: 'snapshot',
-        contentType: 'json',
+        kind: 'json',
         content: JSON.stringify(snap),
-        metadata: { trigger: 'manual', url: snap.url, scopeCount: snap.scopes.length },
       })
-      emit({ type: 'mark', source: 'agent', assets: [asset], data: { label: 'snapshot' } })
+      emit({ type: 'mark', source: 'agent', assets: [asset], metadata: { label: 'snapshot' } })
       await bus.emit('manual', { trigger: 'manual', timestamp: timestamp() })
     },
     async detach(detachResult?: DetachResult) {
       debug('detach', detachResult?.status)
-      if (detachResult) emit({ type: 'playwright.result', source: 'playwright', data: detachResult })
+      if (detachResult) emit({ type: 'playwright.result', source: 'playwright', metadata: detachResult })
 
       // Emit page.detach event
-      emit({ type: 'page.detach', source: 'playwright', data: { pageId } })
+      emit({ type: 'page.detach', source: 'playwright', metadata: { pageId } })
 
       // Bulk unwatch
       for (const [, subscription] of registry.all()) {

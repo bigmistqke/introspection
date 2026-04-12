@@ -23,19 +23,19 @@ const STATUS_COLORS: Record<string, string> = {
 function formatEvent(event: TraceEvent): string {
   switch (event.type) {
     case 'playwright.action':
-      return `${event.data.method}(${event.data.args.map(argument => JSON.stringify(argument)).join(', ')})`
+      return `${event.metadata.method}(${event.metadata.args.map(argument => JSON.stringify(argument)).join(', ')})`
     case 'network.request':
-      return `${event.data.method} ${event.data.url}`
+      return `${event.metadata.method} ${event.metadata.url}`
     case 'network.response':
-      return `${event.data.status} ${event.data.url}`
+      return `${event.metadata.status} ${event.metadata.url}`
     case 'js.error':
-      return event.data.message
+      return event.metadata.message
     case 'console':
-      return `[${event.data.level}] ${event.data.message}`
+      return `[${event.metadata.level}] ${event.metadata.message}`
     case 'playwright.result':
-      return `${event.data.status ?? 'unknown'}${event.data.duration ? ` (${event.data.duration}ms)` : ''}`
+      return `${event.metadata.status ?? 'unknown'}${event.metadata.duration ? ` (${event.metadata.duration}ms)` : ''}`
     case 'browser.navigate':
-      return `${event.data.from} → ${event.data.to}`
+      return `${event.metadata.from} → ${event.metadata.to}`
     default:
       return ''
   }
@@ -46,7 +46,7 @@ export function SessionCard({ adapter, summary }: { adapter: StorageAdapter; sum
   const { events } = useSessionReader(adapter, summary.id)
 
   const result = events.find(event => event.type === 'playwright.result')
-  const status = result?.type === 'playwright.result' ? (result.data.status ?? 'unknown') : 'unknown'
+  const status = result?.type === 'playwright.result' ? (result.metadata.status ?? 'unknown') : 'unknown'
   const duration = summary.duration
 
   const errorCount = events.filter(event => event.type === 'js.error').length

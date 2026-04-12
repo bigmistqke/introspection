@@ -28,19 +28,19 @@ const COLORS: Record<string, string> = {
 function formatEvent(event: TraceEvent): string {
   switch (event.type) {
     case "playwright.action":
-      return `${event.data.method}(${event.data.args.map((argument) => JSON.stringify(argument)).join(", ")})`;
+      return `${event.metadata.method}(${event.metadata.args.map((argument) => JSON.stringify(argument)).join(", ")})`;
     case "network.request":
-      return `${event.data.method} ${event.data.url}`;
+      return `${event.metadata.method} ${event.metadata.url}`;
     case "network.response":
-      return `${event.data.status} ${event.data.url}`;
+      return `${event.metadata.status} ${event.metadata.url}`;
     case "js.error":
-      return event.data.message;
+      return event.metadata.message;
     case "console":
-      return `[${event.data.level}] ${event.data.message}`;
+      return `[${event.metadata.level}] ${event.metadata.message}`;
     case "playwright.result":
-      return `${event.data.status ?? "unknown"} (${event.data.duration}ms)`;
+      return `${event.metadata.status ?? "unknown"} (${event.metadata.duration}ms)`;
     case "browser.navigate":
-      return `${event.data.from} → ${event.data.to}`;
+      return `${event.metadata.from} → ${event.metadata.to}`;
     default:
       return "";
   }
@@ -155,10 +155,12 @@ function SessionView(props: { session?: SessionReader }) {
                     <div class="value">{event().initiator}</div>
                   </div>
                 </Show>
-                <div class="field">
-                  <div class="label">Data</div>
-                  <pre>{JSON.stringify(event().data, null, 2)}</pre>
-                </div>
+                <Show when={event().metadata}>
+                  <div class="field">
+                    <div class="label">Metadata</div>
+                    <pre>{JSON.stringify(event().metadata, null, 2)}</pre>
+                  </div>
+                </Show>
                 <Show when={event().assets && event().assets!.length > 0}>
                   <For each={event().assets}>
                     {(asset) => <AssetPreview session={props.session} asset={asset} />}
@@ -180,15 +182,15 @@ function AssetPreview(props: { session?: SessionReader; asset: AssetRef }) {
     () => props.asset.path,
     (path) => {
       if (!props.session) return null
-      if (props.asset.contentType === 'image') return null
+      if (props.asset.kind === 'image') return null
       return props.session.assets.readText(path)
     },
   )
 
   return (
     <div class="field">
-      <div class="label">{props.asset.kind} ({props.asset.contentType})</div>
-      <Show when={props.asset.contentType === 'image'}>
+      <div class="label">{props.asset.kind} ({props.asset.kind})</div>
+      <Show when={props.asset.kind === 'image'}>
         <img src={assetUrl()} class="asset-image" />
       </Show>
       <Show when={content.loading}>

@@ -1,13 +1,15 @@
-import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
-import { summariseBody, normaliseCdpNetworkRequest, normaliseCdpNetworkResponse } from '@introspection/utils'
+import type { IntrospectionPlugin, PluginContext, AssetKind } from '@introspection/types'
+import { normaliseCdpNetworkRequest, normaliseCdpNetworkResponse } from '@introspection/utils'
 
 export type { NetworkRequestEvent, NetworkResponseEvent, NetworkErrorEvent } from '@introspection/types'
 
-function detectContentType(body: string, contentTypeHeader: string): 'json' | 'html' | 'text' {
+function detectKind(contentTypeHeader: string): AssetKind {
   const ct = contentTypeHeader.toLowerCase()
-  if (ct.includes('json') || (body.trimStart().startsWith('{') || body.trimStart().startsWith('['))) return 'json'
+  if (ct.includes('json')) return 'json'
   if (ct.includes('html')) return 'html'
-  return 'text'
+  if (ct.includes('image')) return 'image'
+  if (ct.startsWith('text/')) return 'text'
+  return 'binary'
 }
 
 export function network(): IntrospectionPlugin {
@@ -44,10 +46,10 @@ export function network(): IntrospectionPlugin {
           try {
             const responseBody = await ctx.cdpSession.send('Network.getResponseBody', { requestId: parameters.requestId }) as { body: string; base64Encoded: boolean }
             const body = responseBody.base64Encoded ? Buffer.from(responseBody.body, 'base64').toString('utf-8') : responseBody.body
-            const summary = summariseBody(body)
-            const contentType = detectContentType(body, (responseEvent.data as { headers?: Record<string, string> }).headers?.['content-type'] ?? '')
-            const asset = await ctx.writeAsset({ kind: 'body', contentType, content: body, metadata: { summary } })
-            ctx.emit({ ...responseEvent, data: { ...responseEvent.data, bodySummary: summary }, assets: [asset] })
+            const headerType = (responseEvent.metadata?.headers as Record<string, string> | undefined)?.['content-type'] ?? ''
+            const assetKind = detectKind(headerType)
+            const asset = await ctx.writeAsset({ kind: assetKind, content: body })
+            ctx.emit({ ...responseEvent, assets: [asset] })
           } catch {
             ctx.emit(responseEvent)
           }

@@ -3,35 +3,29 @@ import type { TraceEvent } from '../types.js'
 interface NetworkOpts { failed?: boolean; url?: string }
 
 export function formatNetworkTable(events: TraceEvent[], opts: NetworkOpts): string {
-  const responses = events.filter(event => event.type === 'network.response') as Array<{ data: { cdpRequestId: string; url: string; status: number; requestId: string } } & TraceEvent>
+  const responses = events.filter((event): event is TraceEvent & { type: 'network.response' } => event.type === 'network.response')
   const requests = new Map(
-    (events.filter(event => event.type === 'network.request') as Array<{ id: string; data: { cdpRequestId: string; url: string; method: string } } & TraceEvent>)
-      .map(event => [event.data.cdpRequestId, event])
+    events.filter((event): event is TraceEvent & { type: 'network.request' } => event.type === 'network.request')
+      .map(event => [event.metadata.cdpRequestId, event])
   )
 
   let filtered = responses
-  if (opts.failed) filtered = filtered.filter(response => response.data.status >= 400)
-  if (opts.url) filtered = filtered.filter(response => response.data.url.includes(opts.url!))
+  if (opts.failed) filtered = filtered.filter(response => response.metadata.status >= 400)
+  if (opts.url) filtered = filtered.filter(response => response.metadata.url.includes(opts.url!))
 
   const rows = filtered.map(response => {
-    const request = requests.get(response.data.cdpRequestId)
-    return `${String(response.data.status).padEnd(5)} ${(request?.data.method ?? '?').padEnd(7)} ${response.data.url.padEnd(60)} ${response.id}`
+    const request = requests.get(response.metadata.cdpRequestId)
+    return `${String(response.metadata.status).padEnd(5)} ${(request?.metadata.method ?? '?').padEnd(7)} ${response.metadata.url.padEnd(60)} ${response.id}`
   })
 
   // Collect network.error events
-  const errorEvents = events.filter(event => event.type === 'network.error') as Array<{ data: { cdpRequestId?: string; url?: string; errorText: string } } & TraceEvent>
+  const errorEvents = events.filter((event): event is TraceEvent & { type: 'network.error' } => event.type === 'network.error')
   let filteredErrors = errorEvents
   if (opts.url) filteredErrors = filteredErrors.filter(event => {
-    const request = event.data.cdpRequestId ? requests.get(event.data.cdpRequestId) : undefined
-    const url = request?.data.url ?? event.data.url ?? ''
-    return url.includes(opts.url!)
+    return event.metadata.url.includes(opts.url!)
   })
-  // network.error events are always failures; include them when --failed or no filter
   const errorRows = filteredErrors.map(event => {
-    const request = event.data.cdpRequestId ? requests.get(event.data.cdpRequestId) : undefined
-    const method = request?.data.method ?? '?'
-    const url = request?.data.url ?? event.data.url ?? '?'
-    return `${'ERR'.padEnd(5)} ${method.padEnd(7)} ${url.padEnd(60)} ${event.id}`
+    return `${'ERR'.padEnd(5)} ${'?'.padEnd(7)} ${event.metadata.url.padEnd(60)} ${event.id}`
   })
 
   const allRows = [...rows, ...errorRows]

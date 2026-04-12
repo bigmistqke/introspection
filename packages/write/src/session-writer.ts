@@ -1,7 +1,7 @@
 import { writeFile, mkdir, appendFile, readFile, stat } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
-import type { TraceEvent, SessionMeta, EventSource, PluginMeta, WriteAssetOptions, AssetRef, AssetDataMap } from '@introspection/types'
+import type { TraceEvent, SessionMeta, EventSource, PluginMeta, WriteAssetOptions, AssetRef } from '@introspection/types'
 
 export interface SessionInitParams {
   id: string
@@ -30,21 +30,21 @@ export async function appendEvent(outDir: string, sessionId: string, event: Trac
   await appendFile(join(outDir, sessionId, 'events.ndjson'), JSON.stringify(event) + '\n')
 }
 
-/** Writes content to assets/<id>.<kind>.<ext> and returns an AssetRef. Does not emit an event. */
-export async function writeAsset<K extends keyof AssetDataMap>(
-  options: WriteAssetOptions<K> & {
+/** Writes content to assets/<id>.<ext> and returns an AssetRef. Does not emit an event. */
+export async function writeAsset(
+  options: WriteAssetOptions & {
     directory: string
     name: string
     id?: string
   },
 ): Promise<AssetRef> {
-  const { directory, name, kind, contentType, content, ext = 'json', metadata } = options
+  const { directory, name, kind, content, ext = 'json' } = options
   const id = options.id ?? randomUUID().replace(/-/g, '').slice(0, 8)
-  const filename = `${id}.${kind}.${ext}`
+  const filename = `${id}.${ext}`
   const path = `assets/${filename}`
   await writeFile(join(directory, name, path), content)
   const size = typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength
-  return { path, kind, contentType, size, ...(metadata ?? {}) } as AssetRef
+  return { path, kind, size }
 }
 
 export async function finalizeSession(outDir: string, sessionId: string, endedAt: number): Promise<void> {

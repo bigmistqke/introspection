@@ -42,7 +42,7 @@ export function consolePlugin(options?: ConsoleOptions): IntrospectionPlugin {
           source: 'plugin',
           type: 'console',
           timestamp: ctx.timestamp(),
-          data: { level, message },
+          metadata: { level, message },
         })
       })
     },

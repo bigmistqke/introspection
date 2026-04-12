@@ -45,7 +45,7 @@ program.command('assets')
     if (path) {
       const asset = await session.assets.metadata(path)
 
-      if (asset?.contentType === 'image') {
+      if (asset?.kind === 'image') {
         console.log(`image: ${path}${asset.size ? ` (${(asset.size / 1024).toFixed(1)}KB)` : ''}`)
       } else {
         const content = await session.assets.readText(path)
@@ -58,7 +58,7 @@ program.command('assets')
         return
       }
       for (const asset of assets) {
-        console.log(`${asset.kind.padEnd(20)} ${asset.contentType.padEnd(6)} ${asset.path}`)
+        console.log(`${asset.kind.padEnd(8)} ${asset.path}`)
       }
     }
   })
@@ -147,7 +147,7 @@ program
   .command('events')
   .description('Filter and transform trace events')
   .option('--session-id <id>')
-  .option('--filter <expr>', 'Boolean predicate per event (event), e.g. \'event.data.status >= 400\'')
+  .option('--filter <expr>', 'Boolean predicate per event (event), e.g. \'event.metadata.status >= 400\'')
   .option('--format <fmt>', 'Output format: text (default) or json')
   .option('--type <types>', 'Comma-separated event types to include')
   .option('--source <source>', 'Filter by source: cdp, agent, plugin, playwright')

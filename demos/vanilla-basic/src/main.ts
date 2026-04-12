@@ -21,19 +21,19 @@ const selectElement = document.getElementById('session-select') as HTMLSelectEle
 function formatEvent(event: TraceEvent): string {
   switch (event.type) {
     case 'playwright.action':
-      return `${event.data.method}(${event.data.args.map(argument => JSON.stringify(argument)).join(', ')})`
+      return `${event.metadata.method}(${event.metadata.args.map(argument => JSON.stringify(argument)).join(', ')})`
     case 'network.request':
-      return `${event.data.method} ${event.data.url}`
+      return `${event.metadata.method} ${event.metadata.url}`
     case 'network.response':
-      return `${event.data.status} ${event.data.url}`
+      return `${event.metadata.status} ${event.metadata.url}`
     case 'js.error':
-      return event.data.message
+      return event.metadata.message
     case 'console':
-      return `[${event.data.level}] ${event.data.message}`
+      return `[${event.metadata.level}] ${event.metadata.message}`
     case 'playwright.result':
-      return `${event.data.status ?? 'unknown'} (${event.data.duration}ms)`
+      return `${event.metadata.status ?? 'unknown'} (${event.metadata.duration}ms)`
     case 'browser.navigate':
-      return `${event.data.from} → ${event.data.to}`
+      return `${event.metadata.from} → ${event.metadata.to}`
     default:
       return ''
   }
@@ -73,10 +73,7 @@ function renderDetail(event: TraceEvent) {
       <div class="value">${event.source}</div>
     </div>
     ${event.initiator ? `<div class="field"><div class="label">Initiator</div><div class="value">${event.initiator}</div></div>` : ''}
-    <div class="field">
-      <div class="label">Data</div>
-      <pre>${JSON.stringify(event.data, null, 2)}</pre>
-    </div>
+    ${event.metadata ? `<div class="field"><div class="label">Metadata</div><pre>${JSON.stringify(event.metadata, null, 2)}</pre></div>` : ''}
   `
 }
 

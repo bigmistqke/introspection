@@ -17,125 +17,107 @@ export interface BaseEvent {
 
 export interface BrowserNavigateEvent extends BaseEvent {
   type: 'browser.navigate'
-  data: { from: string; to: string }
+  metadata: { from: string; to: string }
 }
 
 export interface MarkEvent extends BaseEvent {
   type: 'mark'
-  data: { label: string; extra?: Record<string, unknown> }
+  metadata: { label: string; extra?: Record<string, unknown> }
 }
 
 export interface PlaywrightActionEvent extends BaseEvent {
   type: 'playwright.action'
-  data: { method: string; args: unknown[] }
+  metadata: { method: string; args: unknown[] }
 }
 
 export interface PlaywrightTestStartEvent extends BaseEvent {
   type: 'playwright.test.start'
-  data: { titlePath: string[] }
+  metadata: { titlePath: string[] }
 }
 
 export interface PlaywrightResultEvent extends BaseEvent {
   type: 'playwright.result'
-  data: { status?: 'passed' | 'failed' | 'timedOut' | 'skipped'; duration?: number; error?: string; titlePath?: string[] }
+  metadata: { status?: 'passed' | 'failed' | 'timedOut' | 'skipped'; duration?: number; error?: string; titlePath?: string[] }
 }
 
 export interface PlaywrightScreenshotEvent extends BaseEvent {
   type: 'playwright.screenshot'
-  data: Record<string, never>
+  metadata?: never
 }
 
-// ─── Asset data map ─────────────────────────────────────────────────────────
+// ─── Asset reference ────────────────────────────────────────────────────────
 //
-// Augmentable map of asset kind strings to their typed data shapes.
-// `kind` identifies what produced the asset. `contentType` identifies
-// the content format for reading/rendering.
-//
-// Third-party plugins can augment this via declaration merging:
-//
-//   declare module '@introspection/types' {
-//     interface AssetDataMap {
-//       'my-capture': { path: string; size?: number; contentType: 'image' }
-//     }
-//   }
+// An asset is a file written to the session's assets directory.
+// Asset references are attached to events via BaseEvent.assets.
+// `kind` identifies the content format for reading/rendering.
 
-export type AssetContentType = 'json' | 'html' | 'text' | 'image' | 'binary'
+export type AssetKind = 'json' | 'html' | 'text' | 'image' | 'binary'
 
-export interface AssetDataMap {
-  'body': { path: string; size?: number; contentType: 'json' | 'html' | 'text'; summary?: BodySummary; url?: string }
-  'screenshot': { path: string; size?: number; contentType: 'image'; viewport?: { width: number; height: number } }
-  'snapshot': { path: string; size?: number; contentType: 'json'; trigger?: string; url?: string; scopeCount?: number }
-  'scopes': { path: string; size?: number; contentType: 'json' }
-  'solid-structure': { path: string; size?: number; contentType: 'json' }
-  'solid-dgraph': { path: string; size?: number; contentType: 'json' }
-  'solid-updates': { path: string; size?: number; contentType: 'json' }
-  'webgl-state': { path: string; size?: number; contentType: 'json' }
-  'webgl-canvas': { path: string; size?: number; contentType: 'image' }
+export interface AssetRef {
+  path: string
+  kind: AssetKind
+  size?: number
 }
-
-export type AssetRef = { [K in keyof AssetDataMap]: { kind: K } & AssetDataMap[K] }[keyof AssetDataMap]
 
 export interface PageAttachEvent extends BaseEvent {
   type: 'page.attach'
-  data: { pageId: string }
+  metadata: { pageId: string }
 }
 
 export interface PageDetachEvent extends BaseEvent {
   type: 'page.detach'
-  data: { pageId: string }
+  metadata: { pageId: string }
 }
 
 export interface DescribeStartEvent extends BaseEvent {
   type: 'describe.start'
-  data: { label: string }
+  metadata: { label: string }
 }
 
 export interface DescribeEndEvent extends BaseEvent {
   type: 'describe.end'
-  data: { label: string }
+  metadata: { label: string }
 }
 
 export interface TestStartEvent extends BaseEvent {
   type: 'test.start'
-  data: { label: string; titlePath: string[] }
+  metadata: { label: string; titlePath: string[] }
 }
 
 export interface TestEndEvent extends BaseEvent {
   type: 'test.end'
-  data: { label: string; titlePath: string[]; status: string; duration?: number; error?: string }
+  metadata: { label: string; titlePath: string[]; status: string; duration?: number; error?: string }
 }
 
 // ─── Plugin events: network ─────────────────────────────────────────────────
 
 export interface NetworkRequestEvent extends BaseEvent {
   type: 'network.request'
-  data: { cdpRequestId: string; cdpTimestamp: number; cdpWallTime: number; url: string; method: string; headers: Record<string, string>; postData?: string }
+  metadata: { cdpRequestId: string; cdpTimestamp: number; cdpWallTime: number; url: string; method: string; headers: Record<string, string>; postData?: string }
 }
 
 export interface NetworkResponseEvent extends BaseEvent {
   type: 'network.response'
-  data: {
+  metadata: {
     cdpRequestId: string
     cdpTimestamp: number
     requestId: string
     url: string
     status: number
     headers: Record<string, string>
-    bodyRef?: string
-    bodySummary?: BodySummary
   }
 }
 
 export interface NetworkErrorEvent extends BaseEvent {
   type: 'network.error'
-  data: { url: string; errorText: string }
+  metadata: { url: string; errorText: string }
 }
 
 // ─── Plugin events: js-error ────────────────────────────────────────────────
 
 export interface JsErrorEvent extends BaseEvent {
   type: 'js.error'
-  data: { cdpTimestamp: number; message: string; stack: StackFrame[] }
+  metadata: { cdpTimestamp: number; message: string; stack: StackFrame[] }
 }
 
 // ─── Plugin events: console ─────────────────────────────────────────────────
@@ -144,14 +126,14 @@ export type ConsoleLevel = 'log' | 'warn' | 'error' | 'info' | 'debug'
 
 export interface ConsoleEvent extends BaseEvent {
   type: 'console'
-  data: { level: ConsoleLevel; message: string }
+  metadata: { level: ConsoleLevel; message: string }
 }
 
 // ─── Plugin events: performance ─────────────────────────────────────────────
 
 export interface PerfCwvEvent extends BaseEvent {
   type: 'perf.cwv'
-  data: {
+  metadata: {
     metric: 'lcp' | 'cls' | 'inp'
     value: number
     startTime?: number
@@ -163,7 +145,7 @@ export interface PerfCwvEvent extends BaseEvent {
 
 export interface PerfResourceEvent extends BaseEvent {
   type: 'perf.resource'
-  data: {
+  metadata: {
     name: string
     initiatorType: string
     transferSize: number
@@ -181,12 +163,12 @@ export interface PerfResourceEvent extends BaseEvent {
 
 export interface PerfLongTaskEvent extends BaseEvent {
   type: 'perf.long-task'
-  data: { duration: number; startTime: number; attribution: string }
+  metadata: { duration: number; startTime: number; attribution: string }
 }
 
 export interface PerfLayoutShiftEvent extends BaseEvent {
   type: 'perf.layout-shift'
-  data: {
+  metadata: {
     score: number
     hadRecentInput: boolean
     sources: Array<{
@@ -199,63 +181,63 @@ export interface PerfLayoutShiftEvent extends BaseEvent {
 
 export interface PerfPaintEvent extends BaseEvent {
   type: 'perf.paint'
-  data: { name: string; startTime: number }
+  metadata: { name: string; startTime: number }
 }
 
 // ─── Plugin events: webgl ───────────────────────────────────────────────────
 
 export interface WebGLContextCreatedEvent extends BaseEvent {
   type: 'webgl.context-created'
-  data: { contextId: string }
+  metadata: { contextId: string }
 }
 
 export interface WebGLContextLostEvent extends BaseEvent {
   type: 'webgl.context-lost'
-  data: { contextId: string }
+  metadata: { contextId: string }
 }
 
 export interface WebGLContextRestoredEvent extends BaseEvent {
   type: 'webgl.context-restored'
-  data: { contextId: string }
+  metadata: { contextId: string }
 }
 
 export interface WebGLUniformEvent extends BaseEvent {
   type: 'webgl.uniform'
-  data: { contextId: string; name: string; value: unknown; glType: string }
+  metadata: { contextId: string; name: string; value: unknown; glType: string }
 }
 
 export interface WebGLDrawArraysEvent extends BaseEvent {
   type: 'webgl.draw-arrays'
-  data: { contextId: string; primitive: string; first: number; count: number }
+  metadata: { contextId: string; primitive: string; first: number; count: number }
 }
 
 export interface WebGLDrawElementsEvent extends BaseEvent {
   type: 'webgl.draw-elements'
-  data: { contextId: string; primitive: string; count: number; indexType: string; offset: number }
+  metadata: { contextId: string; primitive: string; count: number; indexType: string; offset: number }
 }
 
 export interface WebGLTextureBindEvent extends BaseEvent {
   type: 'webgl.texture-bind'
-  data: { contextId: string; unit: number; target: string; textureId: number | null }
+  metadata: { contextId: string; unit: number; target: string; textureId: number | null }
 }
 
 // ─── Plugin events: solid ───────────────────────────────────────────────────
 
 export interface SolidDetectedEvent extends BaseEvent {
   type: 'solid.detected'
-  data: Record<string, never>
+  metadata?: never
 }
 
 export interface SolidWarningEvent extends BaseEvent {
   type: 'solid.warning'
-  data: { message: string }
+  metadata: { message: string }
 }
 
 // ─── Plugin events: redux ───────────────────────────────────────────────────
 
 export interface ReduxDispatchEvent extends BaseEvent {
   type: 'redux.dispatch'
-  data: { action: string; payload?: unknown; stateBefore?: unknown; stateAfter?: unknown }
+  metadata: { action: string; payload?: unknown; stateBefore?: unknown; stateAfter?: unknown }
 }
 
 // ─── TraceEventMap ──────────────────────────────────────────────────────────
@@ -342,7 +324,7 @@ export interface WatchHandle {
 }
 
 export interface AssetWriter {
-  writeAsset<K extends keyof AssetDataMap>(opts: WriteAssetOptions<K>): Promise<AssetRef>
+  writeAsset(opts: WriteAssetOptions): Promise<AssetRef>
 }
 
 export interface SessionBus {
@@ -434,14 +416,14 @@ export interface TraceFile {
 
 // ─── Shared write types ──────────────────────────────────────────────────────
 
-export type EmitInput = Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 
-export type WriteAssetOptions<K extends keyof AssetDataMap = keyof AssetDataMap> = {
-  kind: K
-  contentType: AssetDataMap[K] extends { contentType: infer C } ? C : AssetContentType
+export type EmitInput = DistributiveOmit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }
+
+export interface WriteAssetOptions {
+  kind: AssetKind
   content: string | Buffer
   ext?: string
-  metadata?: Omit<AssetDataMap[K], 'path' | 'size' | 'contentType'>
 }
 
 // ─── SessionWriter (returned by createSession()) ────────────────────────────

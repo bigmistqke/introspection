@@ -25,7 +25,7 @@ export function applyEventFilters(events: TraceEvent[], opts: EventFilterOpts): 
   let lowerBound = opts.after ?? -Infinity
   if (opts.since !== undefined) {
     const mark = events.find(
-      event => event.type === 'mark' && (event.data as { label: string }).label === opts.since
+      event => event.type === 'mark' && (event.metadata as { label: string }).label === opts.since
     )
     if (!mark) throw new Error(`no mark event with label "${opts.since}" found`)
     lowerBound = Math.max(lowerBound, mark.timestamp)
@@ -50,11 +50,11 @@ export function formatTimeline(events: TraceEvent[]): string {
     const timestampStr = String(event.timestamp).padStart(6) + 'ms'
     const src = event.source.padEnd(10)
     let detail = event.type
-    if (event.type === 'network.request') detail += ` ${(event.data as { method: string }).method} ${(event.data as { url: string }).url}`
-    else if (event.type === 'network.response') detail += ` ${(event.data as { status: number }).status} ${(event.data as { url: string }).url}`
-    else if (event.type === 'js.error') detail += ` ${(event.data as { message: string }).message}`
-    else if (event.type === 'mark') detail += ` "${(event.data as { label: string }).label}"`
-    else if (event.type === 'playwright.action') detail += ` ${(event.data as { method: string }).method}(${(event.data as { args: unknown[] }).args[0] ?? ''})`
+    if (event.type === 'network.request') detail += ` ${(event.metadata as { method: string }).method} ${(event.metadata as { url: string }).url}`
+    else if (event.type === 'network.response') detail += ` ${(event.metadata as { status: number }).status} ${(event.metadata as { url: string }).url}`
+    else if (event.type === 'js.error') detail += ` ${(event.metadata as { message: string }).message}`
+    else if (event.type === 'mark') detail += ` "${(event.metadata as { label: string }).label}"`
+    else if (event.type === 'playwright.action') detail += ` ${(event.metadata as { method: string }).method}(${(event.metadata as { args: unknown[] }).args[0] ?? ''})`
     if (event.assets && event.assets.length > 0) {
       detail += ` [${event.assets.map(a => `${a.kind}:${a.path}`).join(', ')}]`
     }

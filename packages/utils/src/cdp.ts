@@ -8,7 +8,7 @@ export function normaliseCdpNetworkRequest(raw: Record<string, unknown>) {
     id: makeId(),
     type: 'network.request' as const,
     source: 'cdp' as const,
-    data: {
+    metadata: {
       cdpRequestId: raw.requestId as string,
       cdpTimestamp: raw.timestamp as number,
       cdpWallTime: raw.wallTime as number,
@@ -27,7 +27,7 @@ export function normaliseCdpNetworkResponse(raw: Record<string, unknown>) {
     type: 'network.response' as const,
     source: 'cdp' as const,
     initiator: raw.requestId as string,
-    data: {
+    metadata: {
       cdpRequestId: raw.requestId as string,
       cdpTimestamp: raw.timestamp as number,
       requestId: raw.requestId as string,
@@ -53,7 +53,7 @@ export function normaliseCdpJsError(raw: Record<string, unknown>) {
     id: makeId(),
     type: 'js.error' as const,
     source: 'cdp' as const,
-    data: {
+    metadata: {
       cdpTimestamp: raw.timestamp as number,
       message,
       stack,

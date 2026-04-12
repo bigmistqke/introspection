@@ -36,11 +36,11 @@ export class TraceReader {
       .filter(line => line.trim())
       .map(line => JSON.parse(line) as TraceEvent)
 
+    // Collect snapshots from mark events with label 'snapshot'
     const snapshots: TraceFile['snapshots'] = []
     for (const event of events) {
-      if (!event.assets) continue
+      if (event.type !== 'mark' || event.metadata.label !== 'snapshot' || !event.assets) continue
       for (const asset of event.assets) {
-        if (asset.kind !== 'snapshot') continue
         try {
           const raw = await readFile(join(sessionDir, asset.path), 'utf-8')
           snapshots.push(JSON.parse(raw))
@@ -67,8 +67,8 @@ export class TraceReader {
     const NETWORK_URL_TYPES = new Set(['network.request', 'network.response', 'network.error'])
     return trace.events.filter(event => {
       if (opts.type && event.type !== opts.type) return false
-      if (opts.url && NETWORK_URL_TYPES.has(event.type) && !(event.data as { url: string }).url.includes(opts.url)) return false
-      if (opts.failed && event.type === 'network.response' && (event.data as { status: number }).status < 400) return false
+      if (opts.url && NETWORK_URL_TYPES.has(event.type) && !((event as { metadata: { url: string } }).metadata.url).includes(opts.url)) return false
+      if (opts.failed && event.type === 'network.response' && event.metadata.status < 400) return false
       return true
     })
   }

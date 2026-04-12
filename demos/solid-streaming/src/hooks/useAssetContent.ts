@@ -39,12 +39,12 @@ export function useAssetContent(
       const entry: AssetWithContent = {
         asset,
         content: null,
-        loading: asset.contentType !== 'image',
+        loading: asset.kind !== 'image',
       }
 
       setAssets(previous => [entry, ...previous])
 
-      if (asset.contentType === 'image') continue
+      if (asset.kind === 'image') continue
 
       session.assets.readText(asset.path).then(content => {
         setAssets(previous => previous.map(item =>

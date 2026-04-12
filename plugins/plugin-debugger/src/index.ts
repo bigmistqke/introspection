@@ -130,8 +130,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
           }
 
           const asset = await ctx.writeAsset({
-            kind: 'scopes',
-            contentType: 'json',
+            kind: 'json',
             content: JSON.stringify({
               reason: isCapture ? 'capture' : params.reason,
               message,
@@ -146,7 +145,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
             type: 'mark' as const,
             source: 'plugin',
             assets: [asset],
-            data: { label: 'debugger.scopes', extra: { reason: isCapture ? 'capture' : params.reason, url, scopeCount: scopes.length } },
+            metadata: { label: 'debugger.scopes', extra: { reason: isCapture ? 'capture' : params.reason, url, scopeCount: scopes.length } },
           })
         })()
       })

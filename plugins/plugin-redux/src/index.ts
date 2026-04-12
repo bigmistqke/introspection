@@ -19,7 +19,7 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
         store.dispatch = function(action) {
           var event = {
             type: 'redux.dispatch',
-            data: { action: action.type || String(action) }
+            metadata: { action: action.type || String(action) }
           };
           if (action.payload !== undefined) {
             try { event.data.payload = JSON.parse(JSON.stringify(action.payload)); } catch(e) {}
