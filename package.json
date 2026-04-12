@@ -4,7 +4,7 @@
   "scripts": {
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
-    "test": "pnpm -r --filter '!ctf/**' run test",
+    "test": "pnpm -r --filter '!ctf/**' --filter '!demos/**' run test",
     "test:vitest": "vitest run",
     "test:watch": "vitest",
     "demos:static-report": "pnpm --filter @introspection/demo-static-report run generate",

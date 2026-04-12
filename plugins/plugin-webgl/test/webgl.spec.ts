@@ -240,7 +240,7 @@ test('captureCanvas({ contextId }) captures only the matching canvas', async ({ 
   await plugin.captureCanvas({ contextId: targetId })
 
   const raw2 = await readFile(eventsPath, 'utf-8')
-  await endSession(handle, outDir)
+  await handle.detach()
   const events2 = raw2.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
   const marks = events2.filter((e: { type: string; metadata?: { label: string } }) =>
     e.type === 'mark' && e.metadata?.label === 'webgl.canvas-capture')

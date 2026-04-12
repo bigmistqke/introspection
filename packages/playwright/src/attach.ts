@@ -44,8 +44,8 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
   debug('attach', { sessionId: session.id, pageId, testTitle: options.testTitle })
 
   // Wrap session.emit to stamp pageId onto every event from this page
-  function emit(event: EmitInput) {
-    session.emit({ pageId, ...event })
+  function emit(event: EmitInput): Promise<void> {
+    return session.emit({ pageId, ...event })
   }
 
   const { bus, timestamp } = session
@@ -157,7 +157,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
         kind: 'json',
         content: JSON.stringify(snap),
       })
-      emit({ type: 'mark', assets: [asset], metadata: { label: 'snapshot' } })
+      await emit({ type: 'mark', assets: [asset], metadata: { label: 'snapshot' } })
       await bus.emit('manual', { trigger: 'manual', timestamp: timestamp() })
     },
     async detach(detachResult?: DetachResult) {

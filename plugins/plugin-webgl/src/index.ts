@@ -170,7 +170,7 @@ export function webgl(): WebGLPlugin {
         captureAssets.push(asset)
       }
       if (captureAssets.length > 0) {
-        pluginCtx.emit({
+        await pluginCtx.emit({
           type: 'mark' as const,
           assets: captureAssets,
           metadata: { label: 'webgl.canvas-capture' },

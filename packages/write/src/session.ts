@@ -45,10 +45,11 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
     return Date.now() - startedAt
   }
 
-  function emit(event: EmitInput) {
+  function emit(event: EmitInput): Promise<void> {
     const full = { id: randomUUID(), timestamp: timestamp(), ...event } as TraceEvent
-    queue.enqueue(() => appendEvent(outDir, id, full))
+    const writePromise = queue.enqueue(() => appendEvent(outDir, id, full))
     void bus.emit(full.type, full as BusPayloadMap[typeof full.type])
+    return writePromise
   }
 
   return {

@@ -336,7 +336,7 @@ export interface PluginContext extends AssetWriter {
     /** Subscribe to a raw CDP event. Call inside install(). */
     on(event: string, handler: (params: unknown) => void): void
   }
-  emit(event: EmitInput): void
+  emit(event: EmitInput): Promise<void>
   timestamp(): number
   /** Installs a browser-side watch and registers it for navigation recovery. */
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
@@ -420,7 +420,7 @@ export interface WriteAssetOptions {
 
 export interface SessionWriter extends AssetWriter {
   id: string
-  emit(event: EmitInput): void
+  emit(event: EmitInput): Promise<void>
   timestamp(): number
   bus: SessionBus
   finalize(): Promise<void>
