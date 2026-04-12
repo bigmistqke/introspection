@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "@introspection/playwright": "workspace:*",
+    "@introspection/plugin-defaults": "workspace:*",
     "introspect": "workspace:*",
     "@playwright/test": "^1.40.0",
     "typescript": "^5.4.0",

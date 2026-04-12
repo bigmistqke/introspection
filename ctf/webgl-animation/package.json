@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "@introspection/playwright": "workspace:*",
+    "@introspection/plugin-defaults": "workspace:*",
     "@introspection/plugin-webgl": "workspace:*",
     "introspect": "workspace:*",
     "@playwright/test": "^1.40.0",
