@@ -2,14 +2,16 @@
 
 Captures store dispatches from any state library wired up to the Redux DevTools Extension. Works zero-config with Redux, Zustand, MobX-state-tree, XState, Jotai, Effector, Valtio, and anything else that speaks the devtools-extension protocol.
 
+Records every action dispatch with full payloads and optional before/after state snapshots. Works out-of-the-box with any store already connected to Redux DevTools — no app modifications needed. Useful for tracing state changes, correlating user actions with state mutations, and understanding the sequence of dispatches.
+
 ## Table of Contents
 
 - [Install](#install)
 - [Usage](#usage)
-- [How it works](#how-it-works)
 - [Supported libraries](#supported-libraries)
 - [Options](#options)
 - [What it emits](#what-it-emits)
+- [How it works](#how-it-works)
 - [Caveats](#caveats)
 
 ## Install

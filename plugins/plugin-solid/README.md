@@ -2,6 +2,8 @@
 
 Introspection plugin that captures SolidJS component structure, reactive updates, and dependency graph changes via `@solid-devtools/debugger`.
 
+Requires `solid-devtools` to be installed and initialized in your SolidJS app. Records component tree structure, reactive signal updates, and the dependency graph. Useful for understanding component lifecycle, tracking reactive computations, and debugging reactive state issues in SolidJS applications.
+
 ## Table of Contents
 
 - [Install](#install)

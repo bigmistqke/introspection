@@ -2,6 +2,8 @@
 
 Captures JS exceptions and unhandled promise rejections via CDP. Emits a `js.error` event on the bus for plugin coordination.
 
+Automatically records all runtime errors and unhandled promise rejections as they occur. Other plugins can subscribe to the `js.error` bus trigger to react immediately (e.g., capture additional state via a debugger pause). Use alongside [`@introspection/plugin-debugger`](../plugin-debugger) to capture full scope locals at the time of error.
+
 ## Table of Contents
 
 - [Install](#install)
@@ -38,7 +40,26 @@ const handle = await attach(page, { plugins: defaults() })
 | Event type | Description |
 |---|---|
 | `js.error` | JS exception or unhandled promise rejection |
-| bus('js.error') | Signal for other plugins to react |
+
+```ts
+{
+  id: string
+  timestamp: number
+  type: 'js.error'
+  metadata: {
+    cdpTimestamp: number
+    message: string
+    stack: Array<{
+      functionName: string
+      file: string
+      line: number
+      column: number
+    }>
+  }
+}
+```
+
+Also emits on the bus (`'js.error'` trigger) for plugin coordination.
 
 ## Bus augmentation
 

@@ -2,6 +2,8 @@
 
 Introspection plugin that captures debugger pauses with scope locals and call stack information.
 
+Captures full local variable state when breakpoints fire, exceptions occur, or `capture()` is called from application code. Automatically pairs with `@introspection/plugin-js-error` to capture scope state at the moment of error. Useful for post-mortem debugging and understanding the state that led to failures.
+
 ## Table of Contents
 
 - [Install](#install)

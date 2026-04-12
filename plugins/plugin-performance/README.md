@@ -2,6 +2,15 @@
 
 Introspection plugin that captures Core Web Vitals, resource timing, long tasks, layout shifts, and paint events via the Performance API.
 
+Automatically records performance metrics, resource waterfall, long tasks >50ms, layout shifts, and paint events throughout the page lifecycle. Useful for identifying performance bottlenecks, validating Core Web Vitals, and correlating performance issues with user interactions.
+
+## Table of Contents
+
+- [Install](#install)
+- [Usage](#usage)
+- [Options](#options)
+- [Events emitted](#events-emitted)
+
 ## Install
 
 ```bash
@@ -20,18 +29,19 @@ await handle.page.goto('/')
 await handle.detach()
 ```
 
----
-
-## `performance(options?)`
+## Options
 
 ```ts
 performance({
   resources?: boolean   // capture resource timing entries; default: true
-  longTasks?: boolean  // capture long tasks >50ms; default: true
+  longTasks?: boolean   // capture long tasks >50ms; default: true
 })
 ```
 
----
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `resources` | `boolean` | `true` | Capture resource timing entries |
+| `longTasks` | `boolean` | `true` | Capture long tasks >50ms |
 
 ## Events emitted
 

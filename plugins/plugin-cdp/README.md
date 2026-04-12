@@ -2,14 +2,16 @@
 
 Captures every CDP command and event crossing the shared session — a raw wire trace for debugging other plugins.
 
+Useful for understanding the exact sequence and parameters of Chrome DevTools Protocol calls made by other plugins, diagnosing timing races, or replaying bugs from the CDP trace alone. Install first in the plugins array so its tap is in place before other plugins run.
+
 ## Table of Contents
 
 - [Install](#install)
 - [Usage](#usage)
-- [What it captures](#what-it-captures)
-- [When to reach for it](#when-to-reach-for-it)
-- [Caveats](#caveats)
 - [Options](#options)
+- [What it captures](#what-it-captures)
+- [Caveats](#caveats)
+- [When to reach for it](#when-to-reach-for-it)
 
 ## Install
 
@@ -29,6 +31,22 @@ import { network } from '@introspection/plugin-network'
 const handle = await attach(page, { plugins: [cdp(), network()] })
 ```
 
+## Options
+
+```ts
+cdp({
+  verbose: true,
+  captureResults: false,
+  filter: (method) => method.startsWith('Network.') || method.startsWith('Page.'),
+})
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `verbose` | `boolean` | `false` | Log each captured command/event to stdout via `createDebug('plugin-cdp')`. |
+| `captureResults` | `boolean` | `true` | Include resolved command results in `cdp.command.metadata.result`. Set to `false` to drop potentially large payloads (Runtime.evaluate return values, network bodies). Errors are always captured. |
+| `filter` | `(method: string) => boolean` | `undefined` | Return `true` for methods you want captured. Applied to both commands and events. Narrow aggressively for long runs — an unfiltered trace on a real page is large. |
+
 ## What it captures
 
 | Event type | Trigger |
@@ -37,12 +55,6 @@ const handle = await attach(page, { plugins: [cdp(), network()] })
 | `cdp.event` | Every incoming CDP event, fired as it arrives. Metadata includes `method` and raw `params`. |
 
 Because this is a wildcard tap, every CDP method appears — `Network.*`, `Runtime.*`, `Page.*`, `Debugger.*`, `Fetch.*`, etc. Use the `filter` option to narrow.
-
-## When to reach for it
-
-- **"Why did plugin X emit the wrong thing?"** — see the exact CDP params it received.
-- **Timing races** — e.g. calling `Network.getResponseBody` before `loadingFinished` fires. A `cdp.event` / `cdp.command` trace makes the ordering immediately visible without ad-hoc `debug()` sprinkles.
-- **Replay without the browser** — the trace is pure data, so a bug can be reproduced from the ndjson file alone.
 
 ## Caveats
 
@@ -62,18 +74,8 @@ A non-trivial page can easily produce thousands of CDP messages. Defaults keep f
 
 `plugin-cdp` mutates the `CDPSession` that every other plugin uses. That's how the tap sees other plugins' calls. If you need a second CDP instrumentation plugin, write it to compose with `plugin-cdp` (subscribe to its `cdp.command` / `cdp.event` events via `ctx.bus`) rather than double-patching.
 
-## Options
+## When to reach for it
 
-```ts
-cdp({
-  verbose: true,
-  captureResults: false,
-  filter: (method) => method.startsWith('Network.') || method.startsWith('Page.'),
-})
-```
-
-| Option | Default | Description |
-|---|---|---|
-| `verbose` | `false` | Log each captured command/event to stdout via `createDebug('plugin-cdp')`. |
-| `captureResults` | `true` | Include resolved command results in `cdp.command.metadata.result`. Set to `false` to drop potentially large payloads (Runtime.evaluate return values, network bodies). Errors are always captured. |
-| `filter` | `undefined` | Return `true` for methods you want captured. Applied to both commands and events. Narrow aggressively for long runs — an unfiltered trace on a real page is large. |
+- **"Why did plugin X emit the wrong thing?"** — see the exact CDP params it received.
+- **Timing races** — e.g. calling `Network.getResponseBody` before `loadingFinished` fires. A `cdp.event` / `cdp.command` trace makes the ordering immediately visible without ad-hoc `debug()` sprinkles.
+- **Replay without the browser** — the trace is pure data, so a bug can be reproduced from the ndjson file alone.
