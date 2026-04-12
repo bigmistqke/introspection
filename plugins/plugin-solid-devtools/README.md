@@ -1,4 +1,4 @@
-# @introspection/plugin-solid
+# @introspection/plugin-solid-devtools
 
 Introspection plugin that captures SolidJS component structure, reactive updates, and dependency graph changes via `@solid-devtools/debugger`.
 
@@ -16,7 +16,7 @@ Requires `solid-devtools` to be installed and initialized in your SolidJS app. R
 ## Install
 
 ```bash
-pnpm add -D @introspection/plugin-solid
+pnpm add -D @introspection/plugin-solid-devtools
 ```
 
 ## Requirements
@@ -28,7 +28,7 @@ pnpm add -D @introspection/plugin-solid
 
 ```ts
 import { attach } from '@introspection/playwright'
-import { solidDevtools } from '@introspection/plugin-solid'
+import { solidDevtools } from '@introspection/plugin-solid-devtools'
 
 const plugin = solidDevtools()
 const handle = await attach(page, { plugins: [plugin] })
@@ -82,5 +82,5 @@ solidDevtools({
 The plugin re-exports types from `@solid-devtools/debugger` for parsing the captured JSON:
 
 ```ts
-import type { NodeID, NodeType, StructureUpdates, DGraphUpdate, SerializedDGraph } from '@introspection/plugin-solid'
+import type { NodeID, NodeType, StructureUpdates, DGraphUpdate, SerializedDGraph } from '@introspection/plugin-solid-devtools'
 ```

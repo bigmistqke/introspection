@@ -1,8 +1,8 @@
 // Browser-side SolidJS detection and event routing script.
 // Bundled as IIFE and embedded into index.ts at build time.
 // NO imports from @solid-devtools/debugger — the debugger instance is
-// created by the user's app via '@introspection/plugin-solid/setup' and
-// exposed on globalThis.__introspect_solid_debugger__.
+// created by the user's app via '@introspection/plugin-solid-devtools/setup'
+// and exposed on globalThis.__introspect_solid_debugger__.
 
 type EventMode = 'stream' | 'trigger' | 'off'
 
@@ -82,16 +82,16 @@ function flushBuffer(): void {
 }
 
 function eventTypeToCategory(type: string): EventCategory | null {
-  if (type === 'solid.structure') return 'structureUpdates'
-  if (type === 'solid.updates') return 'nodeUpdates'
-  if (type === 'solid.dgraph') return 'dependencyGraph'
+  if (type === 'solid-devtools.structure') return 'structureUpdates'
+  if (type === 'solid-devtools.updates') return 'nodeUpdates'
+  if (type === 'solid-devtools.dgraph') return 'dependencyGraph'
   return null
 }
 
 // ─── Debugger detection ─────────────────────────────────────────────────────
-// The setup module (@introspection/plugin-solid/setup) creates the debugger
-// instance and puts it on globalThis[DEBUGGER_GLOBAL_KEY]. We detect it here
-// and wire it into event routing via onDebuggerReady().
+// The setup module (@introspection/plugin-solid-devtools/setup) creates the
+// debugger instance and puts it on globalThis[DEBUGGER_GLOBAL_KEY]. We detect
+// it here and wire it into event routing via onDebuggerReady().
 
 function connectDebugger(instance: unknown): void {
   if (debuggerConnected) return
@@ -99,7 +99,7 @@ function connectDebugger(instance: unknown): void {
   // Access the public API's onDebuggerReady to wire up event routing
   const solidPlugin = (
     (window as unknown as Record<string, unknown>).__introspect_plugins__ as Record<string, unknown>
-  )?.solid as { onDebuggerReady?: (instance: unknown) => void } | undefined
+  )?.['solid-devtools'] as { onDebuggerReady?: (instance: unknown) => void } | undefined
   if (solidPlugin?.onDebuggerReady) {
     solidPlugin.onDebuggerReady(instance)
   }
@@ -132,9 +132,9 @@ function detectDebugger(): void {
   window.addEventListener('load', () => {
     setTimeout(() => {
       if (!debuggerConnected) {
-        push('solid.warning', {
+        push('solid-devtools.warning', {
           message:
-            'Solid debugger was not detected. Ensure @introspection/plugin-solid/setup is imported in your app entry.',
+            'Solid debugger was not detected. Ensure @introspection/plugin-solid-devtools/setup is imported in your app entry.',
         } as unknown)
       }
     }, 3000)
@@ -149,7 +149,7 @@ detectDebugger()
   (window as unknown as Record<string, unknown>).__introspect_plugins__ || {}
 ;(
   (window as unknown as Record<string, unknown>).__introspect_plugins__ as Record<string, unknown>
-).solid = {
+)['solid-devtools'] = {
   configure(options: Config): void {
     config = options
     flushBuffer()
@@ -161,17 +161,17 @@ detectDebugger()
   onDebuggerReady(instance: { toggleEnabled: (enabled: boolean) => void; emit: (message: unknown) => void; listen: (listener: (message: { name: string; details: unknown }) => void) => () => void }): void {
     if (debuggerConnected) return
     debuggerConnected = true
-    push('solid.detected', {} as unknown)
+    push('solid-devtools.detected', {} as unknown)
 
     instance.toggleEnabled(true)
 
     instance.listen((message: { name: string; details: unknown }) => {
       if (message.name === 'StructureUpdates') {
-        routeEvent('structureUpdates', 'solid.structure', message.details)
+        routeEvent('structureUpdates', 'solid-devtools.structure', message.details)
       } else if (message.name === 'NodeUpdates') {
-        routeEvent('nodeUpdates', 'solid.updates', message.details)
+        routeEvent('nodeUpdates', 'solid-devtools.updates', message.details)
       } else if (message.name === 'DgraphUpdate') {
-        routeEvent('dependencyGraph', 'solid.dgraph', message.details)
+        routeEvent('dependencyGraph', 'solid-devtools.dgraph', message.details)
       }
     })
   },

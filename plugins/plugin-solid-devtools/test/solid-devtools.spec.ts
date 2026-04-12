@@ -77,7 +77,7 @@ test.describe('solid devtools plugin', () => {
 
     const events = await endSession(handle, outDir)
     const structureEvents = events.filter(
-      (event: { type: string }) => event.type === 'solid.structure',
+      (event: { type: string }) => event.type === 'solid-devtools.structure',
     )
     expect(structureEvents.length).toBeGreaterThanOrEqual(1)
   })
@@ -98,7 +98,7 @@ test.describe('solid devtools plugin', () => {
     const events = await endSession(handle, outDir)
     // Look for solid.capture events with assets
     const solidCaptures = events.filter((event: { type: string; assets?: unknown[] }) =>
-      event.type === 'solid.capture' && event.assets && event.assets.length > 0)
+      event.type === 'solid-devtools.capture' && event.assets && event.assets.length > 0)
     expect(solidCaptures.length).toBeGreaterThanOrEqual(1)
   })
 
@@ -115,9 +115,9 @@ test.describe('solid devtools plugin', () => {
 
     const events = await endSession(handle, outDir)
     const warnings = events.filter(
-      (event: { type: string }) => event.type === 'solid.warning',
+      (event: { type: string }) => event.type === 'solid-devtools.warning',
     )
     expect(warnings.length).toBeGreaterThanOrEqual(1)
-    expect(warnings[0].metadata.message).toContain('@introspection/plugin-solid/setup')
+    expect(warnings[0].metadata.message).toContain('@introspection/plugin-solid-devtools/setup')
   })
 })

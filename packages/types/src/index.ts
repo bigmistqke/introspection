@@ -236,20 +236,20 @@ export interface WebGLCaptureEvent extends BaseEvent {
   metadata?: never
 }
 
-// ─── Plugin events: solid ───────────────────────────────────────────────────
+// ─── Plugin events: solid-devtools ──────────────────────────────────────────
 
-export interface SolidDetectedEvent extends BaseEvent {
-  type: 'solid.detected'
+export interface SolidDevtoolsDetectedEvent extends BaseEvent {
+  type: 'solid-devtools.detected'
   metadata?: never
 }
 
-export interface SolidWarningEvent extends BaseEvent {
-  type: 'solid.warning'
+export interface SolidDevtoolsWarningEvent extends BaseEvent {
+  type: 'solid-devtools.warning'
   metadata: { message: string }
 }
 
-export interface SolidCaptureEvent extends BaseEvent {
-  type: 'solid.capture'
+export interface SolidDevtoolsCaptureEvent extends BaseEvent {
+  type: 'solid-devtools.capture'
   metadata?: never
 }
 
@@ -366,10 +366,10 @@ export interface TraceEventMap {
   'webgl.draw-elements': WebGLDrawElementsEvent
   'webgl.texture-bind': WebGLTextureBindEvent
   'webgl.capture': WebGLCaptureEvent
-  // Solid
-  'solid.detected': SolidDetectedEvent
-  'solid.warning': SolidWarningEvent
-  'solid.capture': SolidCaptureEvent
+  // Solid DevTools
+  'solid-devtools.detected': SolidDevtoolsDetectedEvent
+  'solid-devtools.warning': SolidDevtoolsWarningEvent
+  'solid-devtools.capture': SolidDevtoolsCaptureEvent
   // React Scan
   'react-scan.render': ReactScanRenderEvent
   'react-scan.commit': ReactScanCommitEvent

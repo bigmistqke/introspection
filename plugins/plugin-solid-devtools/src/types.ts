@@ -1,4 +1,4 @@
-export type { SolidDetectedEvent, SolidWarningEvent } from '@introspection/types'
+export type { SolidDevtoolsDetectedEvent, SolidDevtoolsWarningEvent } from '@introspection/types'
 
 declare global {
   interface Window {

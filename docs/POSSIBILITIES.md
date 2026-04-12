@@ -82,7 +82,7 @@ Shared primitive worth considering: `maxAssetSize`/`maxEventBytes` in `CreateSes
 
 - **plugin-cdp has no README** — the plugin exists with non-trivial config surface (`captureResults`) but is undocumented; users who turn it on without reading the code will capture megabytes of Runtime.evaluate payloads per test.
 - **plugin-redux assumes a single `window.__REDUX_STORE__`** — apps with dynamic or multiple stores (per-tenant, per-feature) aren't captured.
-- **plugin-solid's 3s detection window** — if the Solid debugger hasn't attached within 3 seconds, the plugin emits a warning and gives up. Slow initial loads hit false positives.
+- **plugin-solid-devtools' 3s detection window** — if the Solid debugger hasn't attached within 3 seconds, the plugin emits a warning and gives up. Slow initial loads hit false positives.
 - **plugin-performance INP downgrade is silent** — falls back from `PerformanceObserver('event')` to `first-input` when the former doesn't fire (common in headless). The emitted event looks identical to a real-INP measurement. Consider a `{ source: 'event' | 'first-input' }` field.
 - **plugin-debugger exception message extraction** — `String(params.data?.description)` assumes a string-like description; non-Error throws (Symbols, bare objects) can produce empty or unhelpful messages.
 

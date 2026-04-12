@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { attach } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
-import { solidDevtools } from '@introspection/plugin-solid'
+import { solidDevtools } from '@introspection/plugin-solid-devtools'
 
 test('streaming demo auto-connects and streams events', async ({ page }) => {
   const startTime = Date.now()

@@ -9,8 +9,8 @@ async function captureState(context: PluginContext): Promise<void> {
 
   const state = await context.page.evaluate(() => {
     return (
-      window.__introspect_plugins__ as { solid?: { getState?(): unknown } } | undefined
-    )?.solid?.getState?.() ?? null
+      window.__introspect_plugins__ as { 'solid-devtools'?: { getState?(): unknown } } | undefined
+    )?.['solid-devtools']?.getState?.() ?? null
   }) as SolidState | null
 
   if (!state) return
@@ -43,16 +43,16 @@ async function captureState(context: PluginContext): Promise<void> {
 
   if (assets.length > 0) {
     await context.emit({
-      type: 'solid.capture' as const,
+      type: 'solid-devtools.capture' as const,
       assets,
     })
   }
 }
 
 export function solidDevtools(options?: SolidDevtoolsOptions): IntrospectionPlugin {
-  const debug = createDebug('plugin-solid', options?.verbose ?? false)
+  const debug = createDebug('plugin-solid-devtools', options?.verbose ?? false)
   return {
-    name: 'solid',
+    name: 'solid-devtools',
     script: BROWSER_SCRIPT,
 
     async install(context: PluginContext): Promise<void> {
@@ -65,8 +65,8 @@ export function solidDevtools(options?: SolidDevtoolsOptions): IntrospectionPlug
 
       // Deliver config to the browser script
       await context.page.evaluate((pluginOptions) => {
-        ;(window.__introspect_plugins__ as { solid?: { configure?(config: unknown): void } } | undefined)
-          ?.solid?.configure?.(pluginOptions)
+        ;(window.__introspect_plugins__ as { 'solid-devtools'?: { configure?(config: unknown): void } } | undefined)
+          ?.['solid-devtools']?.configure?.(pluginOptions)
       }, resolvedOptions)
 
       // After each navigation, addInitScript re-runs browser.ts, resetting config.
@@ -76,11 +76,11 @@ export function solidDevtools(options?: SolidDevtoolsOptions): IntrospectionPlug
         if (parameters.name !== '__introspect_push__') return
         try {
           const { type } = JSON.parse(parameters.payload) as { type: string }
-          if (type === 'solid.detected') {
+          if (type === 'solid-devtools.detected') {
             debug('solid detected')
             context.page.evaluate((pluginOptions) => {
-              ;(window.__introspect_plugins__ as { solid?: { configure?(config: unknown): void } } | undefined)
-                ?.solid?.configure?.(pluginOptions)
+              ;(window.__introspect_plugins__ as { 'solid-devtools'?: { configure?(config: unknown): void } } | undefined)
+                ?.['solid-devtools']?.configure?.(pluginOptions)
             }, resolvedOptions).catch(() => {
               // Navigation may destroy the execution context before configure completes — expected.
             })

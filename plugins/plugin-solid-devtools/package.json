@@ -1,5 +1,5 @@
 {
-  "name": "@introspection/plugin-solid",
+  "name": "@introspection/plugin-solid-devtools",
   "version": "0.1.0",
   "type": "module",
   "exports": {

@@ -24,7 +24,7 @@ Available plugins:
 | `debuggerPlugin()` | `@introspection/plugin-debugger` | Scope locals on exceptions, breakpoints, and `capture()` calls |
 | `consolePlugin()` | `@introspection/plugin-console` | Browser console output |
 | `webgl()` | `@introspection/plugin-webgl` | WebGL state, uniforms, draw calls, canvas PNGs |
-| `solidDevtools()` | `@introspection/plugin-solid` | SolidJS component tree and reactive updates |
+| `solidDevtools()` | `@introspection/plugin-solid-devtools` | SolidJS component tree and reactive updates |
 | `performance()` | `@introspection/plugin-performance` | Core Web Vitals, resource timing, long tasks |
 | `redux()` | `@introspection/plugin-redux` | Store dispatches from Redux, Zustand, Valtio, and Redux DevTools–compatible libraries (action + optional state) |
 | `cdp()` | `@introspection/plugin-cdp` | Raw CDP commands and events (instrumentation/debugging) |

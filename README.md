@@ -58,7 +58,7 @@ Every capability is a plugin. If you don't wire it up, it won't log. Pass the pl
 |---|---|---|
 | `reactScanPlugin()` | [`@introspection/plugin-react-scan`](plugins/plugin-react-scan/README.md) | React component renders and reconciler commits, via react-scan |
 | `redux()` | [`@introspection/plugin-redux`](plugins/plugin-redux/README.md) | Store dispatches from Redux, Zustand, Valtio, and other Redux DevTools–compatible libraries, with optional state snapshots |
-| `solidDevtools()` | [`@introspection/plugin-solid`](plugins/plugin-solid/README.md) | SolidJS component structure, reactive updates, and dependency graph |
+| `solidDevtools()` | [`@introspection/plugin-solid-devtools`](plugins/plugin-solid-devtools/README.md) | SolidJS component structure, reactive updates, and dependency graph |
 
 ---
 

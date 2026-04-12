@@ -199,9 +199,9 @@ importers:
       '@introspection/demo-shared':
         specifier: workspace:*
         version: link:../shared
-      '@introspection/plugin-solid':
+      '@introspection/plugin-solid-devtools':
         specifier: workspace:*
-        version: link:../../plugins/plugin-solid
+        version: link:../../plugins/plugin-solid-devtools
       '@introspection/read':
         specifier: workspace:*
         version: link:../../packages/read
@@ -673,7 +673,7 @@ importers:
         specifier: ^4.4.1
         version: 4.5.7(@types/react@19.2.14)(immer@9.0.21)(react@18.3.1)
 
-  plugins/plugin-solid:
+  plugins/plugin-solid-devtools:
     dependencies:
       '@introspection/plugin-js-error':
         specifier: workspace:*
