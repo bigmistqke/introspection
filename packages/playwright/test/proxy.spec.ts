@@ -30,8 +30,8 @@ test('proxied page emits playwright.action event for tracked methods', async ({ 
 
   const events = await readEvents(dir)
   const actions = events.filter((e: { type: string }) => e.type === 'playwright.action')
-  const gotoAction = actions.find((e: { data: { method: string } }) => e.metadata.method === 'goto')
-  const clickAction = actions.find((e: { data: { method: string } }) => e.metadata.method === 'click')
+  const gotoAction = actions.find((e: { metadata: { method: string } }) => e.metadata.method === 'goto')
+  const clickAction = actions.find((e: { metadata: { method: string } }) => e.metadata.method === 'click')
 
   expect(gotoAction).toBeDefined()
   expect(clickAction).toBeDefined()
@@ -67,7 +67,7 @@ test('function args in evaluate are sanitized to [function]', async ({ page }) =
 
   const events = await readEvents(dir)
   const evalAction = events.find(
-    (e: { type: string; data?: { method: string } }) =>
+    (e: { type: string; metadata?: { method: string } }) =>
       e.type === 'playwright.action' && e.metadata?.method === 'evaluate',
   )
   expect(evalAction).toBeDefined()

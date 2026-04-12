@@ -8,7 +8,7 @@ const outDir = mkdtempSync(join(tmpdir(), 'introspect-fixture-'))
 const { test, expect } = introspectFixture({ outDir, plugins: defaults() })
 
 test('fixture auto-attaches and records events', async ({ introspect }) => {
-  await introspect.emit({ type: 'mark', metadata: { label: 'step 1', extra: true } })
+  await introspect.emit({ type: 'mark', metadata: { label: 'step 1' } })
 })
 
 test('fixture emits playwright.test.start with titlePath', async ({ introspect }) => {

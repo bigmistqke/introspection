@@ -218,6 +218,11 @@ export interface WebGLTextureBindEvent extends BaseEvent {
   metadata: { contextId: string; unit: number; target: string; textureId: number | null }
 }
 
+export interface WebGLCaptureEvent extends BaseEvent {
+  type: 'webgl.capture'
+  metadata?: never
+}
+
 // ─── Plugin events: solid ───────────────────────────────────────────────────
 
 export interface SolidDetectedEvent extends BaseEvent {
@@ -228,6 +233,11 @@ export interface SolidDetectedEvent extends BaseEvent {
 export interface SolidWarningEvent extends BaseEvent {
   type: 'solid.warning'
   metadata: { message: string }
+}
+
+export interface SolidCaptureEvent extends BaseEvent {
+  type: 'solid.capture'
+  metadata?: never
 }
 
 // ─── Plugin events: redux ───────────────────────────────────────────────────
@@ -284,9 +294,11 @@ export interface TraceEventMap {
   'webgl.draw-arrays': WebGLDrawArraysEvent
   'webgl.draw-elements': WebGLDrawElementsEvent
   'webgl.texture-bind': WebGLTextureBindEvent
+  'webgl.capture': WebGLCaptureEvent
   // Solid
   'solid.detected': SolidDetectedEvent
   'solid.warning': SolidWarningEvent
+  'solid.capture': SolidCaptureEvent
   // Redux
   'redux.dispatch': ReduxDispatchEvent
 }
@@ -302,6 +314,7 @@ export type TraceEvent = TraceEventMap[keyof TraceEventMap]
 // Lifecycle triggers ('manual', 'detach') have fixed payloads and are bus-only.
 
 export type BusPayloadMap = TraceEventMap & {
+  'snapshot': { trigger: 'manual' | 'js.error' | 'debugger.paused'; timestamp: number }
   'manual': { trigger: 'manual'; timestamp: number }
   'detach': { trigger: 'detach'; timestamp: number }
 }

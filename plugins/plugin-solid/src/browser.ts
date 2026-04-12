@@ -14,7 +14,7 @@ interface Config {
 
 interface BufferedEvent {
   type: string
-  data: unknown
+  metadata: unknown
 }
 
 interface State {
@@ -25,9 +25,9 @@ interface State {
 
 // ─── Push helper ─────────────────────────────────────────────────────────────
 
-function push(type: string, data: unknown): void {
+function push(type: string, metadata: unknown): void {
   ;(window as unknown as { __introspect_push__: (payload: string) => void }).__introspect_push__(
-    JSON.stringify({ type, data })
+    JSON.stringify({ type, metadata })
   )
 }
 
@@ -50,9 +50,9 @@ const DEBUGGER_GLOBAL_KEY = '__introspect_solid_debugger__'
 
 type EventCategory = 'structureUpdates' | 'nodeUpdates' | 'dependencyGraph'
 
-function routeEvent(category: EventCategory, type: string, data: unknown): void {
+function routeEvent(category: EventCategory, type: string, metadata: unknown): void {
   if (!config) {
-    eventBuffer.push({ type, data })
+    eventBuffer.push({ type, metadata })
     return
   }
 
@@ -60,13 +60,13 @@ function routeEvent(category: EventCategory, type: string, data: unknown): void 
   if (mode === 'off') return
 
   if (mode === 'stream') {
-    push(type, data)
+    push(type, metadata)
   }
 
   if (mode === 'trigger') {
-    if (category === 'structureUpdates') latestState.structure = data
-    else if (category === 'nodeUpdates') latestState.updates = data
-    else if (category === 'dependencyGraph') latestState.dgraph = data
+    if (category === 'structureUpdates') latestState.structure = metadata
+    else if (category === 'nodeUpdates') latestState.updates = metadata
+    else if (category === 'dependencyGraph') latestState.dgraph = metadata
   }
 }
 
@@ -77,7 +77,7 @@ function flushBuffer(): void {
   for (const entry of buffered) {
     const category = eventTypeToCategory(entry.type)
     if (!category) continue
-    routeEvent(category, entry.type, entry.data)
+    routeEvent(category, entry.type, entry.metadata)
   }
 }
 
@@ -135,7 +135,7 @@ function detectDebugger(): void {
         push('solid.warning', {
           message:
             'Solid debugger was not detected. Ensure @introspection/plugin-solid/setup is imported in your app entry.',
-        })
+        } as unknown)
       }
     }, 3000)
   })
@@ -161,7 +161,7 @@ detectDebugger()
   onDebuggerReady(instance: { toggleEnabled: (enabled: boolean) => void; emit: (message: unknown) => void; listen: (listener: (message: { name: string; details: unknown }) => void) => () => void }): void {
     if (debuggerConnected) return
     debuggerConnected = true
-    push('solid.detected', {})
+    push('solid.detected', {} as unknown)
 
     instance.toggleEnabled(true)
 

@@ -145,16 +145,6 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
       return session.writeAsset(opts)
     },
     async snapshot() {
-      const snap = await takeSnapshot({
-        cdpSession: { send: cdpSend },
-        trigger: 'manual',
-        url: await page.evaluate(() => location.href).catch(() => ''),
-      })
-      const asset = await session.writeAsset({
-        kind: 'json',
-        content: JSON.stringify(snap),
-      })
-      await emit({ type: 'mark', assets: [asset], metadata: { label: 'snapshot' } })
       await bus.emit('manual', { trigger: 'manual', timestamp: timestamp() })
     },
     async detach(detachResult?: DetachResult) {

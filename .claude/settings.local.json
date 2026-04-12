@@ -4,7 +4,10 @@
       "Bash(../../node_modules/.bin/tsc --traceResolution)",
       "Bash(pnpm --filter @introspection/types run build)",
       "Bash(pnpm typecheck:*)",
-      "Bash(claude plugin:*)"
+      "Bash(claude plugin:*)",
+      "Bash(pnpm --filter plugin-webgl build)",
+      "Bash(pnpm --filter plugin-webgl test)",
+      "Bash(pnpm -r --filter '!ctf/**' --filter '!demos/**' run test)"
     ]
   }
 }

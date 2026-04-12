@@ -96,10 +96,9 @@ export function webgl(): WebGLPlugin {
     }
 
     if (assets.length > 0) {
-      ctx.emit({
-        type: 'mark' as const,
+      await ctx.emit({
+        type: 'webgl.capture' as const,
         assets,
-        metadata: { label: 'webgl.capture' },
       })
     }
   }
@@ -152,12 +151,20 @@ export function webgl(): WebGLPlugin {
     async captureCanvas(opts?: { contextId?: string }): Promise<void> {
       if (!pluginCtx) throw new Error('webgl plugin: captureCanvas() called before install()')
       const captureTimestamp = pluginCtx.timestamp()
-      const canvases = await pluginCtx.page.evaluate(async () => {
-        const plugin = (window.__introspect_plugins__ as {
-          webgl?: { captureCanvases?(): Promise<Array<{ contextId: string; dataUrl: string }>> }
-        } | undefined)?.webgl
-        return plugin?.captureCanvases?.() ?? []
-      })
+      let canvases: Array<{ contextId: string; dataUrl: string }>
+      try {
+        canvases = await pluginCtx.page.evaluate(async () => {
+          const plugin = (window.__introspect_plugins__ as {
+            webgl?: { captureCanvases?(): Promise<Array<{ contextId: string; dataUrl: string }>> }
+          } | undefined)?.webgl
+          if (!plugin?.captureCanvases) {
+            return []
+          }
+          return await plugin.captureCanvases()
+        })
+      } catch (error) {
+        canvases = []
+      }
       const captureAssets = []
       for (const { contextId, dataUrl } of canvases) {
         if (opts?.contextId !== undefined && contextId !== opts.contextId) continue
@@ -171,9 +178,8 @@ export function webgl(): WebGLPlugin {
       }
       if (captureAssets.length > 0) {
         await pluginCtx.emit({
-          type: 'mark' as const,
+          type: 'webgl.capture' as const,
           assets: captureAssets,
-          metadata: { label: 'webgl.canvas-capture' },
         })
       }
     },

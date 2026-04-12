@@ -39,7 +39,7 @@ test('creates session directory with meta.json and events.ndjson', async ({ page
 
 test('emit() appends a mark event to events.ndjson', async ({ page }) => {
   const handle = await attach(page, { outDir: dir, plugins: [] })
-  await handle.emit({ type: 'mark', metadata: { label: 'step 1', extra: true } })
+  await handle.emit({ type: 'mark', metadata: { label: 'step 1' } })
   await handle.detach()
   const events = await readEvents(dir)
   const mark = events.find((event: { type: string }) => event.type === 'mark')
@@ -70,7 +70,7 @@ test('network request appends network.request event', async ({ page }) => {
   await new Promise(r => setTimeout(r, 100))
   await handle.detach()
   const events = await readEvents(dir)
-  const networkRequest = events.find((event: { type: string; data?: { url: string } }) =>
+  const networkRequest = events.find((event: { type: string; metadata?: { url: string } }) =>
     event.type === 'network.request' && event.metadata?.url?.includes('/api/test'))
   expect(networkRequest).toBeDefined()
 })

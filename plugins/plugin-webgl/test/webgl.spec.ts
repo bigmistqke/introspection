@@ -203,12 +203,12 @@ test('captureCanvas() writes a mark event with image asset', async ({ page }) =>
   await endSession(handle, outDir)
   const events = raw.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
 
-  const canvasMark = events.find((e: { type: string; metadata?: { label: string } }) =>
-    e.type === 'mark' && e.metadata?.label === 'webgl.canvas-capture')
-  expect(canvasMark).toBeDefined()
-  expect(canvasMark.assets).toBeDefined()
-  expect(canvasMark.assets.length).toBeGreaterThanOrEqual(1)
-  expect(canvasMark.assets[0].kind).toBe('image')
+  const captureEvent = events.find((e: { type: string }) =>
+    e.type === 'webgl.capture')
+  expect(captureEvent).toBeDefined()
+  expect(captureEvent.assets).toBeDefined()
+  expect(captureEvent.assets.length).toBeGreaterThanOrEqual(1)
+  expect(captureEvent.assets[0].kind).toBe('image')
 })
 
 test('captureCanvas({ contextId }) captures only the matching canvas', async ({ page }) => {
@@ -242,30 +242,30 @@ test('captureCanvas({ contextId }) captures only the matching canvas', async ({ 
   const raw2 = await readFile(eventsPath, 'utf-8')
   await handle.detach()
   const events2 = raw2.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
-  const marks = events2.filter((e: { type: string; metadata?: { label: string } }) =>
-    e.type === 'mark' && e.metadata?.label === 'webgl.canvas-capture')
-  expect(marks.length).toBeGreaterThanOrEqual(2)  // once from captureCanvas(), once from captureCanvas({ contextId })
+  const captures = events2.filter((e: { type: string }) =>
+    e.type === 'webgl.capture')
+  expect(captures.length).toBeGreaterThanOrEqual(2)  // once from captureCanvas(), once from captureCanvas({ contextId })
 
-  // Verify at least one mark has image assets
-  const marksWithAssets = marks.filter((e: { assets?: unknown[] }) => e.assets && e.assets.length > 0)
-  expect(marksWithAssets.length).toBeGreaterThanOrEqual(1)
+  // Verify at least one capture has image assets
+  const capturesWithAssets = captures.filter((e: { assets?: unknown[] }) => e.assets && e.assets.length > 0)
+  expect(capturesWithAssets.length).toBeGreaterThanOrEqual(1)
 })
 
-test('snapshot() triggers capture and emits mark event with json and image assets', async ({ page }) => {
+test('snapshot() triggers capture and emits webgl.capture event with json and image assets', async ({ page }) => {
   const { outDir, plugin, handle } = await makeSession(page)
   await setupGL(page)
 
   await handle.snapshot()  // triggers plugin.capture('manual')
   const events = await endSession(handle, outDir)
 
-  const captureMark = events.find((e: { type: string; metadata?: { label: string } }) =>
-    e.type === 'mark' && e.metadata?.label === 'webgl.capture')
-  expect(captureMark).toBeDefined()
-  expect(captureMark.assets).toBeDefined()
-  expect(captureMark.assets.length).toBeGreaterThanOrEqual(1)
+  const captureEvent = events.find((e: { type: string }) =>
+    e.type === 'webgl.capture')
+  expect(captureEvent).toBeDefined()
+  expect(captureEvent.assets).toBeDefined()
+  expect(captureEvent.assets.length).toBeGreaterThanOrEqual(1)
 
   // Should have json assets (webgl state snapshots) and/or image assets (canvas captures)
-  const hasJsonAsset = captureMark.assets.some((a: { kind: string }) => a.kind === 'json')
-  const hasImageAsset = captureMark.assets.some((a: { kind: string }) => a.kind === 'image')
+  const hasJsonAsset = captureEvent.assets.some((a: { kind: string }) => a.kind === 'json')
+  const hasImageAsset = captureEvent.assets.some((a: { kind: string }) => a.kind === 'image')
   expect(hasJsonAsset || hasImageAsset).toBe(true)
 })

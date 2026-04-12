@@ -42,9 +42,8 @@ async function captureState(context: PluginContext): Promise<void> {
 
   if (assets.length > 0) {
     await context.emit({
-      type: 'mark' as const,
+      type: 'solid.capture' as const,
       assets,
-      metadata: { label: 'solid.state' },
     })
   }
 }
