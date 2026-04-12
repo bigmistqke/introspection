@@ -34,10 +34,20 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
       },
     },
 
+    // Wraps the capture binding so the page hits `debugger;` immediately after
+    // sending the label. Without this, Debugger.pause from Node arrives after
+    // page JS has finished running and the pause never lands.
+    script: `
+      window.__introspect_plugin_debugger_capture__ = function(payload) {
+        window.__introspect_plugin_debugger_capture_binding__(payload);
+        debugger;
+      };
+    `,
+
     async install(ctx: PluginContext): Promise<void> {
       await ctx.cdpSession.send('Debugger.enable')
       await ctx.cdpSession.send('Debugger.setPauseOnExceptions', { state: pauseOnExceptions })
-      await ctx.cdpSession.send('Runtime.addBinding', { name: '__introspect_plugin_debugger_capture__' })
+      await ctx.cdpSession.send('Runtime.addBinding', { name: '__introspect_plugin_debugger_capture_binding__' })
 
       for (const bp of options?.breakpoints ?? []) {
         await ctx.cdpSession.send('Debugger.setBreakpoint', {
@@ -50,11 +60,10 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
 
       ctx.cdpSession.on('Runtime.bindingCalled', (rawParams) => {
         const params = rawParams as { name: string; payload: string }
-        if (params.name !== '__introspect_plugin_debugger_capture__') return
+        if (params.name !== '__introspect_plugin_debugger_capture_binding__') return
         try {
           const { label } = JSON.parse(params.payload) as { label?: string }
-          pendingCaptureLabel = label
-          void ctx.cdpSession.send('Debugger.pause').catch(() => {})
+          pendingCaptureLabel = label ?? ''
         } catch { /* ignore malformed payload */ }
       })
 
@@ -70,9 +79,12 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
           }>
         }
 
-        const isCapture = params.reason === 'interrupted' && pendingCaptureLabel !== undefined
-        const validReasons = ['exception', 'promiseRejection', 'breakpoint', 'debuggerStatement', 'step']
-        if (!isCapture && !validReasons.includes(params.reason)) {
+        // CDP reports both manual Debugger.pause() calls and `debugger;` statements
+        // with reason 'other'. We disambiguate via pendingCaptureLabel.
+        const isCapture = params.reason === 'other' && pendingCaptureLabel !== undefined
+        const isDebuggerStatement = params.reason === 'other' && pendingCaptureLabel === undefined
+        const validReasons = ['exception', 'promiseRejection', 'breakpoint', 'step']
+        if (!isCapture && !isDebuggerStatement && !validReasons.includes(params.reason)) {
           void ctx.cdpSession.send('Debugger.resume').catch(() => {})
           return
         }
@@ -123,16 +135,17 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
 
           let message: string | undefined
           if (params.reason === 'exception' || params.reason === 'promiseRejection') {
-            message = String((params.data as Record<string, unknown>)?.exceptionDescription ?? '')
+            message = String((params.data as Record<string, unknown>)?.description ?? '')
           } else if (isCapture) {
             message = pendingCaptureLabel
             pendingCaptureLabel = undefined
           }
 
+          const reason = isCapture ? 'capture' : isDebuggerStatement ? 'debuggerStatement' : params.reason
           const asset = await ctx.writeAsset({
             kind: 'json',
             content: JSON.stringify({
-              reason: isCapture ? 'capture' : params.reason,
+              reason,
               message,
               stack,
               url,
