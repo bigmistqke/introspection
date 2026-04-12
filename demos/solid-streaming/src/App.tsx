@@ -116,6 +116,13 @@ function SessionView(props: { session?: SessionReader }) {
                     {event.type}
                   </span>
                   <span class="summary"> {formatEvent(event)}</span>
+                  <Show when={event.assets && event.assets.length > 0}>
+                    <span class="event-assets">
+                      <For each={event.assets}>
+                        {(asset) => <span class="event-asset-chip">{asset.kind}</span>}
+                      </For>
+                    </span>
+                  </Show>
                   <span class="event-id">{event.id.slice(0, 8)}</span>
                 </span>
               </div>
