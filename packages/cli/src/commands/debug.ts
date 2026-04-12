@@ -1,18 +1,30 @@
 import { chromium } from '@playwright/test'
-import { resolve } from 'path'
-import { readFile } from 'fs/promises'
+import { resolve as resolvePath, extname } from 'path'
+import { readFile, stat } from 'fs/promises'
+import { createReadStream } from 'fs'
+import { createServer } from 'http'
 import { attach } from '@introspection/playwright'
 
 export interface DebugOptions {
-  url: string
+  url?: string
+  serve?: string
   config?: string
   playwright?: string
   dir: string
 }
 
 export async function runDebug(opts: DebugOptions) {
-  // Resolve config relative to cwd
-  const configPath = resolve(process.cwd(), opts.config || './introspect.config.ts')
+  // Validate inputs
+  if (!opts.url && !opts.serve) {
+    throw new Error('Either url or --serve must be provided')
+  }
+
+  if (opts.url && opts.serve) {
+    throw new Error('Cannot use both url and --serve')
+  }
+
+  // Resolve config
+  const configPath = resolvePath(process.cwd(), opts.config || './introspect.config.ts')
 
   // Load config (Node 24+ handles .ts natively)
   let config: { plugins: any[] }
@@ -28,6 +40,17 @@ export async function runDebug(opts: DebugOptions) {
     throw new Error('Config must export default object with plugins array')
   }
 
+  let navigationUrl: string
+  const serverInfo = opts.serve ? await startLocalServer(opts.serve) : null
+
+  if (opts.serve) {
+    navigationUrl = serverInfo!.url
+  } else if (opts.url) {
+    navigationUrl = opts.url
+  } else {
+    throw new Error('Either url or --serve must be provided')
+  }
+
   // Launch browser
   const browser = await chromium.launch()
   const context = await browser.newContext()
@@ -38,11 +61,11 @@ export async function runDebug(opts: DebugOptions) {
     const handle = await attach(page, {
       outDir: opts.dir,
       plugins: config.plugins,
-      testTitle: `debug: ${opts.url}`,
+      testTitle: `debug: ${navigationUrl}`,
     })
 
     // Navigate to URL
-    await page.goto(opts.url)
+    await page.goto(navigationUrl)
 
     // Run playwright script if provided
     if (opts.playwright) {
@@ -68,5 +91,58 @@ export async function runDebug(opts: DebugOptions) {
     return handle.session.id
   } finally {
     await browser.close()
+    if (serverInfo?.server) {
+      serverInfo.server.close()
+    }
   }
+}
+
+interface ServerInfo {
+  url: string
+  server: ReturnType<typeof createServer>
+}
+
+async function startLocalServer(servePath: string): Promise<ServerInfo> {
+  const basePath = resolvePath(process.cwd(), servePath)
+
+  try {
+    await stat(basePath)
+  } catch {
+    throw new Error(`Path not found: ${basePath}`)
+  }
+
+  return new Promise((promiseResolve, promiseReject) => {
+    const server = createServer((req, res) => {
+      let filePath = basePath
+      const url = req.url || '/'
+
+      // If serving a directory, default to index.html
+      const isDir = !extname(basePath)
+      if (isDir) {
+        filePath = resolvePath(basePath, url === '/' ? 'index.html' : url.substring(1))
+      } else if (url !== '/') {
+        res.writeHead(404)
+        res.end('Not Found')
+        return
+      }
+
+      // Read and serve the file
+      createReadStream(filePath)
+        .on('error', () => {
+          res.writeHead(404)
+          res.end('Not Found')
+        })
+        .pipe(res)
+    })
+
+    server.listen(0, 'localhost', () => {
+      const addr = server.address()
+      const port = typeof addr === 'object' && addr !== null ? addr.port : 0
+      const url = `http://localhost:${port}`
+      console.log(`Serving ${basePath} at ${url}`)
+      promiseResolve({ url, server })
+    })
+
+    server.on('error', promiseReject)
+  })
 }
