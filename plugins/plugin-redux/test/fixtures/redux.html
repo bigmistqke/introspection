@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Redux Store</title>
+  </head>
+  <body>
+    <div id="app">
+      <p id="count">0</p>
+      <button id="increment">Increment</button>
+      <button id="add-item">Add Item</button>
+    </div>
+
+    <script type="module">
+      import { createStore, compose } from 'redux'
+
+      const reducer = (state = { count: 0, items: [] }, action) => {
+        switch (action.type) {
+          case 'INCREMENT':
+            return { ...state, count: state.count + 1 }
+          case 'ADD_ITEM':
+            return { ...state, items: [...state.items, action.payload] }
+          default:
+            return state
+        }
+      }
+
+      const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose
+      const store = createStore(reducer, composeEnhancers())
+
+      window.__TEST_STORE__ = store
+
+      document.getElementById('increment').addEventListener('click', () => {
+        store.dispatch({ type: 'INCREMENT' })
+        document.getElementById('count').textContent = store.getState().count
+      })
+
+      document.getElementById('add-item').addEventListener('click', () => {
+        store.dispatch({ type: 'ADD_ITEM', payload: `item-${Date.now()}` })
+      })
+
+      store.subscribe(() => {
+        document.getElementById('count').textContent = store.getState().count
+      })
+    </script>
+  </body>
+</html>

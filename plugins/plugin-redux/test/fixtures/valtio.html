@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Valtio Store</title>
+  </head>
+  <body>
+    <div id="app">
+      <p id="count">0</p>
+      <button id="increment">Increment</button>
+      <button id="add-item">Add Item</button>
+    </div>
+
+    <script type="module">
+      import { proxy, subscribe, devtools } from 'valtio'
+
+      const store = devtools(
+        proxy({
+          count: 0,
+          items: [],
+        }),
+        { name: 'valtio-store' }
+      )
+
+      window.__TEST_STORE__ = store
+
+      document.getElementById('increment').addEventListener('click', () => {
+        store.count += 1
+        document.getElementById('count').textContent = store.count
+      })
+
+      document.getElementById('add-item').addEventListener('click', () => {
+        store.items.push(`item-${Date.now()}`)
+      })
+
+      subscribe(store, () => {
+        document.getElementById('count').textContent = store.count
+      })
+    </script>
+  </body>
+</html>

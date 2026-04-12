@@ -18,8 +18,14 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
+    "@reduxjs/toolkit": "^1.9.7",
     "@introspection/playwright": "workspace:*",
+    "jotai": "^2.8.0",
+    "redux": "^4.2.1",
     "tsup": "^8.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "valtio": "^1.11.2",
+    "vite": "^5.0.0",
+    "zustand": "^4.4.1"
   }
 }

@@ -257,7 +257,13 @@ export interface SolidCaptureEvent extends BaseEvent {
 
 export interface ReduxDispatchEvent extends BaseEvent {
   type: 'redux.dispatch'
-  metadata: { action: string; payload?: unknown; stateBefore?: unknown; stateAfter?: unknown }
+  metadata: {
+    action: string
+    instance?: string
+    payload?: unknown
+    stateBefore?: unknown
+    stateAfter?: unknown
+  }
 }
 
 // ─── Plugin events: cdp ─────────────────────────────────────────────────────

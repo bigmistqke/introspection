@@ -49,7 +49,7 @@ Every capability is a plugin. If you don't wire it up, it won't log. Pass the pl
 | `consolePlugin()` | [`@introspection/plugin-console`](plugins/plugin-console/README.md) | Browser console output |
 | `webgl()` | [`@introspection/plugin-webgl`](plugins/plugin-webgl/README.md) | WebGL state, uniforms, draw calls, textures, and canvas PNGs |
 | `solidDevtools()` | [`@introspection/plugin-solid`](plugins/plugin-solid/README.md) | SolidJS component structure, reactive updates, and dependency graph |
-| `redux()` | [`@introspection/plugin-redux`](plugins/plugin-redux/) | Redux/Rematch store dispatches with optional state snapshots |
+| `redux()` | [`@introspection/plugin-redux`](plugins/plugin-redux/README.md) | Redux/Rematch store dispatches with optional state snapshots |
 | `performance()` | [`@introspection/plugin-performance`](plugins/plugin-performance/README.md) | Core Web Vitals, resource timing, long tasks, layout shifts, and paint |
 
 `defaults()` from `@introspection/plugin-defaults` returns `[network(), jsError(), debuggerPlugin(), consolePlugin()]` — the standard set for most tests. Add domain-specific plugins alongside:

@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Jotai Store</title>
+  </head>
+  <body>
+    <div id="app">
+      <p id="count">0</p>
+      <button id="increment">Increment</button>
+    </div>
+
+    <script type="module">
+      import { atom } from 'jotai'
+      import { useAtomDevtools } from 'jotai-devtools'
+
+      const countAtom = atom(0)
+
+      // Jotai devtools integration (simulated via manual connection)
+      const extension = window.__REDUX_DEVTOOLS_EXTENSION__
+      const connection = extension?.connect({ name: 'jotai-store' })
+      connection?.init({ count: 0 })
+
+      let count = 0
+      const store = {
+        get: () => ({ count }),
+        set: (updater) => {
+          const stateBefore = JSON.parse(JSON.stringify({ count }))
+          if (typeof updater === 'function') {
+            count = updater(count)
+          } else {
+            count = updater
+          }
+          const stateAfter = JSON.parse(JSON.stringify({ count }))
+          connection?.send({ type: 'SET_ATOM' }, stateAfter)
+        },
+      }
+
+      window.__TEST_STORE__ = store
+
+      document.getElementById('increment').addEventListener('click', () => {
+        store.set(count + 1)
+        document.getElementById('count').textContent = store.get().count
+      })
+    </script>
+  </body>
+</html>
