@@ -74,10 +74,12 @@ export function solidDevtools(options?: SolidDevtoolsOptions): IntrospectionPlug
         try {
           const { type } = JSON.parse(parameters.payload) as { type: string }
           if (type === 'solid.detected') {
-            void context.page.evaluate((pluginOptions) => {
+            context.page.evaluate((pluginOptions) => {
               ;(window.__introspect_plugins__ as { solid?: { configure?(config: unknown): void } } | undefined)
                 ?.solid?.configure?.(pluginOptions)
-            }, resolvedOptions)
+            }, resolvedOptions).catch(() => {
+              // Navigation may destroy the execution context before configure completes — expected.
+            })
           }
         } catch { /* ignore malformed push */ }
       })
