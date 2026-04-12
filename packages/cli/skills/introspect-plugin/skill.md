@@ -11,7 +11,7 @@ Plugins have two parts: a browser-side IIFE script that runs in the page, and a 
 
 ```ts
 interface IntrospectionPlugin {
-  name: string        // identifies the plugin; used in event source fields
+  name: string        // identifies the plugin (e.g., 'my-plugin')
   script?: string     // browser IIFE — injected into every page on attach and navigation (optional)
 
   install(ctx: PluginContext): Promise<void>
@@ -23,8 +23,8 @@ interface PluginContext {
     send(method: string, params?: Record<string, unknown>): Promise<unknown>
     on(event: string, handler: (params: unknown) => void): void  // subscribe to raw CDP events
   }
-  emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): void
-  writeAsset(opts: { kind: string; content: string | Buffer; ext?: string; metadata: Record<string, unknown> }): Promise<string>
+  emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): Promise<void>
+  writeAsset(opts: { kind: string; content: string | Buffer; ext?: string }): Promise<AssetRef>
   timestamp(): number
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
   bus: {
@@ -51,7 +51,7 @@ The `script` field is a self-contained IIFE that registers the plugin on `window
       const id = setInterval(() => {
         const value = (window as unknown as { __myCounter?: number }).__myCounter ?? 0
         if (value >= spec.threshold) {
-          push(JSON.stringify({ type: 'plugin', source: 'plugin', data: { name: 'my-plugin', value } }))
+          push(JSON.stringify({ type: 'my-plugin.counter', metadata: { value } }))
         }
       }, 500)
       return id  // return an ID so unwatch can clean up

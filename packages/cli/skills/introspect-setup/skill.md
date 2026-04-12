@@ -27,7 +27,7 @@ Available plugins:
 | `solidDevtools()` | `@introspection/plugin-solid` | SolidJS component tree and reactive updates |
 | `performance()` | `@introspection/plugin-performance` | Core Web Vitals, resource timing, long tasks |
 
-`defaults()` from `@introspection/playwright` bundles `network()` + `jsError()` + `debuggerPlugin()` for convenience.
+`defaults()` from `@introspection/plugin-defaults` bundles `network()` + `jsError()` + `debuggerPlugin()` + `consolePlugin()` for convenience.
 
 ## 2. Attach in Playwright tests
 

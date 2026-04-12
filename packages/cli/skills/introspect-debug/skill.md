@@ -28,7 +28,7 @@ Stack traces are included in the `js.error` event data.
 ### Network failure found → inspect the response
 
 ```bash
-introspect events --type network.response --filter 'event.data.status >= 400'
+introspect events --type network.response --filter 'event.metadata.status >= 400'
 introspect assets --kind body
 introspect assets <path.json>
 ```
@@ -38,7 +38,7 @@ List assets to find the body file, then display it.
 ### State looks wrong → query events programmatically
 
 ```bash
-introspect eval 'events.filter(event => event.type === "mark").map(event => event.data.label)'
+introspect eval 'events.filter(event => event.type === "mark").map(event => event.metadata.label)'
 ```
 
 `eval` runs a JS expression against `{ events, session, snapshots }`. Useful for: checking which marks fired, counting requests, inspecting event sequences.
@@ -47,7 +47,7 @@ introspect eval 'events.filter(event => event.type === "mark").map(event => even
 
 ```bash
 introspect events --type webgl.uniform
-introspect events --type webgl.uniform --filter 'event.data.name === "u_time"'
+introspect events --type webgl.uniform --filter 'event.metadata.name === "u_time"'
 introspect events --type webgl.draw-arrays,webgl.draw-elements
 introspect assets --kind webgl-canvas
 introspect assets <path.png>
@@ -67,9 +67,10 @@ Scopes assets contain local variables from call frames. Useful for seeing variab
 ```bash
 introspect events                                          # all events in order
 introspect events --type js.error,network.response        # filter by type
+introspect events --type network.*                        # prefix matching: all network events
 introspect events --since "form submitted"                # events after a mark
-introspect events --filter 'event.data.status >= 400' --type network.response
-introspect events --format json | jq '.[].data.url'      # extract fields
+introspect events --filter 'event.metadata.status >= 400' --type network.response
+introspect events --format json | jq '.[].metadata.url'  # extract fields
 ```
 
 ## Event type reference
