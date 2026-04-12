@@ -14,6 +14,8 @@ Introspection is built primarily for AI-assisted debugging — the trace gives a
 - [Packages](#packages)
 - [Plugins](#plugins)
 - [Quick start](#quick-start)
+- [Debug mode](#debug-mode)
+- [Configuration](#configuration)
 - [Session format](#session-format)
 - [Continuous releases](#continuous-releases)
 
@@ -92,6 +94,52 @@ introspect events --type network.response --filter 'event.metadata.status >= 400
 ```
 
 See [`@introspection/playwright`](packages/playwright/README.md) for the full API including plugins, fixtures, and options.
+
+---
+
+## Debug mode
+
+The `introspect debug` command launches a browser outside of a test and records a session as you navigate. Useful for capturing ad-hoc debugging sessions or exploring application behavior without writing a test.
+
+```bash
+introspect debug https://example.com
+```
+
+This reads plugins from `introspect.config.ts` (or a custom path via `--config`), launches a browser, and records until you close it.
+
+You can also run Playwright script commands during the session:
+
+```bash
+introspect debug https://example.com --playwright ./script.ts
+```
+
+The script has `page` in scope:
+
+```ts
+// script.ts
+await page.click('button')
+await page.fill('input', 'text')
+await page.waitForNavigation()
+```
+
+Sessions are saved to `.introspect/` and can be queried with `introspect events --session-id <id>`.
+
+---
+
+## Configuration
+
+Create an `introspect.config.ts` in your project root to configure which plugins are used in debug mode and tests:
+
+```ts
+import { redux } from '@introspection/plugin-redux'
+import { defaults } from '@introspection/plugin-defaults'
+
+export default {
+  plugins: [redux({ captureState: true }), ...defaults()],
+}
+```
+
+The config is loaded automatically by `introspect debug` and can be referenced in tests via `attach()` options.
 
 ---
 
