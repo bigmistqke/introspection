@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Page, CDPSession } from '@playwright/test'
 
 // ─── Event types ────────────────────────────────────────────────────────────
 
@@ -254,6 +254,27 @@ export interface ReduxDispatchEvent extends BaseEvent {
   metadata: { action: string; payload?: unknown; stateBefore?: unknown; stateAfter?: unknown }
 }
 
+// ─── Plugin events: cdp ─────────────────────────────────────────────────────
+
+export interface CdpCommandEvent extends BaseEvent {
+  type: 'cdp.command'
+  metadata: {
+    method: string
+    params?: Record<string, unknown>
+    result?: unknown
+    error?: string
+    durationMs: number
+  }
+}
+
+export interface CdpEventEvent extends BaseEvent {
+  type: 'cdp.event'
+  metadata: {
+    method: string
+    params?: unknown
+  }
+}
+
 // ─── TraceEventMap ──────────────────────────────────────────────────────────
 //
 // All known event types. Third-party plugins can still augment this
@@ -310,6 +331,9 @@ export interface TraceEventMap {
   'solid.capture': SolidCaptureEvent
   // Redux
   'redux.dispatch': ReduxDispatchEvent
+  // CDP trace
+  'cdp.command': CdpCommandEvent
+  'cdp.event': CdpEventEvent
 }
 
 export type TraceEvent = TraceEventMap[keyof TraceEventMap]
@@ -358,6 +382,12 @@ export interface PluginContext extends AssetWriter {
     /** Subscribe to a raw CDP event. Call inside install(). */
     on(event: string, handler: (params: unknown) => void): void
   }
+  /**
+   * Escape hatch for instrumentation plugins (e.g. plugin-cdp) that need to
+   * monkey-patch the shared CDPSession. Mutating this object affects every
+   * plugin in the session — do not use unless you know what you're doing.
+   */
+  rawCdpSession: CDPSession
   emit(event: EmitInput): Promise<void>
   timestamp(): number
   /** Installs a browser-side watch and registers it for navigation recovery. */

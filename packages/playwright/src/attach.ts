@@ -51,7 +51,6 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
   const { bus, timestamp } = session
 
   const cdp = await page.context().newCDPSession(page)
-  const cdpSend = cdp.send.bind(cdp) as (method: string, params?: Record<string, unknown>) => Promise<unknown>
 
   const registry = new PluginRegistry()
 
@@ -59,9 +58,13 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
     return {
       page,
       cdpSession: {
-        send: (method: string, params?: Record<string, unknown>) => cdpSend(method, params),
+        // Fresh `cdp.send` lookup on every call so instrumentation plugins
+        // (plugin-cdp) can monkey-patch `cdp.send` at install time and have
+        // subsequent plugin-issued commands flow through the patched version.
+        send: (method: string, params?: Record<string, unknown>) => cdp.send(method as Parameters<typeof cdp.send>[0], params as Parameters<typeof cdp.send>[1]),
         on: (event: string, handler: (params: unknown) => void) => cdp.on(event as Parameters<typeof cdp.on>[0], handler as Parameters<typeof cdp.on>[1]),
       },
+      rawCdpSession: cdp,
       emit,
       writeAsset: session.writeAsset.bind(session),
       timestamp,
