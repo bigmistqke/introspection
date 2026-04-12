@@ -312,9 +312,6 @@ importers:
 
   packages/playwright:
     dependencies:
-      '@introspection/plugin-defaults':
-        specifier: workspace:*
-        version: link:../../plugins/plugin-defaults
       '@introspection/types':
         specifier: workspace:*
         version: link:../types
@@ -325,18 +322,6 @@ importers:
         specifier: workspace:*
         version: link:../write
     devDependencies:
-      '@introspection/plugin-debugger':
-        specifier: workspace:*
-        version: link:../../plugins/plugin-debugger
-      '@introspection/plugin-js-error':
-        specifier: workspace:*
-        version: link:../../plugins/plugin-js-error
-      '@introspection/plugin-network':
-        specifier: workspace:*
-        version: link:../../plugins/plugin-network
-      '@introspection/plugin-redux':
-        specifier: workspace:*
-        version: link:../../plugins/plugin-redux
       '@playwright/test':
         specifier: ^1.40.0
         version: 1.59.1
