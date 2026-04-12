@@ -1,6 +1,6 @@
 # Contributing
 
-Introspection is a Playwright-integrated tracing framework. A test session records a stream of typed trace events and their associated assets to disk; **plugins are the unit of feature capture** — each one subscribes to Chrome DevTools Protocol (CDP) events or page state and emits trace events. The read side is environment-agnostic, so traces can be queried from Node, a browser, or anywhere with a `StorageAdapter`.
+Introspection is a Playwright-integrated tracing framework. A session records a stream of typed trace events and their associated assets to disk; **plugins are the unit of feature capture** — each one subscribes to Chrome DevTools Protocol (CDP) events or page state and emits trace events. The read side is environment-agnostic, so traces can be queried from Node, a browser, or anywhere with a `StorageAdapter`.
 
 Most contributions fall into one of these shapes, roughly descending by frequency:
 

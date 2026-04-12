@@ -1,8 +1,8 @@
 # @introspection
 
-When an end-to-end test fails, the usual debugging loop is: read the error, guess what the app was doing, add more logs or breakpoints, re-run. This gets expensive fast — especially when failures are flaky, hard to reproduce, or happen deep in a render or network chain.
+Introspection is a Playwright-integrated tracing framework. A session records a stream of typed trace events — network requests and responses, JS errors with scope locals, DOM snapshots, Playwright actions — and their associated assets to disk as NDJSON. **Plugins are the unit of feature capture**, each subscribing to Chrome DevTools Protocol (CDP) events or page state.
 
-Introspection gives every Playwright test a structured, append-only event log: network requests and responses, JS errors with scope locals, DOM snapshots, and Playwright actions — all written to disk as NDJSON. When something goes wrong, you can query the trace instead of re-running the test.
+When an end-to-end test fails, the usual debugging loop is: read the error, guess what the app was doing, add more logs or breakpoints, re-run. With a trace on disk, you can query the recorded session instead of re-running the test.
 
 The log is also designed to be consumed by AI assistants. Run `introspect summary` and paste the output into a conversation; the model has the full execution context to reason about.
 
