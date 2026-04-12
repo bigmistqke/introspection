@@ -42,7 +42,7 @@ export function network(): IntrospectionPlugin {
         const responseEvent = pendingResponses.get(parameters.requestId)
         if (!responseEvent) return
         pendingResponses.delete(parameters.requestId)
-        void (async () => {
+        ctx.track(async () => {
           try {
             const responseBody = await ctx.cdpSession.send('Network.getResponseBody', { requestId: parameters.requestId }) as { body: string; base64Encoded: boolean }
             const body = responseBody.base64Encoded ? Buffer.from(responseBody.body, 'base64').toString('utf-8') : responseBody.body
@@ -54,7 +54,7 @@ export function network(): IntrospectionPlugin {
           } catch {
             ctx.emit(responseEvent)
           }
-        })()
+        })
       })
 
       ctx.cdpSession.on('Network.loadingFailed', (rawParams) => {

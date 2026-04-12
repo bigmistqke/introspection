@@ -77,7 +77,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
           return
         }
 
-        void (async () => {
+        ctx.track(async () => {
           const timestamp = ctx.timestamp()
 
           // Skip first frame if this was a capture call (the capture() function itself)
@@ -145,7 +145,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
             type: 'debugger.capture' as const,
             assets: [asset],
           })
-        })()
+        })
       })
     },
   }

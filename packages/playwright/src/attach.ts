@@ -65,6 +65,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
       emit,
       writeAsset: session.writeAsset.bind(session),
       timestamp,
+      track: (operation: () => Promise<unknown>) => session.track(operation),
       async addSubscription(pluginName: string, spec: unknown) {
         const expression = `(() => { const p = window.__introspect_plugins__?.['${pluginName}']; return p ? p.watch(${JSON.stringify(spec)}) : null })()`
         const evaluationResult = await cdp.send('Runtime.evaluate', { expression, returnByValue: true }) as { result: { value: string } }
@@ -149,6 +150,9 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
     },
     async snapshot() {
       await bus.emit('manual', { trigger: 'manual', timestamp: timestamp() })
+    },
+    async flush() {
+      await session.flush()
     },
     async detach(detachResult?: DetachResult) {
       debug('detach', detachResult?.status)

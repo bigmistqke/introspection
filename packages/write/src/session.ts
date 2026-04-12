@@ -26,6 +26,24 @@ function createWriteQueue() {
   return { enqueue, flush }
 }
 
+function createTracker() {
+  const pending = new Set<Promise<unknown>>()
+
+  function track(operation: () => Promise<unknown>): void {
+    const promise = operation()
+    pending.add(promise)
+    promise.finally(() => pending.delete(promise))
+  }
+
+  async function flush(): Promise<void> {
+    while (pending.size > 0) {
+      await Promise.allSettled(Array.from(pending))
+    }
+  }
+
+  return { track, flush }
+}
+
 export async function createSessionWriter(options: CreateSessionWriterOptions = {}): Promise<SessionWriter> {
   const id = options.id ?? randomUUID()
   const outDir = options.outDir ?? '.introspect'
@@ -40,6 +58,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
 
   const bus = createBus()
   const queue = createWriteQueue()
+  const tracker = createTracker()
 
   function timestamp(): number {
     return Date.now() - startedAt
@@ -64,8 +83,14 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
     },
     timestamp,
     bus,
+    track: (operation) => tracker.track(operation),
+    async flush() {
+      await tracker.flush()
+      await queue.flush()
+    },
     async finalize() {
       await bus.emit('detach', { trigger: 'detach', timestamp: timestamp() })
+      await tracker.flush()
       await queue.flush()
       await finalizeSession(outDir, id, Date.now())
     },

@@ -364,6 +364,8 @@ export interface PluginContext extends AssetWriter {
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
   /** Typed async event bus scoped to this session. */
   bus: SessionBus
+  /** Track an async operation so that flush()/finalize() wait for it. */
+  track(operation: () => Promise<unknown>): void
 }
 
 export interface IntrospectionPlugin {
@@ -445,6 +447,8 @@ export interface SessionWriter extends AssetWriter {
   emit(event: EmitInput): Promise<void>
   timestamp(): number
   bus: SessionBus
+  track(operation: () => Promise<unknown>): void
+  flush(): Promise<void>
   finalize(): Promise<void>
 }
 
@@ -499,5 +503,6 @@ export interface IntrospectHandle extends AssetWriter {
   emit(event: EmitInput): Promise<void>
   mark(label: string): Promise<void>
   snapshot(): Promise<void>
+  flush(): Promise<void>
   detach(result?: DetachResult): Promise<void>
 }
