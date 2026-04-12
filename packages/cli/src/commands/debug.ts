@@ -76,8 +76,8 @@ export async function runDebug(opts: DebugOptions) {
         script = await readFile(script, 'utf-8')
       }
 
-      // Execute the script with page in scope
-      const fn = new Function('page', script)
+      // Execute the script with page in scope (wrap in async IIFE to allow await)
+      const fn = new Function('page', `return (async () => { ${script} })()`)
       await fn(page)
     }
 
