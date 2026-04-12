@@ -2,7 +2,6 @@ import { chromium } from '@playwright/test'
 import { resolve } from 'path'
 import { readFile } from 'fs/promises'
 import { attach } from '@introspection/playwright'
-import { Session } from '@introspection/write'
 
 export interface DebugOptions {
   url: string
@@ -12,10 +11,10 @@ export interface DebugOptions {
 }
 
 export async function runDebug(opts: DebugOptions) {
-  // Resolve config relative to cwd, not CLI location
-  const configPath = resolve(process.cwd(), opts.config || './introspect.config.js')
+  // Resolve config relative to cwd
+  const configPath = resolve(process.cwd(), opts.config || './introspect.config.ts')
 
-  // Load config
+  // Load config (Node 24+ handles .ts natively)
   let config: { plugins: any[] }
   try {
     const configModule = await import(configPath)
