@@ -6,17 +6,17 @@
       "outputs": ["dist/**", "build/**"],
       "cache": true,
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "package.json", "tsconfig.json", "tsup*.config.ts"]
+      "inputs": ["src/**", "package.json", "tsconfig.json", "tsup*.config.ts", "!**/*.md"]
     },
     "typecheck": {
       "cache": true,
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "package.json", "tsconfig.json"]
+      "inputs": ["src/**", "package.json", "tsconfig.json", "!**/*.md"]
     },
     "test": {
       "cache": true,
       "dependsOn": ["build", "^build"],
-      "inputs": ["**", "!node_modules/**", "!dist/**", "!build/**", "!.turbo/**", "!pnpm-lock.yaml"]
+      "inputs": ["**", "!node_modules/**", "!dist/**", "!build/**", "!.turbo/**", "!pnpm-lock.yaml", "!**/*.md"]
     }
   },
   "globalDependencies": ["tsconfig.json", ".eslintrc*", "jest.config.*"]
