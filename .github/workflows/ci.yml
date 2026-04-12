@@ -1,12 +1,29 @@
-name: Publish packages
+name: CI
 on:
-  workflow_run:
-    workflows: ['Test packages']
-    types: [completed]
+  push:
+  pull_request:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install
+      - run: pnpm dlx playwright install
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm typecheck
+
   publish:
-    if: github.event.workflow_run.conclusion == 'success'
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -38,7 +55,7 @@ jobs:
             const overrides = content.packages
               .reduce((acc, p) => { acc[p.name] = p.url; return acc; }, {});
             const newEntry = '### [' + process.env.GITHUB_SHA + '](https://github.com/bigmistqke/introspection/commit/' + process.env.GITHUB_SHA + ')\n#### Install Commands\n\n```bash\n' + installCommands + '\n```\n\n#### Overrides\n\n```json\n' + JSON.stringify(overrides, null, 2) + '\n```\n';
-            
+
             let readmeContent = '';
             try {
               const r = await github.rest.repos.getContent({
@@ -56,17 +73,17 @@ jobs:
             } catch (e) {
               readmeContent = '# Continuous Releases\n\n' + newEntry;
             }
-            
+
             const releasesRef = await github.rest.git.getRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: 'heads/releases'
             }).then(r => r.data.object.sha).catch(() => null);
-            
+
             if (!releasesRef) {
               throw new Error('releases branch not found. Please create it manually.');
             }
-            
+
             const message = 'ci: releases ' + process.env.GITHUB_SHA.slice(0, 7);
             const tree = await github.rest.git.createTree({
               owner: context.repo.owner,
@@ -74,7 +91,7 @@ jobs:
               base_tree: releasesRef,
               tree: [{ path: 'README.md', mode: '100644', content: readmeContent, type: 'blob' }]
             }).then(r => r.data.sha);
-            
+
             const commit = await github.rest.git.createCommit({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -82,7 +99,7 @@ jobs:
               tree: tree,
               parents: []
             }).then(r => r.data.sha);
-            
+
             await github.rest.git.updateRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
