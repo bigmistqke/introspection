@@ -22,14 +22,14 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
             metadata: { action: action.type || String(action) }
           };
           if (action.payload !== undefined) {
-            try { event.data.payload = JSON.parse(JSON.stringify(action.payload)); } catch(e) {}
+            try { event.metadata.payload = JSON.parse(JSON.stringify(action.payload)); } catch(e) {}
           }
           ${captureState ? `
-          try { event.data.stateBefore = JSON.parse(JSON.stringify(store.getState())); } catch(e) {}
+          try { event.metadata.stateBefore = JSON.parse(JSON.stringify(store.getState())); } catch(e) {}
           ` : ''}
           var result = originalDispatch.apply(store, arguments);
           ${captureState ? `
-          try { event.data.stateAfter = JSON.parse(JSON.stringify(store.getState())); } catch(e) {}
+          try { event.metadata.stateAfter = JSON.parse(JSON.stringify(store.getState())); } catch(e) {}
           ` : ''}
           if (window.__introspect_push__) {
             window.__introspect_push__(JSON.stringify(event));

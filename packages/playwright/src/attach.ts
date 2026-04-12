@@ -93,8 +93,8 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
     cdp.on('Runtime.bindingCalled', (bindingCall: { name: string; payload: string }) => {
       if (bindingCall.name !== '__introspect_push__') return
       try {
-        const { type, data } = JSON.parse(bindingCall.payload) as { type: string; data: Record<string, unknown> }
-        emit({ type, data } as unknown as EmitInput)
+        const event = JSON.parse(bindingCall.payload) as EmitInput
+        emit(event)
       } catch { /* malformed push — ignore */ }
     })
   }
