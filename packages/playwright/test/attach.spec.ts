@@ -37,10 +37,9 @@ test('creates session directory with meta.json and events.ndjson', async ({ page
   expect(typeof ndjson).toBe('string')
 })
 
-test('mark() appends a mark event to events.ndjson', async ({ page }) => {
+test('emit() appends a mark event to events.ndjson', async ({ page }) => {
   const handle = await attach(page, { outDir: dir, plugins: [] })
-  handle.mark('step 1', { extra: true })
-  await new Promise(r => setTimeout(r, 50))
+  await handle.emit({ type: 'mark', metadata: { label: 'step 1', extra: true } })
   await handle.detach()
   const events = await readEvents(dir)
   const mark = events.find((event: { type: string }) => event.type === 'mark')

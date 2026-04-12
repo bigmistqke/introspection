@@ -140,9 +140,6 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
     session,
     pageId,
     page: proxiedPage,
-    mark(label: string, data?: Record<string, unknown>) {
-      emit({ type: 'mark', metadata: { label, extra: data } })
-    },
     emit,
     async writeAsset(opts) {
       return session.writeAsset(opts)

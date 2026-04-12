@@ -7,8 +7,8 @@ import { defaults } from '@introspection/plugin-defaults'
 const outDir = mkdtempSync(join(tmpdir(), 'introspect-fixture-'))
 const { test, expect } = introspectFixture({ outDir, plugins: defaults() })
 
-test('fixture auto-attaches and records mark events', async ({ introspect }) => {
-  introspect.mark('step 1', { extra: true })
+test('fixture auto-attaches and records events', async ({ introspect }) => {
+  await introspect.emit({ type: 'mark', metadata: { label: 'step 1', extra: true } })
 })
 
 test('fixture emits playwright.test.start with titlePath', async ({ introspect }) => {

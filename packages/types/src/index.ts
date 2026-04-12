@@ -474,8 +474,7 @@ export interface IntrospectHandle extends AssetWriter {
   session: SessionWriter
   pageId: string
   page: Page   // Proxy-wrapped page
-  mark(label: string, data?: Record<string, unknown>): void
-  emit(event: EmitInput): void
+  emit(event: EmitInput): Promise<void>
   snapshot(): Promise<void>
   detach(result?: DetachResult): Promise<void>
 }
