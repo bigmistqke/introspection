@@ -92,14 +92,15 @@ redux({
 
 ```ts
 {
-  type: 'redux.dispatch',
-  source: 'plugin',
+  id: string
+  timestamp: number
+  type: 'redux.dispatch'
   metadata: {
-    action: string,        // action.type, the string action name, or String(action)
-    instance?: string,     // the store's `name` from connect()/composeWithDevTools() options
-    payload?: unknown,     // action.payload, JSON-cloned (omitted if undefined or non-cloneable)
-    stateBefore?: unknown, // only when captureState: true
-    stateAfter?: unknown,  // only when captureState: true
+    action: string        // action.type, the string action name, or String(action)
+    instance?: string     // the store's `name` from connect()/composeWithDevTools() options
+    payload?: unknown     // action.payload, JSON-cloned (omitted if undefined or non-cloneable)
+    stateBefore?: unknown // only when captureState: true
+    stateAfter?: unknown  // only when captureState: true
   }
 }
 ```

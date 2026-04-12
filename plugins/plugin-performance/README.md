@@ -41,9 +41,10 @@ performance({
 
 ```ts
 {
+  id: string
+  timestamp: number
   type: 'perf.cwv',
-  source: 'plugin',
-  data: {
+  metadata: {
     metric: 'lcp' | 'cls' | 'inp',
     value: number,         // milliseconds
     startTime?: number,    // for CLS and INP
@@ -60,9 +61,10 @@ performance({
 
 ```ts
 {
+  id: string
+  timestamp: number
   type: 'perf.resource',
-  source: 'plugin',
-  data: {
+  metadata: {
     name: string,              // resource URL
     initiatorType: string,     // 'link', 'script', 'img', etc.
     transferSize: number,
@@ -85,9 +87,10 @@ performance({
 
 ```ts
 {
+  id: string
+  timestamp: number
   type: 'perf.long-task',
-  source: 'plugin',
-  data: {
+  metadata: {
     duration: number,   // task duration in ms
     startTime: number,
     attribution: string, // container src if attributable to an iframe
@@ -101,9 +104,10 @@ performance({
 
 ```ts
 {
+  id: string
+  timestamp: number
   type: 'perf.layout-shift',
-  source: 'plugin',
-  data: {
+  metadata: {
     score: number,
     hadRecentInput: boolean,
     sources: Array<{
@@ -121,9 +125,10 @@ performance({
 
 ```ts
 {
+  id: string
+  timestamp: number
   type: 'perf.paint',
-  source: 'plugin',
-  data: {
+  metadata: {
     name: 'first-paint' | 'first-contentful-paint',
     startTime: number,
   }

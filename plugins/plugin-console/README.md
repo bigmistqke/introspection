@@ -46,10 +46,11 @@ consolePlugin({
 
 ```ts
 {
-  type: 'console',
-  source: 'plugin',
-  data: {
-    level: 'log' | 'warn' | 'error' | 'info' | 'debug',
+  id: string
+  timestamp: number
+  type: 'console'
+  metadata: {
+    level: 'log' | 'warn' | 'error' | 'info' | 'debug'
     message: string
   }
 }

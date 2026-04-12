@@ -89,9 +89,10 @@ Emits `webgl.uniform` events with:
 
 ```ts
 {
+  id: string
+  timestamp: number
   type: 'webgl.uniform',
-  source: 'plugin',
-  data: {
+  metadata: {
     contextId: string,
     name: string,
     value: number | number[],   // scalar or vector
@@ -116,9 +117,10 @@ Emits `webgl.draw-arrays` or `webgl.draw-elements` events with:
 
 ```ts
 {
+  id: string
+  timestamp: number
   type: 'webgl.draw-arrays',
-  source: 'plugin',
-  data: {
+  metadata: {
     contextId: string,
     primitive: string,   // e.g. 'TRIANGLES'
     first: number,
@@ -127,9 +129,10 @@ Emits `webgl.draw-arrays` or `webgl.draw-elements` events with:
 }
 // or
 {
+  id: string
+  timestamp: number
   type: 'webgl.draw-elements',
-  source: 'plugin',
-  data: {
+  metadata: {
     contextId: string,
     primitive: string,
     count: number,
@@ -154,9 +157,10 @@ Emits `webgl.texture-bind` events with:
 
 ```ts
 {
+  id: string
+  timestamp: number
   type: 'webgl.texture-bind',
-  source: 'plugin',
-  data: {
+  metadata: {
     contextId: string,
     unit: number,       // active texture unit at time of bind
     target: string,     // 'TEXTURE_2D', 'TEXTURE_CUBE_MAP', etc.
@@ -174,9 +178,10 @@ Emits `webgl.texture-bind` events with:
 
 ```ts
 {
+  id: string
+  timestamp: number
   type: 'webgl.context-created',
-  source: 'plugin',
-  data: { contextId: string, type: 'webgl' | 'webgl2' }
+  metadata: { contextId: string, type: 'webgl' | 'webgl2' }
 }
 ```
 
