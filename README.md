@@ -31,8 +31,8 @@ Introspection is built primarily for AI-assisted debugging — the trace gives a
 
 | Package | Description |
 |---|---|
-| [`@introspection/playwright`](packages/playwright/README.md) | Attach tracing to a Playwright page — the main integration point |
 | [`introspect`](packages/cli/README.md) | CLI for querying traces: summary, events, list, plugins |
+| [`@introspection/playwright`](packages/playwright/README.md) | Attach tracing to a Playwright page — the main integration point |
 | [`@introspection/read`](packages/read/README.md) | Programmatic access to traces — adapter-based, environment-agnostic |
 | [`@introspection/write`](packages/write/) | Session recording — creates sessions, appends events, writes assets |
 | [`@introspection/utils`](packages/utils/) | Shared utilities: CDP normalizers, event bus, debug, snapshot |
@@ -44,23 +44,21 @@ Every capability is a plugin. If you don't wire it up, it won't log. Pass the pl
 
 | Plugin | Package | What it captures |
 |---|---|---|
-| `defaults()` | [`@introspection/plugin-defaults`](plugins/plugin-defaults/README.md) | Composition: `[network(), jsError(), debuggerPlugin(), consolePlugin()]` |
-| `network()` | [`@introspection/plugin-network`](plugins/plugin-network/README.md) | HTTP requests, responses, and response bodies |
-| `jsError()` | [`@introspection/plugin-js-error`](plugins/plugin-js-error/README.md) | JS exceptions and unhandled rejections |
-| `debuggerPlugin()` | [`@introspection/plugin-debugger`](plugins/plugin-debugger/README.md) | Debugger pauses with scope locals and call stack |
-| `consolePlugin()` | [`@introspection/plugin-console`](plugins/plugin-console/README.md) | Browser console output |
-| `webgl()` | [`@introspection/plugin-webgl`](plugins/plugin-webgl/README.md) | WebGL state, uniforms, draw calls, textures, and canvas PNGs |
-| `solidDevtools()` | [`@introspection/plugin-solid`](plugins/plugin-solid/README.md) | SolidJS component structure, reactive updates, and dependency graph |
-| `redux()` | [`@introspection/plugin-redux`](plugins/plugin-redux/README.md) | Store dispatches from Redux, Zustand, Valtio, and other Redux DevTools–compatible libraries, with optional state snapshots |
-| `performance()` | [`@introspection/plugin-performance`](plugins/plugin-performance/README.md) | Core Web Vitals, resource timing, long tasks, layout shifts, and paint |
 | `cdp()` | [`@introspection/plugin-cdp`](plugins/plugin-cdp/README.md) | Raw Chrome DevTools Protocol commands and events (advanced instrumentation) |
+| `consolePlugin()` | [`@introspection/plugin-console`](plugins/plugin-console/README.md) | Browser console output |
+| `debuggerPlugin()` | [`@introspection/plugin-debugger`](plugins/plugin-debugger/README.md) | Debugger pauses with scope locals and call stack |
+| `defaults()` | [`@introspection/plugin-defaults`](plugins/plugin-defaults/README.md) | Composition: `[network(), jsError(), debuggerPlugin(), consolePlugin()]` |
+| `jsError()` | [`@introspection/plugin-js-error`](plugins/plugin-js-error/README.md) | JS exceptions and unhandled rejections |
+| `network()` | [`@introspection/plugin-network`](plugins/plugin-network/README.md) | HTTP requests, responses, and response bodies |
+| `performance()` | [`@introspection/plugin-performance`](plugins/plugin-performance/README.md) | Core Web Vitals, resource timing, long tasks, layout shifts, and paint |
+| `webgl()` | [`@introspection/plugin-webgl`](plugins/plugin-webgl/README.md) | WebGL state, uniforms, draw calls, textures, and canvas PNGs |
 
-`defaults()` from `@introspection/plugin-defaults` returns `[network(), jsError(), debuggerPlugin(), consolePlugin()]` — the standard set for most tests. Add domain-specific plugins alongside:
+### Framework Specific Plugins
 
-```ts
-import { attach } from '@introspection/playwright'
-import { defaults } from '@introspection/plugin-defaults'
-```
+| Plugin | Package | What it captures |
+|---|---|---|
+| `redux()` | [`@introspection/plugin-redux`](plugins/plugin-redux/README.md) | Store dispatches from Redux, Zustand, Valtio, and other Redux DevTools–compatible libraries, with optional state snapshots |
+| `solidDevtools()` | [`@introspection/plugin-solid`](plugins/plugin-solid/README.md) | SolidJS component structure, reactive updates, and dependency graph |
 
 ---
 
