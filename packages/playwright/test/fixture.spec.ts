@@ -2,10 +2,9 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { introspectFixture } from '../src/fixture.js'
-import { defaults } from '@introspection/plugin-defaults'
 
 const outDir = mkdtempSync(join(tmpdir(), 'introspect-fixture-'))
-const { test, expect } = introspectFixture({ outDir, plugins: defaults() })
+const { test, expect } = introspectFixture({ outDir, plugins: [] })
 
 test('fixture auto-attaches and records events', async ({ introspect }) => {
   await introspect.mark('step 1')

@@ -3,13 +3,11 @@ import { mkdtemp, rm, readFile, readdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { createServer, Server } from 'http'
 import { attach } from '../src/attach.js'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
-import { defaults } from '@introspection/plugin-defaults'
-import { network } from '@introspection/plugin-network'
-import { jsError } from '@introspection/plugin-js-error'
-import { redux } from '@introspection/plugin-redux'
+
+// Tests in this file focus on the playwright attach/detach API.
+// Plugin-specific integration tests are in their respective plugin directories.
 
 let dir: string
 test.beforeEach(async () => {
@@ -57,78 +55,8 @@ test('detach() writes playwright.result event when result is passed', async ({ p
   expect(resultEvent.metadata.status).toBe('failed')
 })
 
-test('network request appends network.request event', async ({ page }) => {
-  const handle = await attach(page, { outDir: dir, plugins: [network()] })
-  await page.route('**/*', route => {
-    if (route.request().url().includes('/api/test')) {
-      route.fulfill({ status: 200, body: 'ok' })
-    } else {
-      route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' })
-    }
-  })
-  await page.goto('http://localhost:9999/')
-  await page.evaluate(() => fetch('/api/test'))
-  await handle.flush()
-  await handle.detach()
-  const events = await readEvents(dir)
-  const networkRequest = events.find((event: { type: string; metadata?: { url: string } }) =>
-    event.type === 'network.request' && event.metadata?.url?.includes('/api/test'))
-  expect(networkRequest).toBeDefined()
-})
 
-test('Runtime.exceptionThrown appends js.error event', async ({ page }) => {
-  await page.route('**/*', route =>
-    route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body></body></html>' })
-  )
-  await page.goto('http://localhost:9999/')
-  const handle = await attach(page, { outDir: dir, plugins: [jsError()] })
-  await page.evaluate(() => {
-    setTimeout(() => { throw new TypeError('oops') }, 0)
-  })
-  await handle.flush()
-  await handle.detach()
-  const events = await readEvents(dir)
-  const errorEvent = events.find((event: { type: string }) => event.type === 'js.error')
-  expect(errorEvent).toBeDefined()
-  expect(errorEvent.metadata.message).toContain('oops')
-})
 
-test('network response body is captured as an asset', async ({ page }) => {
-  // A real HTTP server is needed because Chromium's Network.getResponseBody
-  // returns "No data found" for requests served via Playwright's route.fulfill.
-  const server: Server = createServer((request, response) => {
-    if (request.url === '/api/data') {
-      response.writeHead(200, { 'Content-Type': 'application/json' })
-      response.end('{"users":[{"id":1}]}')
-    } else {
-      response.writeHead(200, { 'Content-Type': 'text/html' })
-      response.end('<html></html>')
-    }
-  })
-  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
-  const baseUrl = `http://127.0.0.1:${(server.address() as { port: number }).port}`
-
-  try {
-    const handle = await attach(page, { outDir: dir, plugins: [network()] })
-    await page.goto(baseUrl)
-    await page.evaluate(async (url) => { await fetch(url).then(r => r.text()) }, `${baseUrl}/api/data`)
-    await handle.flush()
-    await handle.detach()
-
-    const events = await readEvents(dir)
-    const response = events.find((event: { type: string; metadata?: { url: string } }) =>
-      event.type === 'network.response' && event.metadata?.url?.includes('/api/data'))
-    const body = events.find((event: { type: string; initiator?: string }) =>
-      event.type === 'network.response.body' && event.initiator === response?.id)
-    expect(response).toBeDefined()
-    expect(body).toBeDefined()
-    expect(body.assets).toBeDefined()
-    expect(body.assets.length).toBeGreaterThanOrEqual(1)
-    expect(body.assets[0].kind).toBe('json')
-  } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()))
-  }
-})
 
 test('malformed plugin push is silently discarded', async ({ page }) => {
   const plugin: IntrospectionPlugin = {
@@ -253,34 +181,6 @@ test('duplicate session ID throws an error', async ({ page }) => {
     .rejects.toThrow()
 })
 
-test('plugin-redux captures dispatch events via push bridge', async ({ page }) => {
-  await page.route('**/*', route =>
-    route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body></body></html>' })
-  )
-  const handle = await attach(page, { outDir: dir, plugins: [redux()] })
-  await handle.page.goto('http://localhost:9999/')
-
-  // Simulate a Redux store in the browser
-  await page.evaluate(() => {
-    const store = {
-      dispatch(action: { type: string; payload?: unknown }) { return action },
-      getState() { return { count: 0 } },
-    };
-    const win = window as unknown as Record<string, unknown>
-    win.__REDUX_STORE__ = store
-    // Setter patches dispatch synchronously, so this dispatch goes through the patched version
-    ;(win.__REDUX_STORE__ as typeof store).dispatch({ type: 'INCREMENT', payload: { amount: 1 } })
-  })
-
-  await handle.flush()
-  await handle.detach()
-
-  const events = await readEvents(dir)
-  const dispatch = events.find((event: { type: string }) => event.type === 'redux.dispatch')
-  expect(dispatch).toBeDefined()
-  expect(dispatch.metadata.action).toBe('INCREMENT')
-  expect(dispatch.metadata.payload).toEqual({ amount: 1 })
-})
 
 test('bus "detach" handler is called and can write assets', async ({ page }) => {
   let detachCalled = false

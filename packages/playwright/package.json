@@ -20,15 +20,10 @@
   "dependencies": {
     "@introspection/utils": "workspace:*",
     "@introspection/write": "workspace:*",
-    "@introspection/plugin-defaults": "workspace:*",
     "@introspection/types": "workspace:*"
   },
   "devDependencies": {
-    "@playwright/test": "^1.40.0",
-    "@introspection/plugin-network": "workspace:*",
-    "@introspection/plugin-js-error": "workspace:*",
-    "@introspection/plugin-debugger": "workspace:*",
-    "@introspection/plugin-redux": "workspace:*"
+    "@playwright/test": "^1.40.0"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.40.0"
