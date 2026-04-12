@@ -73,7 +73,7 @@ test('captures payload when present', async ({ page }) => {
   await handle.detach()
 
   const events = await readEvents(outDir)
-  const dispatchEvent = events.find((event: { type: string }) =>
+  const dispatchEvent = events.find((event: { type: string; metadata: { action: string } }) =>
     event.type === 'redux.dispatch' && event.metadata.action === 'ADD_ITEM'
   )
   expect(dispatchEvent).toBeDefined()
