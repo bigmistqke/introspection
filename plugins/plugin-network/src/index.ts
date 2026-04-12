@@ -46,7 +46,8 @@ export function network(): IntrospectionPlugin {
           try {
             const responseBody = await ctx.cdpSession.send('Network.getResponseBody', { requestId: parameters.requestId }) as { body: string; base64Encoded: boolean }
             const body = responseBody.base64Encoded ? Buffer.from(responseBody.body, 'base64').toString('utf-8') : responseBody.body
-            const headerType = (responseEvent.metadata?.headers as Record<string, string> | undefined)?.['content-type'] ?? ''
+            const headers = (responseEvent.metadata?.headers as Record<string, string> | undefined) ?? {}
+            const headerType = Object.entries(headers).find(([key]) => key.toLowerCase() === 'content-type')?.[1] ?? ''
             const assetKind = detectKind(headerType)
             const asset = await ctx.writeAsset({ kind: assetKind, content: body })
             ctx.emit({ ...responseEvent, assets: [asset] })
