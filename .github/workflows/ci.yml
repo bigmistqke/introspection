@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TURBO_TELEMETRY_DISABLED: 1
+      TURBO_CACHE_MODE: off
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -18,7 +19,7 @@ jobs:
       - run: pnpm install
       - run: pnpm dlx playwright install
       - run: pnpm build
-      - run: pnpm test -- --no-cache
+      - run: pnpm test
       - run: pnpm typecheck
 
   publish:
