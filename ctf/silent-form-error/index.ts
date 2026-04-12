@@ -4,7 +4,10 @@ async function apiPost(url: string, body: unknown) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
-  return { data: await response.json(), status: response.status }
+  if (response.ok) {
+    return { data: await response.json(), status: response.status }
+  }
+  return { data: undefined, status: response.status }
 }
 
 function handlePaymentResponse(response: { data: { errors?: Array<{ message: string }> }; status: number }) {
