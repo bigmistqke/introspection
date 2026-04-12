@@ -1,8 +1,8 @@
-import type { TraceFile, TraceEvent } from '../types.js'
+import type { TraceEvent } from '@introspection/types'
+import type { SessionSummary } from '@introspection/read'
 
-export function buildSummary(trace: TraceFile): string {
+export function buildSummary(session: SessionSummary, events: TraceEvent[]): string {
   const lines: string[] = []
-  const { session, events } = trace
 
   const label = session.label ?? session.id
   const duration = session.endedAt != null ? `${session.endedAt - session.startedAt}ms` : 'ongoing'

@@ -169,12 +169,21 @@ importers:
       '@introspection/demo-shared':
         specifier: workspace:*
         version: link:../shared
+      '@introspection/plugin-solid':
+        specifier: workspace:*
+        version: link:../../plugins/plugin-solid
       '@introspection/read':
         specifier: workspace:*
         version: link:../../packages/read
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
+      solid-devtools:
+        specifier: ^0.30.0
+        version: 0.30.1(solid-js@1.9.12)(vite@6.4.2(@types/node@22.19.17)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3))
       solid-js:
         specifier: ^1.9.0
         version: 1.9.12
@@ -316,6 +325,9 @@ importers:
       '@introspection/types':
         specifier: workspace:*
         version: link:../types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../utils
     devDependencies:
       tsup:
         specifier: ^8.0.0

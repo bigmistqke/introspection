@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { Command } from 'commander'
-import { TraceReader } from './trace-reader.js'
 import { buildSummary } from './commands/summary.js'
 import { formatNetworkTable } from './commands/network.js'
 import { formatEvents } from './commands/events.js'
@@ -8,7 +7,7 @@ import { formatPlugins } from './commands/plugins.js'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
-import { createSessionReader } from '@introspection/read/node'
+import { createSessionReader, listSessions } from '@introspection/read/node'
 
 const BUNDLED_SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url))
 const program = new Command()
@@ -22,10 +21,15 @@ async function loadSession(opts: { sessionId?: string }) {
 }
 
 program.command('summary').option('--session-id <id>').action(async (opts) => {
-  const dir = program.opts().dir as string
-  const reader = new TraceReader(dir)
-  const trace = opts.sessionId ? await reader.load(opts.sessionId) : await reader.loadLatest()
-  console.log(buildSummary(trace))
+  const session = await loadSession(opts)
+  const events = await session.events.ls()
+  const summary = {
+    id: session.id,
+    label: session.meta.label,
+    startedAt: session.meta.startedAt,
+    endedAt: session.meta.endedAt,
+  }
+  console.log(buildSummary(summary, events))
 })
 
 program.command('network').option('--session-id <id>').option('--failed').option('--url <pattern>').action(async (opts) => {
@@ -65,28 +69,18 @@ program.command('assets')
 
 program.command('list').description('List available sessions').action(async () => {
   const dir = program.opts().dir as string
-  const r = new TraceReader(dir)
-  const sessions = await r.listSessions()
+  const sessions = await listSessions(dir)
   if (sessions.length === 0) { console.error(`No sessions found in ${dir}`); process.exit(1) }
-  const items = await Promise.all(sessions.map(async id => {
-    const trace = await r.load(id)
-    return { id, trace }
-  }))
-  items.sort((a, b) => b.trace.session.startedAt - a.trace.session.startedAt)
-  for (const { id, trace } of items) {
-    const label = trace.session.label ?? id
-    const duration = trace.session.endedAt != null
-      ? `${trace.session.endedAt - trace.session.startedAt}ms`
-      : 'ongoing'
-    console.log(`${id.padEnd(40)}  ${duration.padEnd(10)}  ${label}`)
+  for (const session of sessions) {
+    const label = session.label ?? session.id
+    const duration = session.duration != null ? `${session.duration}ms` : 'ongoing'
+    console.log(`${session.id.padEnd(40)}  ${duration.padEnd(10)}  ${label}`)
   }
 })
 
 program.command('plugins').description('Show plugin metadata for a session').option('--session-id <id>').action(async (opts) => {
-  const dir = program.opts().dir as string
-  const reader = new TraceReader(dir)
-  const trace = opts.sessionId ? await reader.load(opts.sessionId) : await reader.loadLatest()
-  console.log(formatPlugins({ version: '2', ...trace.session }))
+  const session = await loadSession(opts)
+  console.log(formatPlugins(session.meta))
 })
 
 const skillsCmd = program.command('skills').description('Manage AI skills for this project')

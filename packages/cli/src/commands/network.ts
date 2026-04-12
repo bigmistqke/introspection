@@ -25,7 +25,9 @@ export function formatNetworkTable(events: TraceEvent[], opts: NetworkOpts): str
     return event.metadata.url.includes(opts.url!)
   })
   const errorRows = filteredErrors.map(event => {
-    return `${'ERR'.padEnd(5)} ${'?'.padEnd(7)} ${event.metadata.url.padEnd(60)} ${event.id}`
+    const request = event.metadata.cdpRequestId ? requests.get(event.metadata.cdpRequestId) : undefined
+    const method = request?.metadata.method ?? '?'
+    return `${'ERR'.padEnd(5)} ${method.padEnd(7)} ${event.metadata.url.padEnd(60)} ${event.id}`
   })
 
   const allRows = [...rows, ...errorRows]

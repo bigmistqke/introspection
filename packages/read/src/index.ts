@@ -1,4 +1,4 @@
-import type { TraceEvent, AssetRef, SessionReader, EventsFilter, Watchable, WatchableWithFilter } from '@introspection/types'
+import type { TraceEvent, AssetRef, SessionReader, SessionMeta, EventsFilter, Watchable, WatchableWithFilter } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 
 export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI, Watchable, WatchableWithFilter } from '@introspection/types'
@@ -63,6 +63,9 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
 
   const id = options?.sessionId ?? (await getLatestSessionId(adapter))
   if (!id) throw new Error('No sessions found')
+
+  const metaRaw = await adapter.readText(`${id}/meta.json`)
+  const meta = JSON.parse(metaRaw) as SessionMeta
 
   const initialEvents = await loadEvents(adapter, id)
   debug('loaded', initialEvents.length, 'events from', id)
@@ -157,6 +160,7 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
 
   return {
     id,
+    meta,
     events: {
       ls,
       query,

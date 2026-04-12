@@ -110,7 +110,7 @@ export interface NetworkResponseEvent extends BaseEvent {
 
 export interface NetworkErrorEvent extends BaseEvent {
   type: 'network.error'
-  metadata: { url: string; errorText: string }
+  metadata: { cdpRequestId?: string; url: string; errorText: string }
 }
 
 // ─── Plugin events: js-error ────────────────────────────────────────────────
@@ -407,13 +407,6 @@ export interface PluginMeta {
   options?: Record<string, { description: string; value: unknown }>
 }
 
-export interface TraceFile {
-  version: '2'
-  session: Omit<SessionMeta, 'version'>
-  events: TraceEvent[]
-  snapshots: Snapshot[]
-}
-
 // ─── Shared write types ──────────────────────────────────────────────────────
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
@@ -467,6 +460,7 @@ export interface AssetsAPI {
 
 export interface SessionReader {
   id: string
+  meta: SessionMeta
   events: EventsAPI
   assets: AssetsAPI
 }
