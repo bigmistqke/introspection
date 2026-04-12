@@ -29,8 +29,8 @@ test('captures mount render events', async ({ page }) => {
   await handle.detach()
 
   const events = await readEvents(outDir)
-  const renders = events.filter((event: { type: string }) => event.type === 'react.render')
-  const commits = events.filter((event: { type: string }) => event.type === 'react.commit')
+  const renders = events.filter((event: { type: string }) => event.type === 'react-scan.render')
+  const commits = events.filter((event: { type: string }) => event.type === 'react-scan.commit')
 
   expect(commits.length).toBeGreaterThan(0)
   expect(renders.length).toBeGreaterThan(0)
@@ -58,7 +58,7 @@ test('captures update renders after state change', async ({ page }) => {
 
   const events = await readEvents(outDir)
   const counterRenders = events.filter((event: { type: string; metadata?: { component?: string } }) =>
-    event.type === 'react.render' && event.metadata?.component === 'Counter')
+    event.type === 'react-scan.render' && event.metadata?.component === 'Counter')
 
   expect(counterRenders.length).toBeGreaterThanOrEqual(3)
 })
@@ -75,10 +75,49 @@ test('commits bracket renders', async ({ page }) => {
 
   const events = await readEvents(outDir)
   const commitStarts = events.filter((event: { type: string; metadata?: { phase?: string } }) =>
-    event.type === 'react.commit' && event.metadata?.phase === 'start')
+    event.type === 'react-scan.commit' && event.metadata?.phase === 'start')
   const commitFinishes = events.filter((event: { type: string; metadata?: { phase?: string } }) =>
-    event.type === 'react.commit' && event.metadata?.phase === 'finish')
+    event.type === 'react-scan.commit' && event.metadata?.phase === 'finish')
 
   expect(commitStarts.length).toEqual(commitFinishes.length)
   expect(commitStarts.length).toBeGreaterThanOrEqual(2)
+})
+
+test('render metadata includes didCommit, forget, fps', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [reactScanPlugin()] })
+  await page.goto('http://localhost:8766/counter/index.html')
+  await expect(page.locator('#count')).toHaveText('Count: 0')
+  await handle.flush()
+  await handle.detach()
+
+  const events = await readEvents(outDir)
+  const render = events.find((event: { type: string }) => event.type === 'react-scan.render')
+  expect(render).toBeDefined()
+  expect(render.metadata).toHaveProperty('didCommit')
+  expect(render.metadata).toHaveProperty('forget')
+  expect(render.metadata).toHaveProperty('fps')
+  expect(typeof render.metadata.didCommit).toBe('boolean')
+  expect(typeof render.metadata.forget).toBe('boolean')
+  expect(typeof render.metadata.fps).toBe('number')
+})
+
+test('plugin.report() returns aggregate data and emits event', async ({ page }) => {
+  const plugin = reactScanPlugin()
+  const handle = await attach(page, { outDir, plugins: [plugin] })
+  await page.goto('http://localhost:8766/counter/index.html')
+  await expect(page.locator('#count')).toHaveText('Count: 0')
+  await page.click('#increment')
+  await expect(page.locator('#count')).toHaveText('Count: 1')
+
+  const report = await plugin.report()
+  await handle.flush()
+  await handle.detach()
+
+  expect(report).not.toBeNull()
+  expect(typeof report).toBe('object')
+
+  const events = await readEvents(outDir)
+  const reportEvent = events.find((event: { type: string }) => event.type === 'react-scan.report')
+  expect(reportEvent).toBeDefined()
+  expect(reportEvent.metadata.report).toEqual(report)
 })

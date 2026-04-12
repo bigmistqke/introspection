@@ -22,8 +22,8 @@ test('captures react renders from the demo', async ({ page }) => {
   })
   const events = await reader.events.ls()
 
-  const renders = events.filter(event => event.type === 'react.render')
-  const commits = events.filter(event => event.type === 'react.commit')
+  const renders = events.filter(event => event.type === 'react-scan.render')
+  const commits = events.filter(event => event.type === 'react-scan.commit')
 
   expect(renders.length).toBeGreaterThan(0)
   expect(commits.length).toBeGreaterThan(0)

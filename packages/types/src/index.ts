@@ -253,6 +253,34 @@ export interface SolidCaptureEvent extends BaseEvent {
   metadata?: never
 }
 
+// ─── Plugin events: react-scan ──────────────────────────────────────────────
+
+export interface ReactScanRenderEvent extends BaseEvent {
+  type: 'react-scan.render'
+  metadata: {
+    component: string
+    phase: string
+    duration: number | null
+    count: number
+    unnecessary: boolean | null
+    didCommit: boolean
+    forget: boolean
+    fps: number
+  }
+}
+
+export interface ReactScanCommitEvent extends BaseEvent {
+  type: 'react-scan.commit'
+  metadata: { phase: 'start' | 'finish' }
+}
+
+export interface ReactScanReportEvent extends BaseEvent {
+  type: 'react-scan.report'
+  metadata: {
+    report: Record<string, { count: number; time: number; displayName: string | null }> | null
+  }
+}
+
 // ─── Plugin events: redux ───────────────────────────────────────────────────
 
 export interface ReduxDispatchEvent extends BaseEvent {
@@ -342,6 +370,10 @@ export interface TraceEventMap {
   'solid.detected': SolidDetectedEvent
   'solid.warning': SolidWarningEvent
   'solid.capture': SolidCaptureEvent
+  // React Scan
+  'react-scan.render': ReactScanRenderEvent
+  'react-scan.commit': ReactScanCommitEvent
+  'react-scan.report': ReactScanReportEvent
   // Redux
   'redux.dispatch': ReduxDispatchEvent
   // CDP trace
