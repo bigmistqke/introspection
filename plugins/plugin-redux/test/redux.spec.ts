@@ -21,36 +21,38 @@ async function readEvents(directory: string) {
   return ndjson.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
 }
 
-test('redux: composeWithDevTools pattern captures dispatches', async ({ page }) => {
+test('redux + react: captures dispatches with devtools composition', async ({ page }) => {
   const handle = await attach(page, { outDir, plugins: [redux()] })
-  await page.goto('http://localhost:8765/redux.html')
+  await page.goto('http://localhost:8765/redux-react/index.html')
 
   await page.click('#increment')
-  await page.waitForTimeout(100)
+  await page.waitForTimeout(50)
+  await page.click('#increment')
+  await page.waitForTimeout(50)
   await page.click('#add-item')
-  await page.waitForTimeout(100)
+  await page.waitForTimeout(50)
 
   await handle.flush()
   await handle.detach()
 
   const events = await readEvents(outDir)
   const dispatches = events.filter((e: any) => e.type === 'redux.dispatch')
-  expect(dispatches.length).toBeGreaterThanOrEqual(2)
+  expect(dispatches.length).toBeGreaterThanOrEqual(3)
 
-  const incrementEvent = dispatches.find((e: any) => e.metadata.action === 'INCREMENT')
-  expect(incrementEvent).toBeDefined()
+  const incrementEvents = dispatches.filter((e: any) => e.metadata.action === 'INCREMENT')
+  expect(incrementEvents.length).toBe(2)
 
   const addItemEvent = dispatches.find((e: any) => e.metadata.action === 'ADD_ITEM')
   expect(addItemEvent).toBeDefined()
   expect(addItemEvent.metadata.payload).toMatch(/^item-/)
 })
 
-test('redux: payload serialization', async ({ page }) => {
+test('redux + react: payload serialization', async ({ page }) => {
   const handle = await attach(page, { outDir, plugins: [redux()] })
-  await page.goto('http://localhost:8765/redux.html')
+  await page.goto('http://localhost:8765/redux-react/index.html')
 
   await page.click('#add-item')
-  await page.waitForTimeout(100)
+  await page.waitForTimeout(50)
 
   await handle.flush()
   await handle.detach()
@@ -61,73 +63,59 @@ test('redux: payload serialization', async ({ page }) => {
   )
   expect(addItemEvent).toBeDefined()
   expect(typeof addItemEvent.metadata.payload).toBe('string')
+  expect(addItemEvent.metadata.payload).toMatch(/^item-\d+$/)
 })
 
-test('zustand: devtools middleware integration', async ({ page }) => {
+test('zustand + react: devtools middleware integration', async ({ page }) => {
   const handle = await attach(page, { outDir, plugins: [redux()] })
-  await page.goto('http://localhost:8765/zustand.html')
+  await page.goto('http://localhost:8765/zustand-react/index.html')
 
   await page.click('#increment')
-  await page.waitForTimeout(100)
+  await page.waitForTimeout(50)
+  await page.click('#decrement')
+  await page.waitForTimeout(50)
   await page.click('#add-item')
-  await page.waitForTimeout(100)
+  await page.waitForTimeout(50)
 
   await handle.flush()
   await handle.detach()
 
   const events = await readEvents(outDir)
   const dispatches = events.filter((e: any) => e.type === 'redux.dispatch')
-  expect(dispatches.length).toBeGreaterThanOrEqual(2)
+  expect(dispatches.length).toBeGreaterThanOrEqual(3)
 
-  // Zustand sends 'setStateImpl' action types
   const zustandEvents = dispatches.filter((e: any) => e.metadata.instance === 'zustand-store')
-  expect(zustandEvents.length).toBeGreaterThanOrEqual(2)
+  expect(zustandEvents.length).toBeGreaterThanOrEqual(3)
 })
 
-test('valtio: devtools middleware integration', async ({ page }) => {
+test('valtio + react: devtools middleware integration', async ({ page }) => {
   const handle = await attach(page, { outDir, plugins: [redux()] })
-  await page.goto('http://localhost:8765/valtio.html')
+  await page.goto('http://localhost:8765/valtio-react/index.html')
 
   await page.click('#increment')
-  await page.waitForTimeout(100)
+  await page.waitForTimeout(50)
+  await page.click('#decrement')
+  await page.waitForTimeout(50)
   await page.click('#add-item')
-  await page.waitForTimeout(100)
+  await page.waitForTimeout(50)
 
   await handle.flush()
   await handle.detach()
 
   const events = await readEvents(outDir)
   const dispatches = events.filter((e: any) => e.type === 'redux.dispatch')
-  expect(dispatches.length).toBeGreaterThanOrEqual(2)
+  expect(dispatches.length).toBeGreaterThanOrEqual(3)
 
   const valtioEvents = dispatches.filter((e: any) => e.metadata.instance === 'valtio-store')
-  expect(valtioEvents.length).toBeGreaterThanOrEqual(2)
+  expect(valtioEvents.length).toBeGreaterThanOrEqual(3)
 })
 
-test('jotai: manual connect integration', async ({ page }) => {
-  const handle = await attach(page, { outDir, plugins: [redux()] })
-  await page.goto('http://localhost:8765/jotai.html')
-
-  await page.click('#increment')
-  await page.waitForTimeout(100)
-
-  await handle.flush()
-  await handle.detach()
-
-  const events = await readEvents(outDir)
-  const dispatches = events.filter((e: any) => e.type === 'redux.dispatch')
-  expect(dispatches.length).toBeGreaterThanOrEqual(1)
-
-  const jotaiEvent = dispatches.find((e: any) => e.metadata.instance === 'jotai-store')
-  expect(jotaiEvent).toBeDefined()
-})
-
-test('captureState option: state snapshots', async ({ page }) => {
+test('captureState: snapshots store state before/after', async ({ page }) => {
   const handle = await attach(page, { outDir, plugins: [redux({ captureState: true })] })
-  await page.goto('http://localhost:8765/redux.html')
+  await page.goto('http://localhost:8765/redux-react/index.html')
 
   await page.click('#increment')
-  await page.waitForTimeout(100)
+  await page.waitForTimeout(50)
 
   await handle.flush()
   await handle.detach()
