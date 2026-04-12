@@ -5,38 +5,82 @@ description: Use when writing a custom introspection plugin to capture framework
 
 # Writing a custom introspection plugin
 
-Plugins have two parts: a browser-side IIFE script that runs in the page, and a node-side object that coordinates with it via `PluginContext`.
+A plugin is a **factory function** returning an `IntrospectionPlugin`. At session startup, `attach()` calls `install(ctx)` once per plugin. The plugin wires up CDP subscriptions or browser-side code and emits trace events via `ctx.emit()`.
 
 ## The IntrospectionPlugin interface
 
 ```ts
 interface IntrospectionPlugin {
-  name: string        // identifies the plugin (e.g., 'my-plugin')
-  script?: string     // browser IIFE — injected into every page on attach and navigation (optional)
-
+  name: string                              // 'my-plugin'
+  description?: string                      // one-line summary (shown in `introspect plugins`)
+  events?: Record<string, string>           // { 'my-plugin.thing': 'Fires when a thing happens' }
+  options?: Record<string, { description: string; value: unknown }>
+  script?: string                           // browser-side IIFE — see below
   install(ctx: PluginContext): Promise<void>
 }
 
 interface PluginContext {
-  page: Page
+  page: PluginPage                          // minimal { evaluate } page abstraction
   cdpSession: {
     send(method: string, params?: Record<string, unknown>): Promise<unknown>
-    on(event: string, handler: (params: unknown) => void): void  // subscribe to raw CDP events
+    on(event: string, handler: (params: unknown) => void): void
   }
-  emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): Promise<void>
-  writeAsset(opts: { kind: string; content: string | Buffer; ext?: string }): Promise<AssetRef>
-  timestamp(): number
-  addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
+  rawCdpSession: CDPSession                 // escape hatch — instrumentation plugins only
+  emit(event: EmitInput): Promise<void>     // emit a trace event (id + timestamp auto-filled)
+  writeAsset(opts: { kind: AssetKind; content: string | Buffer; ext?: string }): Promise<AssetRef>
+  timestamp(): number                       // ms since session start
+  track(operation: () => Promise<unknown>): void   // flush() waits on tracked work
   bus: {
     on<T extends BusTrigger>(trigger: T, handler: (payload: BusPayloadMap[T]) => void | Promise<void>): void
     emit<T extends BusTrigger>(trigger: T, payload: BusPayloadMap[T]): Promise<void>
   }
+  addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
 }
 ```
 
-## Browser script
+Every `TraceEvent` type is a valid bus trigger (the payload is the event itself). Lifecycle triggers are `'manual'`, `'detach'`, and `'snapshot'`. `ctx.emit()` already fires on the bus — don't double-emit.
 
-The `script` field is a self-contained IIFE that registers the plugin on `window.__introspect_plugins__['name']`. It must not import anything — bundle it before use (e.g. with tsup/esbuild targeting IIFE format).
+Plugins are always factories (never singletons) so callers can pass per-instance options:
+
+```ts
+export function myPlugin(options?: { verbose?: boolean }): IntrospectionPlugin { ... }
+```
+
+## Register event types
+
+Event types live centrally in `packages/types/src/index.ts` and are merged into `TraceEventMap`. In-repo: edit the file directly. Third-party: use declaration merging:
+
+```ts
+import type { BaseEvent } from '@introspection/types'
+
+export interface MyThingEvent extends BaseEvent {
+  type: 'my-plugin.thing'
+  metadata: { value: number }
+}
+
+declare module '@introspection/types' {
+  interface TraceEventMap { 'my-plugin.thing': MyThingEvent }
+}
+```
+
+## Emitting events and assets
+
+```ts
+await ctx.emit({ type: 'my-plugin.thing', metadata: { value: 42 } })
+```
+
+For large or binary payloads, write an asset and attach its ref to an event:
+
+```ts
+const asset = await ctx.writeAsset({ kind: 'json', content: JSON.stringify(body) })
+await ctx.emit({ type: 'my-plugin.thing', metadata: { ... }, assets: [asset] })
+```
+
+To correlate two events from the same logical operation, set `initiator: otherEvent.id` on the follow-up event.
+
+## Browser script (optional)
+
+When capture needs to run in the page (e.g. `PerformanceObserver`, framework detection), provide `script: string` — a self-contained IIFE that runs on every navigation via `page.addInitScript`. Browser code sends events back via `window.__introspect_push__(JSON.stringify(payload))`.
 
 ```ts
 // browser.ts — built to an IIFE, then imported as raw text
@@ -47,49 +91,53 @@ The `script` field is a self-contained IIFE that registers the plugin on `window
   window.__introspect_plugins__ ??= {}
   window.__introspect_plugins__['my-plugin'] = {
     watch(spec: { threshold: number }) {
-      // set up browser-side observation
       const id = setInterval(() => {
         const value = (window as unknown as { __myCounter?: number }).__myCounter ?? 0
         if (value >= spec.threshold) {
-          push(JSON.stringify({ type: 'my-plugin.counter', metadata: { value } }))
+          push(JSON.stringify({ type: 'my-plugin.thing', metadata: { value } }))
         }
       }, 500)
-      return id  // return an ID so unwatch can clean up
+      return id
     },
-    unwatch(id: number) {
-      clearInterval(id)
-    },
+    unwatch(id: number) { clearInterval(id) },
   }
 })()
 ```
 
+For browser-side subscriptions that must survive navigation, use `ctx.addSubscription(pluginName, spec)`. The runtime replays registered subscriptions to the `window.__introspect_plugins__[name]` registry after each navigation. `plugins/plugin-webgl` is the canonical example.
+
 ## Node-side plugin object
 
 ```ts
-import BROWSER_SCRIPT from '../dist/browser.iife.js'  // loaded as raw text by esbuild
-import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
+import BROWSER_SCRIPT from '../dist/browser.iife.js'    // loaded as raw text by tsup/esbuild
+import type { IntrospectionPlugin } from '@introspection/types'
 
 export function myPlugin(): IntrospectionPlugin {
-  let ctx: PluginContext | null = null
-
   return {
     name: 'my-plugin',
+    description: 'Captures my-plugin counter values',
+    events: { 'my-plugin.thing': 'Fires when counter crosses threshold' },
     script: BROWSER_SCRIPT,
 
-    async install(pluginCtx) {
-      ctx = pluginCtx
-
+    async install(ctx) {
+      // React to another plugin's events without coupling to it:
       ctx.bus.on('js.error', async () => {
-        if (!ctx) return
         const value = await ctx.page.evaluate(() =>
           (window as unknown as { __myCounter?: number }).__myCounter ?? 0
         )
-        await ctx.writeAsset({
-          kind: 'my-plugin-state',
+        const asset = await ctx.writeAsset({
+          kind: 'json',
           content: JSON.stringify({ value }),
-          metadata: { timestamp: ctx.timestamp(), value },
+        })
+        await ctx.emit({
+          type: 'my-plugin.thing',
+          metadata: { value },
+          assets: [asset],
         })
       })
+
+      // Wrap async work the framework can't see on its own — flush() waits on it.
+      ctx.track(async () => { /* ... */ })
     },
   }
 }
@@ -97,7 +145,7 @@ export function myPlugin(): IntrospectionPlugin {
 
 ## Build setup
 
-Use tsup or esbuild to produce the IIFE bundle separately from the node entry:
+Use tsup (or esbuild) to produce the IIFE bundle separately from the node entry, and load the IIFE as raw text from the node entry:
 
 ```ts
 // tsup.browser.config.ts
@@ -118,6 +166,8 @@ export default defineConfig({
 })
 ```
 
-## Reference implementation
+## Reference implementations
 
-`packages/plugin-webgl` is the canonical example. It shows: browser IIFE registration, subscription/unwatch via `addSubscription`, canvas capture as binary assets, and GL state serialization triggered via `ctx.bus.on(trigger, handler)` inside `install()`.
+- `plugins/plugin-webgl` — browser IIFE + `addSubscription` + canvas capture as binary assets + GL state on `bus.on('snapshot')`.
+- `plugins/plugin-redux` — minimal browser-only plugin (no node-side CDP work).
+- `plugins/plugin-network` — pure CDP-side plugin (no browser script), with `ctx.track` for out-of-band body fetches.

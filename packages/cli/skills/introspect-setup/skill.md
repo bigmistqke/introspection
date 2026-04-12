@@ -26,6 +26,8 @@ Available plugins:
 | `webgl()` | `@introspection/plugin-webgl` | WebGL state, uniforms, draw calls, canvas PNGs |
 | `solidDevtools()` | `@introspection/plugin-solid` | SolidJS component tree and reactive updates |
 | `performance()` | `@introspection/plugin-performance` | Core Web Vitals, resource timing, long tasks |
+| `redux()` | `@introspection/plugin-redux` | Redux/Rematch store dispatches (action + optional state) |
+| `cdp()` | `@introspection/plugin-cdp` | Raw CDP commands and events (instrumentation/debugging) |
 
 `defaults()` from `@introspection/plugin-defaults` bundles `network()` + `jsError()` + `debuggerPlugin()` + `consolePlugin()` for convenience.
 
