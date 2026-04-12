@@ -115,7 +115,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
 
   // Re-apply subscriptions after each navigation
   page.on('load', () => {
-    void (async () => {
+    session.track(async () => {
       for (const [nodeId, subscription] of registry.all()) {
         try {
           const expression = `(() => { const p = window.__introspect_plugins__?.['${subscription.pluginName}']; return p ? p.watch(${JSON.stringify(subscription.spec)}) : null })()`
@@ -123,7 +123,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
           registry.updateBrowserId(nodeId, evaluationResult.result.value)
         } catch { /* non-fatal */ }
       }
-    })()
+    })
   })
 
   // Emit page.attach event
@@ -155,6 +155,12 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
       await bus.emit('manual', { trigger: 'manual', timestamp: timestamp() })
     },
     async flush() {
+      // CDP events flow on a separate stream from Runtime.evaluate responses, so
+      // events from the page's most recent JS may still be in flight after a
+      // page.evaluate returns. Doing a no-op CDP roundtrip drains the queue —
+      // the response can't arrive until the prior events have been delivered.
+      // Then session.flush() waits for plugin async work + the write queue.
+      await cdp.send('Runtime.evaluate', { expression: '0' }).catch(() => {})
       await session.flush()
     },
     async detach(detachResult?: DetachResult) {

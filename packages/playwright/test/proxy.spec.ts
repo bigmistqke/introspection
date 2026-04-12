@@ -25,7 +25,7 @@ test('proxied page emits playwright.action event for tracked methods', async ({ 
   const handle = await attach(page, { outDir: dir })
   await handle.page.goto('http://localhost:9999/')
   await handle.page.click('#btn')
-  await new Promise(r => setTimeout(r, 50))
+  await handle.flush()
   await handle.detach()
 
   const events = await readEvents(dir)
@@ -62,7 +62,7 @@ test('non-tracked methods pass through without emitting events', async ({ page }
 test('function args in evaluate are sanitized to [function]', async ({ page }) => {
   const handle = await attach(page, { outDir: dir })
   await handle.page.evaluate(() => 'hello')
-  await new Promise(r => setTimeout(r, 50))
+  await handle.flush()
   await handle.detach()
 
   const events = await readEvents(dir)
@@ -82,7 +82,7 @@ test('proxied page.screenshot() saves asset and emits playwright.screenshot even
   await handle.page.goto('http://localhost:9999/')
   const buffer = await handle.page.screenshot()
   expect(buffer).toBeInstanceOf(Buffer)
-  await new Promise(r => setTimeout(r, 100))
+  await handle.flush()
   await handle.detach()
 
   const events = await readEvents(dir)

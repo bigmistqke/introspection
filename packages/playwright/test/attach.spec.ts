@@ -3,6 +3,7 @@ import { mkdtemp, rm, readFile, readdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { createServer, Server } from 'http'
 import { attach } from '../src/attach.js'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 import { defaults } from '@introspection/plugin-defaults'
@@ -67,7 +68,7 @@ test('network request appends network.request event', async ({ page }) => {
   })
   await page.goto('http://localhost:9999/')
   await page.evaluate(() => fetch('/api/test'))
-  await new Promise(r => setTimeout(r, 100))
+  await handle.flush()
   await handle.detach()
   const events = await readEvents(dir)
   const networkRequest = events.find((event: { type: string; metadata?: { url: string } }) =>
@@ -81,12 +82,10 @@ test('Runtime.exceptionThrown appends js.error event', async ({ page }) => {
   )
   await page.goto('http://localhost:9999/')
   const handle = await attach(page, { outDir: dir, plugins: [jsError()] })
-  // Use addScriptTag so the error happens in a proper browsing context
   await page.evaluate(() => {
     setTimeout(() => { throw new TypeError('oops') }, 0)
   })
-  // Wait for CDP to process the exception + debugger pause/resume cycle
-  await new Promise(r => setTimeout(r, 500))
+  await handle.flush()
   await handle.detach()
   const events = await readEvents(dir)
   const errorEvent = events.find((event: { type: string }) => event.type === 'js.error')
@@ -95,26 +94,40 @@ test('Runtime.exceptionThrown appends js.error event', async ({ page }) => {
 })
 
 test('network response body is captured as an asset', async ({ page }) => {
-  const handle = await attach(page, { outDir: dir, plugins: [network()] })
-  await page.route('**/*', route => {
-    if (route.request().url().includes('/api/data')) {
-      route.fulfill({ status: 200, contentType: 'application/json', body: '{"users":[{"id":1}]}' })
+  // A real HTTP server is needed because Chromium's Network.getResponseBody
+  // returns "No data found" for requests served via Playwright's route.fulfill.
+  const server: Server = createServer((request, response) => {
+    if (request.url === '/api/data') {
+      response.writeHead(200, { 'Content-Type': 'application/json' })
+      response.end('{"users":[{"id":1}]}')
     } else {
-      route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' })
+      response.writeHead(200, { 'Content-Type': 'text/html' })
+      response.end('<html></html>')
     }
   })
-  await page.goto('http://localhost:9999/')
-  await page.evaluate(() => fetch('/api/data'))
-  await new Promise(r => setTimeout(r, 200))
-  await handle.detach()
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const baseUrl = `http://127.0.0.1:${(server.address() as { port: number }).port}`
 
-  const events = await readEvents(dir)
-  const response = events.find((event: { type: string; metadata?: { url: string } }) =>
-    event.type === 'network.response' && event.metadata?.url?.includes('/api/data'))
-  expect(response).toBeDefined()
-  expect(response.assets).toBeDefined()
-  expect(response.assets.length).toBeGreaterThanOrEqual(1)
-  expect(response.assets[0].kind).toBe('json')
+  try {
+    const handle = await attach(page, { outDir: dir, plugins: [network()] })
+    await page.goto(baseUrl)
+    await page.evaluate(async (url) => { await fetch(url).then(r => r.text()) }, `${baseUrl}/api/data`)
+    await handle.flush()
+    await handle.detach()
+
+    const events = await readEvents(dir)
+    const response = events.find((event: { type: string; metadata?: { url: string } }) =>
+      event.type === 'network.response' && event.metadata?.url?.includes('/api/data'))
+    const body = events.find((event: { type: string; initiator?: string }) =>
+      event.type === 'network.response.body' && event.initiator === response?.id)
+    expect(response).toBeDefined()
+    expect(body).toBeDefined()
+    expect(body.assets).toBeDefined()
+    expect(body.assets.length).toBeGreaterThanOrEqual(1)
+    expect(body.assets[0].kind).toBe('json')
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()))
+  }
 })
 
 test('malformed plugin push is silently discarded', async ({ page }) => {
@@ -126,7 +139,7 @@ test('malformed plugin push is silently discarded', async ({ page }) => {
   await page.evaluate(() => {
     ;(window as unknown as Record<string, Function>).__introspect_push__('not valid json{{{')
   })
-  await new Promise(r => setTimeout(r, 50))
+  await handle.flush()
   await handle.detach()
 
   const events = await readEvents(dir)
@@ -165,11 +178,11 @@ test('plugin subscriptions survive navigation', async ({ page }) => {
   const handle = await attach(page, { outDir: dir, plugins: [plugin] })
   await handle.page.goto('http://localhost:9999/')
   await savedCtx!.addSubscription('test', { event: 'something' })
-  await new Promise(r => setTimeout(r, 50))
+  await handle.flush()
 
   // Navigate again — subscriptions should be re-applied on load
   await handle.page.goto('http://localhost:9999/other')
-  await new Promise(r => setTimeout(r, 200))
+  await handle.flush()
   await handle.detach()
 
   const events = await readEvents(dir)
@@ -197,7 +210,7 @@ test('push event from browser appears in events.ndjson', async ({ page }) => {
       JSON.stringify({ type: 'webgl.uniform', metadata: { name: 'u_time', value: 1.5, glType: 'float', contextId: 'ctx-1' } })
     )
   })
-  await new Promise(r => setTimeout(r, 50))
+  await handle.flush()
   await handle.detach()
 
   const events = await readEvents(dir)
@@ -253,14 +266,13 @@ test('plugin-redux captures dispatch events via push bridge', async ({ page }) =
       dispatch(action: { type: string; payload?: unknown }) { return action },
       getState() { return { count: 0 } },
     };
-    (window as unknown as Record<string, unknown>).__REDUX_STORE__ = store
-    // Give the defineProperty setter time to patch
-    setTimeout(() => {
-      store.dispatch({ type: 'INCREMENT', payload: { amount: 1 } })
-    }, 50)
+    const win = window as unknown as Record<string, unknown>
+    win.__REDUX_STORE__ = store
+    // Setter patches dispatch synchronously, so this dispatch goes through the patched version
+    ;(win.__REDUX_STORE__ as typeof store).dispatch({ type: 'INCREMENT', payload: { amount: 1 } })
   })
 
-  await new Promise(r => setTimeout(r, 200))
+  await handle.flush()
   await handle.detach()
 
   const events = await readEvents(dir)
