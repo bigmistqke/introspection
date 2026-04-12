@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { chromium } from 'playwright'
+import { chromium } from '@playwright/test'
 import { attach } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
 import { execa } from 'execa'
@@ -12,7 +12,7 @@ test('generates HTML report from trace', async () => {
   const page = await browser.newPage()
 
   // Set up a simple fixture
-  await page.route('/fixture', route => route.fulfill({
+  await page.route('**/fixture', route => route.fulfill({
     contentType: 'text/html',
     body: '<html><head><title>Test</title></head><body><h1>Test Page</h1></body></html>',
   }))
@@ -22,16 +22,16 @@ test('generates HTML report from trace', async () => {
     outDir: '.introspect',
   })
 
-  await handle.page.goto('/fixture')
+  await handle.page.goto('http://localhost/fixture')
   await handle.detach({ status: 'passed' })
 
   await browser.close()
 
   // Run the generate script
-  const outDir = resolve('.')
-  const reportPath = resolve(outDir, 'test-report.html')
+  const introspectDir = resolve('.', '.introspect')
+  const reportPath = resolve('.', 'test-report.html')
 
-  await execa('tsx', ['generate.ts', outDir, reportPath])
+  await execa('tsx', ['generate.ts', introspectDir, reportPath])
 
   // Verify the output HTML
   const html = readFileSync(reportPath, 'utf-8')
