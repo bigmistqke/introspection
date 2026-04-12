@@ -126,6 +126,13 @@ export interface ConsoleEvent extends BaseEvent {
   metadata: { level: ConsoleLevel; message: string }
 }
 
+// ─── Plugin events: debugger ────────────────────────────────────────────────
+
+export interface DebuggerCaptureEvent extends BaseEvent {
+  type: 'debugger.capture'
+  metadata?: never
+}
+
 // ─── Plugin events: performance ─────────────────────────────────────────────
 
 export interface PerfCwvEvent extends BaseEvent {
@@ -280,6 +287,8 @@ export interface TraceEventMap {
   'js.error': JsErrorEvent
   // Console
   'console': ConsoleEvent
+  // Debugger
+  'debugger.capture': DebuggerCaptureEvent
   // Performance
   'perf.cwv': PerfCwvEvent
   'perf.resource': PerfResourceEvent
@@ -488,6 +497,7 @@ export interface IntrospectHandle extends AssetWriter {
   pageId: string
   page: Page   // Proxy-wrapped page
   emit(event: EmitInput): Promise<void>
+  mark(label: string): Promise<void>
   snapshot(): Promise<void>
   detach(result?: DetachResult): Promise<void>
 }

@@ -142,9 +142,8 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
             ext: 'json',
           })
           ctx.emit({
-            type: 'mark' as const,
+            type: 'debugger.capture' as const,
             assets: [asset],
-            metadata: { label: 'debugger.scopes', extra: { reason: isCapture ? 'capture' : params.reason, url, scopeCount: scopes.length } },
           })
         })()
       })

@@ -144,6 +144,9 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
     async writeAsset(opts) {
       return session.writeAsset(opts)
     },
+    async mark(label: string) {
+      await emit({ type: 'mark', metadata: { label } })
+    },
     async snapshot() {
       await bus.emit('manual', { trigger: 'manual', timestamp: timestamp() })
     },
