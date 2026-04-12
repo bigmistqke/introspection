@@ -64,15 +64,14 @@ Chronological event log with filtering. Outputs human-readable text by default; 
 
 ```
 introspect events [--session <id>] [--filter <expr>] [--format <fmt>] [--type <types>]
-  [--source <source>] [--after <ms>] [--before <ms>] [--since <label>] [--last <n>]
+  [--after <ms>] [--before <ms>] [--since <label>] [--last <n>]
 ```
 
 | Flag | Description |
 |---|---|
-| `--filter <expr>` | Boolean predicate per event (`event`), e.g. `'event.data.status >= 400'` |
+| `--filter <expr>` | Boolean predicate per event (`event`), e.g. `'event.metadata.status >= 400'` |
 | `--format <fmt>` | Output format: `text` (default) or `json` |
-| `--type <types>` | Comma-separated event types to include (e.g. `webgl.uniform,js.error`) |
-| `--source <source>` | Filter by event source |
+| `--type <types>` | Comma-separated event types to include. Supports prefix matching with `.*` suffix (e.g. `network.*` matches all network events) |
 | `--after <ms>` | Keep events after this timestamp (ms since session start) |
 | `--before <ms>` | Keep events before this timestamp (ms since session start) |
 | `--since <label>` | Keep events after the named `mark` event |
@@ -82,10 +81,11 @@ Examples:
 
 ```bash
 introspect events --type js.error
-introspect events --type network.response --filter 'event.data.status >= 400'
+introspect events --type network.*              # Prefix matching: all network events
+introspect events --type network.response --filter 'event.metadata.status >= 400'
 introspect events --type webgl.uniform --last 20
 introspect events --since before-submit
-introspect events --format json | jq '.[].data.url'
+introspect events --format json | jq '.[].metadata.url'
 ```
 
 ---

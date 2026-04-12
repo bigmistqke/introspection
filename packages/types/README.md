@@ -40,25 +40,19 @@ Union of all event types. Every event extends `BaseEvent`:
 interface BaseEvent {
   id: string
   timestamp: number   // ms since test start
-  source: EventSource
+  metadata?: Record<string, unknown>  // event-specific fields (varies by type)
+  assets?: AssetRef[]  // optional array of associated assets
   initiator?: string  // id of the event that caused this one (best-effort)
 }
-
-type EventSource = 'cdp' | 'agent' | 'playwright' | 'plugin'
 ```
 
-| `source` value | When used |
-|---|---|
-| `'cdp'` | Network requests, JS errors, navigation — directly from Chrome DevTools Protocol |
-| `'agent'` | Marks, snapshots, response bodies — written by the Node-side session recorder |
-| `'playwright'` | Page action events — emitted by the page proxy |
-| `'plugin'` | Events pushed from browser-side plugins |
+Event origin is determined by the event `type` namespace (e.g., `network.request` implies the network plugin, `playwright.action` implies Playwright, `js.error` implies CDP).
 
 ### Event types
 
 #### `network.request`
 ```ts
-data: {
+metadata: {
   cdpRequestId: string
   url: string
   method: string
@@ -69,25 +63,24 @@ data: {
 
 #### `network.response`
 ```ts
-data: {
+metadata: {
   cdpRequestId: string
   requestId: string   // same as cdpRequestId — stable across request/response pair
   url: string
   status: number
   headers: Record<string, string>
-  bodyRef?: string        // relative path to the body asset (assets/<uuid>.body.json)
-  bodySummary?: BodySummary
 }
+assets?: AssetRef[]  // response body written as asset
 ```
 
 #### `network.error`
 ```ts
-data: { url: string; errorText: string }
+metadata: { url: string; errorText: string }
 ```
 
 #### `js.error`
 ```ts
-data: { message: string; stack: StackFrame[] }
+metadata: { message: string; stack: StackFrame[] }
 ```
 
 #### `browser.navigate`
@@ -95,45 +88,30 @@ data: { message: string; stack: StackFrame[] }
 Emitted on full page navigations and same-document URL changes.
 
 ```ts
-data: { from: string; to: string }
+metadata: { from: string; to: string }
 ```
 
 #### `mark`
 ```ts
-data: { label: string; extra?: Record<string, unknown> }
+metadata: { label: string; extra?: Record<string, unknown> }
 ```
+
+User-created timeline markers. Useful for annotating the timeline with test steps.
 
 #### `playwright.action`
 
 Emitted for tracked page proxy method calls. Function arguments and unserializable objects are replaced with placeholder strings.
 
 ```ts
-data: { method: string; args: unknown[] }
+metadata: { method: string; args: unknown[] }
 ```
 
 #### `playwright.result`
 ```ts
-data: {
+metadata: {
   status?: 'passed' | 'failed' | 'timedOut' | 'skipped'
   duration?: number
   error?: string
-}
-```
-
-#### `asset`
-
-Points to a file written in `assets/`. Additional fields in `data` come from the `metadata` passed to `writeAsset`.
-
-```ts
-data: {
-  path: string        // relative path: 'assets/<uuid>.<kind>.<ext>'
-  kind: string        // e.g. 'body', 'snapshot', 'webgl-state', 'webgl-canvas'
-  contentType?: 'json' | 'html' | 'text' | 'image' | 'binary'
-  summary?: BodySummary
-  trigger?: string
-  url?: string
-  scopeCount?: number
-  // ...any other metadata fields passed by the writer
 }
 ```
 
@@ -142,9 +120,8 @@ data: {
 Open-ended event type for browser-side plugins. `type` is plugin-defined (e.g. `'webgl.uniform'`).
 
 ```ts
-source: 'plugin'
 type: string
-data: Record<string, unknown>
+metadata?: Record<string, unknown>  // plugin-specific fields
 ```
 
 ---
@@ -233,14 +210,12 @@ interface PluginContext {
     send(method: string, params?: Record<string, unknown>): Promise<unknown>
     on(event: string, handler: (params: unknown) => void): void  // subscribe to raw CDP events
   }
-  emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): void
+  emit(event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }): Promise<void>
   writeAsset(opts: {
     kind: string
     content: string | Buffer
     ext?: string
-    metadata: { timestamp: number; [key: string]: unknown }
-    source?: EventSource
-  }): Promise<string>   // returns relative asset path
+  }): Promise<AssetRef>   // returns asset reference
   timestamp(): number   // ms since session start
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
   bus: {
@@ -308,11 +283,11 @@ interface TraceFile {
 Returned by `attach()`.
 
 ```ts
-interface IntrospectHandle {
+interface IntrospectHandle extends AssetWriter {
   page: Page                                           // proxy-wrapped Page
-  mark(label: string, data?: Record<string, unknown>): void
-  snapshot(): Promise<void>
-  detach(result?: DetachResult): Promise<void>
+  emit(event: EmitInput): Promise<void>               // emit a trace event
+  snapshot(): Promise<void>                            // capture DOM and scope snapshot
+  detach(result?: DetachResult): Promise<void>         // finalize session and detach CDP
 }
 
 interface DetachResult {

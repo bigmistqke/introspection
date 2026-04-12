@@ -61,13 +61,15 @@ All other `Page` methods pass through unmodified.
 
 Function arguments and unserializable objects are replaced with placeholder strings in the event log.
 
-### `handle.mark(label, data?)`
+### `handle.emit(event)`
 
-Emits a `mark` event synchronously. Useful for annotating the timeline with test steps.
+Emits a trace event to the session. Use this to record custom timeline markers or data.
 
 ```ts
-handle.mark('before-submit', { userId: 42 })
+await handle.emit({ type: 'mark', metadata: { label: 'before-submit', extra: { userId: 42 } } })
 ```
+
+Mark events are useful for annotating the timeline with test steps. The `metadata.label` field is required; `metadata.extra` is optional arbitrary data.
 
 ### `handle.snapshot()`
 
@@ -128,7 +130,7 @@ import { test, expect } from './fixtures'
 
 test('example', async ({ page, introspect }) => {
   await page.goto('/')
-  introspect.mark('loaded')
+  await introspect.emit({ type: 'mark', metadata: { label: 'loaded' } })
   // detach() is called automatically with { status, duration, error } from testInfo
 })
 ```

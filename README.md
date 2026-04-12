@@ -85,7 +85,8 @@ After the test runs, query the session:
 ```bash
 introspect summary
 introspect events --type js.error
-introspect events --type network.response --filter 'event.data.status >= 400'
+introspect events --type network.*  # Prefix matching: all network.* events
+introspect events --type network.response --filter 'event.metadata.status >= 400'
 ```
 
 See [`@introspection/playwright`](packages/playwright/README.md) for the full API including plugins, fixtures, and options.
