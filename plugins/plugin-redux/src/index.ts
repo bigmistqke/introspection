@@ -1,13 +1,16 @@
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
+import { createDebug } from '@introspection/utils'
 
 export type { ReduxDispatchEvent } from '@introspection/types'
 
 export interface ReduxPluginOptions {
+  verbose?: boolean
   /** Capture state before/after each dispatch. Can be expensive. Default: false */
   captureState?: boolean
 }
 
 export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
+  const debug = createDebug('plugin-redux', options?.verbose ?? false)
   const captureState = options?.captureState ?? false
 
   // Installs stubs for the Redux DevTools Extension globals so any store
@@ -141,6 +144,7 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
     },
     script,
     async install(_context: PluginContext): Promise<void> {
+      debug('installing', { captureState })
       // All work is done browser-side via the script
     },
   }

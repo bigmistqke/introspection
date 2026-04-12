@@ -16,7 +16,7 @@ const program = new Command()
 program.name('introspect').description('Query Playwright test introspection traces').version('0.1.0')
   .option('--dir <path>', 'Trace output directory', resolve('.introspect'))
 
-async function loadSession(opts: { sessionId?: string }) {
+async function loadSession(opts: { sessionId?: string; verbose?: boolean }) {
   const dir = program.opts().dir as string
   return createSessionReader(dir, opts)
 }
@@ -33,27 +33,36 @@ program
     await runDebug({ url, serve: opts.serve, config: opts.config, playwright: opts.playwright, verbose: opts.verbose, dir })
   })
 
-program.command('summary').option('--session-id <id>').action(async (opts) => {
-  const session = await loadSession(opts)
-  const events = await session.events.ls()
-  const summary = {
-    id: session.id,
-    label: session.meta.label,
-    startedAt: session.meta.startedAt,
-    endedAt: session.meta.endedAt,
-  }
-  console.log(buildSummary(summary, events))
-})
+program.command('summary')
+  .option('--session-id <id>')
+  .option('--verbose', 'Enable verbose debug logging')
+  .action(async (opts) => {
+    const session = await loadSession(opts)
+    const events = await session.events.ls()
+    const summary = {
+      id: session.id,
+      label: session.meta.label,
+      startedAt: session.meta.startedAt,
+      endedAt: session.meta.endedAt,
+    }
+    console.log(buildSummary(summary, events))
+  })
 
-program.command('network').option('--session-id <id>').option('--failed').option('--url <pattern>').action(async (opts) => {
-  const session = await loadSession(opts)
-  const events = await session.events.ls()
-  console.log(formatNetworkTable(events, opts))
-})
+program.command('network')
+  .option('--session-id <id>')
+  .option('--failed')
+  .option('--url <pattern>')
+  .option('--verbose', 'Enable verbose debug logging')
+  .action(async (opts) => {
+    const session = await loadSession(opts)
+    const events = await session.events.ls()
+    console.log(formatNetworkTable(events, opts))
+  })
 
 program.command('assets')
   .description('List and display assets')
   .option('--session-id <id>')
+  .option('--verbose', 'Enable verbose debug logging')
   .argument('[path]', 'Asset path to display')
   .action(async (path, opts) => {
     const baseDir = program.opts().dir as string
@@ -80,28 +89,36 @@ program.command('assets')
     }
   })
 
-program.command('list').description('List available sessions').action(async () => {
-  const dir = program.opts().dir as string
-  const sessions = await listSessions(dir)
-  if (sessions.length === 0) { console.error(`No sessions found in ${dir}`); process.exit(1) }
-  for (const session of sessions) {
-    const label = session.label ?? session.id
-    const duration = session.duration != null ? `${session.duration}ms` : 'ongoing'
-    console.log(`${session.id.padEnd(40)}  ${duration.padEnd(10)}  ${label}`)
-  }
-})
+program.command('list')
+  .description('List available sessions')
+  .option('--verbose', 'Enable verbose debug logging')
+  .action(async (opts) => {
+    const dir = program.opts().dir as string
+    const sessions = await listSessions(dir)
+    if (sessions.length === 0) { console.error(`No sessions found in ${dir}`); process.exit(1) }
+    for (const session of sessions) {
+      const label = session.label ?? session.id
+      const duration = session.duration != null ? `${session.duration}ms` : 'ongoing'
+      console.log(`${session.id.padEnd(40)}  ${duration.padEnd(10)}  ${label}`)
+    }
+  })
 
-program.command('plugins').description('Show plugin metadata for a session').option('--session-id <id>').action(async (opts) => {
-  const session = await loadSession(opts)
-  console.log(formatPlugins(session.meta))
-})
+program.command('plugins')
+  .description('Show plugin metadata for a session')
+  .option('--session-id <id>')
+  .option('--verbose', 'Enable verbose debug logging')
+  .action(async (opts) => {
+    const session = await loadSession(opts)
+    console.log(formatPlugins(session.meta))
+  })
 
 const skillsCmd = program.command('skills').description('Manage AI skills for this project')
 
 skillsCmd
   .command('list')
   .description('List available skills')
-  .action(async () => {
+  .option('--verbose', 'Enable verbose debug logging')
+  .action(async (opts) => {
     const skills = await listSkills(BUNDLED_SKILLS_DIR)
     if (skills.length === 0) {
       console.error('No skills found. Try reinstalling the introspect package.')
@@ -118,7 +135,8 @@ skillsCmd
   .description('Install AI skills into your project')
   .option('--platform <name>', 'Target platform (claude)')
   .option('--dir <path>', 'Override install directory')
-  .action(async (opts: { platform?: string; dir?: string }) => {
+  .option('--verbose', 'Enable verbose debug logging')
+  .action(async (opts: { platform?: string; dir?: string; verbose?: boolean }) => {
     const cwd = process.cwd()
 
     if (opts.dir && opts.platform) {
@@ -161,6 +179,7 @@ program
   .option('--before <ms>', 'Keep events before this timestamp (ms)', (v) => parseFloat(v))
   .option('--since <label>', 'Keep events after the named mark event')
   .option('--last <n>', 'Keep only the last N events', (v) => parseInt(v, 10))
+  .option('--verbose', 'Enable verbose debug logging')
   .action(async (opts) => {
     let session
     try {

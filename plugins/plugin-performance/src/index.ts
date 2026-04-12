@@ -1,16 +1,19 @@
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
+import { createDebug } from '@introspection/utils'
 
 export type {
   PerfCwvEvent, PerfResourceEvent, PerfLongTaskEvent, PerfLayoutShiftEvent, PerfPaintEvent,
 } from '@introspection/types'
 
 export interface PerformanceOptions {
+  verbose?: boolean
   resources?: boolean
   longTasks?: boolean
 }
 
 export function performance(options?: PerformanceOptions): IntrospectionPlugin {
+  const debug = createDebug('plugin-performance', options?.verbose ?? false)
   return {
     name: 'performance',
     description: 'Captures Core Web Vitals, resource timing, long tasks, layout shifts, and paint timing',
@@ -28,6 +31,7 @@ export function performance(options?: PerformanceOptions): IntrospectionPlugin {
     script: `var __introspect_perf_config__=${JSON.stringify({ resources: options?.resources ?? true, longTasks: options?.longTasks ?? true })};${BROWSER_SCRIPT}`,
 
     async install(_context: PluginContext): Promise<void> {
+      debug('installing', { resources: options?.resources ?? true, longTasks: options?.longTasks ?? true })
       // no-op — browser script handles everything via __introspect_push__
     },
   }

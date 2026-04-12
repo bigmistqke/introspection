@@ -234,3 +234,40 @@ Same result — the augmented type flows through the whole system.
 - **No abbreviated variable names.** Write `parameters` not `params`, `error` not `err`, `event` not `evt`, `result` not `res`. Full names make code searchable and self-documenting.
 - **Test actual behaviors, not type shapes.** Anything the type checker catches doesn't need a test.
 - **No mocking.** Tests run against real implementations (real browsers via Playwright, real file I/O, etc.).
+
+### Verbose logging (required for all APIs)
+
+All public APIs and CLI commands **must** support verbose logging via the `createDebug` pattern. This is a **hard requirement** for all new features.
+
+**For APIs (factories, functions):**
+```ts
+import { createDebug } from '@introspection/utils'
+
+export interface MyApiOptions {
+  verbose?: boolean
+  // ...other options
+}
+
+export function myApi(options?: MyApiOptions) {
+  const debug = createDebug('my-api', options?.verbose ?? false)
+  debug('initialized', { /* context details */ })
+  // ... implementation
+}
+```
+
+**For CLI commands:**
+```ts
+program.command('my-command')
+  .option('--verbose', 'Enable verbose debug logging')
+  .action(async (opts) => {
+    // pass verbose to any APIs called
+  })
+```
+
+**How it works:**
+- When `verbose` is `false` (default), `debug()` calls are no-ops with zero overhead.
+- When `verbose` is `true`, each `debug()` call logs to console with `[module-name]` prefix.
+- Use debug calls to trace execution flow and state changes — document the "why" of the code through these calls.
+- The `--verbose` flag flows from CLI through all APIs via options objects.
+
+Every API and command must follow this pattern. If an API can be instantiated, it gets a `verbose?: boolean` option. If a command loads data or calls an API, it gets a `--verbose` flag.

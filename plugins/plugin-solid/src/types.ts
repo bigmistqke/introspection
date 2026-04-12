@@ -9,6 +9,7 @@ declare global {
 export type SolidCaptureMode = 'stream' | 'trigger' | 'off'
 
 export interface SolidDevtoolsOptions {
+  verbose?: boolean
   structureUpdates?: SolidCaptureMode
   nodeUpdates?: SolidCaptureMode
   dependencyGraph?: SolidCaptureMode

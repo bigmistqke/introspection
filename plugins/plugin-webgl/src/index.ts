@@ -2,6 +2,7 @@
 // The import path is relative to src/ and resolved at build time — not a runtime path.
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
 import type { IntrospectionPlugin, PluginContext, WatchHandle } from '@introspection/types'
+import { createDebug } from '@introspection/utils'
 
 export type {
   WebGLContextCreatedEvent, WebGLContextLostEvent, WebGLContextRestoredEvent,
@@ -15,6 +16,10 @@ declare global {
 }
 
 export type NameFilter = string | RegExp
+
+export interface WebGLOptions {
+  verbose?: boolean
+}
 
 function serialiseName(name: NameFilter | undefined): string | { source: string; flags: string } | undefined {
   if (name === undefined) return undefined
@@ -57,7 +62,8 @@ export interface WebGLPlugin extends IntrospectionPlugin {
   captureCanvas(opts?: { contextId?: string }): Promise<void>
 }
 
-export function webgl(): WebGLPlugin {
+export function webgl(options?: WebGLOptions): WebGLPlugin {
+  const debug = createDebug('plugin-webgl', options?.verbose ?? false)
   let pluginCtx: PluginContext | null = null
 
   async function captureState(ctx: PluginContext): Promise<void> {
@@ -115,11 +121,21 @@ export function webgl(): WebGLPlugin {
     script: BROWSER_SCRIPT,
 
     async install(ctx: PluginContext): Promise<void> {
+      debug('installing')
       pluginCtx = ctx
 
-      ctx.bus.on('manual', async () => { await captureState(ctx) })
-      ctx.bus.on('js.error', async () => { await captureState(ctx) })
-      ctx.bus.on('detach', async () => { await captureState(ctx) })
+      ctx.bus.on('manual', async () => {
+        debug('capture triggered: manual')
+        await captureState(ctx)
+      })
+      ctx.bus.on('js.error', async () => {
+        debug('capture triggered: js.error')
+        await captureState(ctx)
+      })
+      ctx.bus.on('detach', async () => {
+        debug('capture triggered: detach')
+        await captureState(ctx)
+      })
     },
 
     async watch(opts: WebGLWatchOpts): Promise<WatchHandle> {

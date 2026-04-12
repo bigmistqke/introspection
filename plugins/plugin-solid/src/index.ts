@@ -1,5 +1,6 @@
 // Loaded as raw text by esbuild (tsup.node.config.ts sets loader['.iife.js'] = 'text').
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
+import { createDebug } from '@introspection/utils'
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
 import { SolidDevtoolsOptions, SolidState } from './types.js'
 
@@ -49,16 +50,18 @@ async function captureState(context: PluginContext): Promise<void> {
 }
 
 export function solidDevtools(options?: SolidDevtoolsOptions): IntrospectionPlugin {
+  const debug = createDebug('plugin-solid', options?.verbose ?? false)
   return {
     name: 'solid',
     script: BROWSER_SCRIPT,
 
     async install(context: PluginContext): Promise<void> {
-      const resolvedOptions: Required<SolidDevtoolsOptions> = {
+      const resolvedOptions = {
         structureUpdates: options?.structureUpdates ?? 'stream',
         nodeUpdates: options?.nodeUpdates ?? 'off',
         dependencyGraph: options?.dependencyGraph ?? 'trigger',
       }
+      debug('installing', { ...resolvedOptions })
 
       // Deliver config to the browser script
       await context.page.evaluate((pluginOptions) => {
@@ -74,6 +77,7 @@ export function solidDevtools(options?: SolidDevtoolsOptions): IntrospectionPlug
         try {
           const { type } = JSON.parse(parameters.payload) as { type: string }
           if (type === 'solid.detected') {
+            debug('solid detected')
             context.page.evaluate((pluginOptions) => {
               ;(window.__introspect_plugins__ as { solid?: { configure?(config: unknown): void } } | undefined)
                 ?.solid?.configure?.(pluginOptions)
@@ -84,9 +88,18 @@ export function solidDevtools(options?: SolidDevtoolsOptions): IntrospectionPlug
         } catch { /* ignore malformed push */ }
       })
 
-      context.bus.on('manual', async () => { await captureState(context) })
-      context.bus.on('js.error', async () => { await captureState(context) })
-      context.bus.on('detach', async () => { await captureState(context) })
+      context.bus.on('manual', async () => {
+        debug('capture triggered: manual')
+        await captureState(context)
+      })
+      context.bus.on('js.error', async () => {
+        debug('capture triggered: js.error')
+        await captureState(context)
+      })
+      context.bus.on('detach', async () => {
+        debug('capture triggered: detach')
+        await captureState(context)
+      })
     },
   }
 }

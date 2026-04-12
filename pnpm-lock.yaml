@@ -180,6 +180,9 @@ importers:
       '@introspection/read':
         specifier: workspace:*
         version: link:../../packages/read
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
     devDependencies:
       typescript:
         specifier: ^5.0.0
@@ -558,6 +561,9 @@ importers:
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
     devDependencies:
       '@introspection/playwright':
         specifier: workspace:*
@@ -577,6 +583,9 @@ importers:
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
     devDependencies:
       '@introspection/playwright':
         specifier: workspace:*
@@ -626,6 +635,9 @@ importers:
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
     devDependencies:
       '@introspection/playwright':
         specifier: workspace:*
@@ -663,6 +675,9 @@ importers:
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
     devDependencies:
       '@introspection/playwright':
         specifier: workspace:*

@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@introspection/types": "workspace:*",
+    "@introspection/utils": "workspace:*",
     "@introspection/plugin-js-error": "workspace:*"
   },
   "devDependencies": {

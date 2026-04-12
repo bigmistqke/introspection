@@ -1,9 +1,14 @@
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
-import { normaliseCdpJsError } from '@introspection/utils'
+import { createDebug, normaliseCdpJsError } from '@introspection/utils'
 
 export type { JsErrorEvent } from '@introspection/types'
 
-export function jsError(): IntrospectionPlugin {
+export interface JsErrorOptions {
+  verbose?: boolean
+}
+
+export function jsError(options?: JsErrorOptions): IntrospectionPlugin {
+  const debug = createDebug('plugin-js-error', options?.verbose ?? false)
   return {
     name: 'js-error',
     description: 'Captures JS exceptions and unhandled promise rejections',
@@ -12,8 +17,10 @@ export function jsError(): IntrospectionPlugin {
     },
 
     async install(ctx: PluginContext): Promise<void> {
+      debug('installing')
       ctx.cdpSession.on('Runtime.exceptionThrown', (rawParams) => {
         const parameters = rawParams as { exceptionDetails: Record<string, unknown> }
+        debug('exception thrown', { url: parameters.exceptionDetails })
         ctx.emit(normaliseCdpJsError({ exceptionDetails: parameters.exceptionDetails } as Record<string, unknown>))
       })
     },

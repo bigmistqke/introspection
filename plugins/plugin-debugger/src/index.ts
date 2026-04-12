@@ -1,6 +1,8 @@
 import type { IntrospectionPlugin, PluginContext, ScopeFrame, StackFrame } from '@introspection/types'
+import { createDebug } from '@introspection/utils'
 
 export interface DebuggerOptions {
+  verbose?: boolean
   pauseOnExceptions?: 'all' | 'uncaught'
   breakpoints?: Array<{
     url: string
@@ -19,6 +21,7 @@ function normaliseStackFrame(frame: { functionName?: string; url?: string; lineN
 }
 
 export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
+  const debug = createDebug('plugin-debugger', options?.verbose ?? false)
   const pauseOnExceptions = options?.pauseOnExceptions ?? 'uncaught'
 
   return {
@@ -45,10 +48,13 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
     `,
 
     async install(ctx: PluginContext): Promise<void> {
+      debug('installing', { pauseOnExceptions })
       await ctx.cdpSession.send('Debugger.enable')
       await ctx.cdpSession.send('Debugger.setPauseOnExceptions', { state: pauseOnExceptions })
       await ctx.cdpSession.send('Runtime.addBinding', { name: '__introspect_plugin_debugger_capture_binding__' })
 
+      const breakpointCount = options?.breakpoints?.length ?? 0
+      debug('setting breakpoints', { count: breakpointCount })
       for (const bp of options?.breakpoints ?? []) {
         await ctx.cdpSession.send('Debugger.setBreakpoint', {
           location: { url: bp.url, lineNumber: bp.line - 1 },
@@ -88,6 +94,8 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
           void ctx.cdpSession.send('Debugger.resume').catch(() => {})
           return
         }
+
+        debug('paused', { reason: params.reason, isCapture, isDebuggerStatement })
 
         ctx.track(async () => {
           const timestamp = ctx.timestamp()
