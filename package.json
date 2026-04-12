@@ -6,7 +6,7 @@
     "prepare": "git config core.hooksPath .githooks",
     "build": "pnpm -r --changed run build",
     "typecheck": "pnpm -r --changed run typecheck",
-    "test": "pnpm -r --changed --filter='!./ctf/**' --filter='!./demos/**' run test",
+    "test": "pnpm -r --filter '!./ctf/**' --filter '!./demos/**' run test",
     "test:vitest": "vitest run",
     "test:watch": "vitest",
     "introspect": "node packages/cli/dist/index.js",
