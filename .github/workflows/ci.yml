@@ -97,7 +97,7 @@ jobs:
               repo: context.repo.repo,
               message: message,
               tree: tree,
-              parents: []
+              parents: [releasesRef]
             }).then(r => r.data.sha);
 
             await github.rest.git.updateRef({
