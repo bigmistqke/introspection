@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+echo "🔨 Running pre-push checks..."
+
+pnpm build && \
+pnpm typecheck && \
+pnpm test
+
+echo "✅ All checks passed!"
