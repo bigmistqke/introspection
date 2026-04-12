@@ -96,11 +96,10 @@ test.describe('solid devtools plugin', () => {
     await handle.snapshot()
 
     const events = await endSession(handle, outDir)
-    const structureAssets = events.filter(
-      (event: { type: string; data?: { kind: string } }) =>
-        event.type === 'asset' && event.data?.kind === 'solid-structure',
-    )
-    expect(structureAssets.length).toBeGreaterThanOrEqual(1)
+    // Look for mark events with assets (excluding the 'snapshot' mark from handle.snapshot())
+    const solidStateMarks = events.filter((event: { type: string; metadata?: { label: string }; assets?: unknown[] }) =>
+      event.type === 'mark' && event.assets && event.assets.length > 0 && (event.metadata?.label !== 'snapshot'))
+    expect(solidStateMarks.length).toBeGreaterThanOrEqual(1)
   })
 
   test('emits warning when SolidDevtools$$ is missing', async ({ page }) => {
