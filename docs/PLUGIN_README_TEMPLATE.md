@@ -71,6 +71,25 @@ const handle = await attach(page, { plugins: [{pluginFunction}()] })
 \`\`\`
 }
 
+{## Bus augmentation (optional, if plugin emits on the bus)
+
+This plugin augments \`BusPayloadMap\` with custom triggers:
+
+\`\`\`ts
+interface BusPayloadMap {
+  'trigger.name': { trigger: 'trigger.name'; timestamp: number; ... }
+}
+\`\`\`
+
+Other plugins can react by subscribing:
+
+\`\`\`ts
+ctx.bus.on('trigger.name', async (payload) => {
+  // react to event
+})
+\`\`\`
+}
+
 {## Additional sections
 
 Caveats, limitations, how it works, supported libraries, etc.}
@@ -152,4 +171,7 @@ For each plugin README, use this checklist:
 - [ ] All event examples use `metadata`, not `data`
 - [ ] All event examples include `id`, `timestamp`, `type`, `metadata`
 - [ ] No `source: 'plugin'` in any event examples
+- [ ] Bus augmentation section (if plugin emits on the bus)
+- [ ] Bus trigger examples show correct structure (`trigger`, `timestamp`, other fields)
+- [ ] Instructions for other plugins to subscribe
 - [ ] Additional sections as needed (Caveats, How it works, etc.)
