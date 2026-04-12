@@ -4,7 +4,7 @@
   "packageManager": "pnpm@10.11.0",
   "type": "module",
   "scripts": {
-    "prepare": "git config core.hooksPath .githooks",
+    "prepare": "git config core.hooksPath .githooks && echo 'TURBO_TELEMETRY_DISABLED=1' > .env.local",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "test": "turbo test --filter '!./{ctf,demos}/**'",
