@@ -94,23 +94,6 @@ See [`@introspection/playwright`](packages/playwright/README.md) for the full AP
 
 ---
 
-## Configuration
-
-Create an `introspect.config.ts` in your project root to configure which plugins are used in debug mode and tests:
-
-```ts
-import { redux } from '@introspection/plugin-redux'
-import { defaults } from '@introspection/plugin-defaults'
-
-export default {
-  plugins: [redux({ captureState: true }), ...defaults()],
-}
-```
-
-The config is loaded automatically by `introspect debug` and can be referenced in tests via `attach()` options.
-
----
-
 ## Session format
 
 Each test produces a session directory:

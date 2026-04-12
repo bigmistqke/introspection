@@ -52,6 +52,21 @@ introspect debug [<url> | --serve <path>] [--config <path>] [--playwright <scrip
 
 The command loads plugins from `introspect.config.ts`, records the session to `.introspect/`, and prints the session ID.
 
+**Configuration:**
+
+Create an `introspect.config.ts` in your project root:
+
+```ts
+import { redux } from '@introspection/plugin-redux'
+import { defaults } from '@introspection/plugin-defaults'
+
+export default {
+  plugins: [redux({ captureState: true }), ...defaults()],
+}
+```
+
+Use the `--config` flag to specify a custom path (default: `./introspect.config.ts`).
+
 **Examples:**
 
 ```bash
