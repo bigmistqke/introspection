@@ -90,7 +90,10 @@ introspect events --type network.*  # Prefix matching: all network.* events
 introspect events --type network.response --filter 'event.metadata.status >= 400'
 ```
 
-See [`@introspection/playwright`](packages/playwright/README.md) for the full API including plugins, fixtures, and options.
+**Full documentation:**
+- [`@introspection/playwright`](packages/playwright/README.md) — `attach()` fixture and options
+- [`introspect` CLI](packages/cli/README.md) — `debug`, `summary`, `events`, `network`, `assets` commands
+- [`@introspection/plugin-*`](plugins/) — Available plugins and their options
 
 ---
 
