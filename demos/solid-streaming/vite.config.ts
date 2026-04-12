@@ -179,4 +179,8 @@ function streamingPlugin() {
 
 export default defineConfig({
   plugins: [solid(), streamingPlugin()],
+  server: {
+    port: 5177,
+    strictPort: true,
+  },
 })

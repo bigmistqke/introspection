@@ -4,10 +4,10 @@ export default defineConfig({
   testDir: './scripts',
   webServer: {
     command: 'pnpm dev',
-    port: 5173,
+    port: 5177,
     reuseExistingServer: !process.env.CI,
   },
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:5177',
   },
 })
