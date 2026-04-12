@@ -2,6 +2,8 @@
 
 Captures browser console output (`log`, `warn`, `error`, `info`, `debug`) via CDP's `Runtime.consoleAPICalled`.
 
+Useful for catching logged warnings, errors, or debug messages that occur during page navigation and user interactions. Control which levels are captured and optionally log them to your test runner's stderr in real-time.
+
 ## Table of Contents
 
 - [Install](#install)

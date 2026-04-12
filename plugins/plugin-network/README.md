@@ -2,6 +2,8 @@
 
 Captures all HTTP network activity via CDP.
 
+Records every request, response, and error that crosses the network during page navigation and user interactions. Response bodies are automatically captured as assets for later inspection. Useful for debugging network-related issues, validating API contracts, or analyzing performance bottlenecks.
+
 ## Table of Contents
 
 - [Install](#install)
@@ -70,6 +72,6 @@ const body = events.find(e => e.type === 'network.response.body' && e.initiator 
 network({ verbose: true })
 ```
 
-| Option | Default | Description |
-|---|---|---|
-| `verbose` | `false` | Log CDP events and body-capture flow to stdout via `createDebug('plugin-network')`. Useful for diagnosing missing body events. |
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `verbose` | `boolean` | `false` | Log CDP events and body-capture flow to stdout via `createDebug('plugin-network')`. Useful for diagnosing missing body events. |
