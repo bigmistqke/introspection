@@ -117,6 +117,24 @@ describe('formatEvents — text output (default)', () => {
     expect(out).not.toContain('network.request')
   })
 
+  it('renders console events with level and message', () => {
+    const withConsole: TraceEvent[] = [
+      { id: 'c1', type: 'console', timestamp: 120, metadata: { level: 'log', message: '[APP] rendering' } },
+      { id: 'c2', type: 'console', timestamp: 130, metadata: { level: 'error', message: 'boom' } },
+    ]
+    const out = formatEvents(withConsole, {})
+    expect(out).toContain('console [log] [APP] rendering')
+    expect(out).toContain('console [error] boom')
+  })
+
+  it('renders browser.navigate with from → to', () => {
+    const withNav: TraceEvent[] = [
+      { id: 'n1', type: 'browser.navigate', timestamp: 10, metadata: { from: 'about:blank', to: 'http://localhost/' } },
+    ]
+    const out = formatEvents(withNav, {})
+    expect(out).toContain('browser.navigate about:blank → http://localhost/')
+  })
+
   it('returns empty string when no events match', () => {
     const out = formatEvents(events, { type: 'nonexistent' })
     expect(out).toBe('')
