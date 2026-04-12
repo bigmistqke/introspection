@@ -129,7 +129,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
             pendingCaptureLabel = undefined
           }
 
-          await ctx.writeAsset({
+          const asset = await ctx.writeAsset({
             kind: 'scopes',
             contentType: 'json',
             content: JSON.stringify({
@@ -141,6 +141,12 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
               scopes,
             }),
             ext: 'json',
+          })
+          ctx.emit({
+            type: 'mark' as const,
+            source: 'plugin',
+            assets: [asset],
+            data: { label: 'debugger.scopes', extra: { reason: isCapture ? 'capture' : params.reason, url, scopeCount: scopes.length } },
           })
         })()
       })

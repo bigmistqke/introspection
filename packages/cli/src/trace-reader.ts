@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
-import type { TraceFile, TraceEvent, AssetEvent } from './types.js'
+import type { TraceFile, TraceEvent } from './types.js'
 
 interface FilterOptions { type?: string; url?: string; failed?: boolean }
 
@@ -36,16 +36,17 @@ export class TraceReader {
       .filter(line => line.trim())
       .map(line => JSON.parse(line) as TraceEvent)
 
-    const assetEvents = events.filter((e): e is AssetEvent => e.type === 'asset')
-
     const snapshots: TraceFile['snapshots'] = []
-    for (const assetEvent of assetEvents) {
-      if (assetEvent.data.kind !== 'snapshot') continue
-      try {
-        const raw = await readFile(join(sessionDir, assetEvent.data.path), 'utf-8')
-        snapshots.push(JSON.parse(raw))
-      } catch (error: unknown) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    for (const event of events) {
+      if (!event.assets) continue
+      for (const asset of event.assets) {
+        if (asset.kind !== 'snapshot') continue
+        try {
+          const raw = await readFile(join(sessionDir, asset.path), 'utf-8')
+          snapshots.push(JSON.parse(raw))
+        } catch (error: unknown) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        }
       }
     }
     snapshots.sort((a, b) => a.timestamp - b.timestamp)

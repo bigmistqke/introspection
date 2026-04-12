@@ -14,33 +14,41 @@ async function captureState(context: PluginContext): Promise<void> {
 
   if (!state) return
 
+  const assets = []
+
   if (state.structure !== null) {
-    await context.writeAsset({
+    assets.push(await context.writeAsset({
       kind: 'solid-structure',
       contentType: 'json',
       content: JSON.stringify(state.structure),
       ext: 'json',
-      
-    })
+    }))
   }
 
   if (state.dgraph !== null) {
-    await context.writeAsset({
+    assets.push(await context.writeAsset({
       kind: 'solid-dgraph',
       contentType: 'json',
       content: JSON.stringify(state.dgraph),
       ext: 'json',
-      
-    })
+    }))
   }
 
   if (state.updates !== null) {
-    await context.writeAsset({
+    assets.push(await context.writeAsset({
       kind: 'solid-updates',
       contentType: 'json',
       content: JSON.stringify(state.updates),
       ext: 'json',
-      
+    }))
+  }
+
+  if (assets.length > 0) {
+    context.emit({
+      type: 'mark' as const,
+      source: 'plugin',
+      assets,
+      data: { label: 'solid.state' },
     })
   }
 }

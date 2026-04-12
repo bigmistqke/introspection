@@ -1,7 +1,7 @@
 import { writeFile, mkdir, appendFile, readFile, stat } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
-import type { TraceEvent, SessionMeta, EventSource, PluginMeta, WriteAssetOptions } from '@introspection/types'
+import type { TraceEvent, SessionMeta, EventSource, PluginMeta, WriteAssetOptions, AssetRef, AssetDataMap } from '@introspection/types'
 
 export interface SessionInitParams {
   id: string
@@ -30,31 +30,21 @@ export async function appendEvent(outDir: string, sessionId: string, event: Trac
   await appendFile(join(outDir, sessionId, 'events.ndjson'), JSON.stringify(event) + '\n')
 }
 
-/** Writes content to assets/<id>.<kind>.<ext>, appends an asset event, and returns the relative path. */
-export async function writeAsset<K extends keyof import('@introspection/types').AssetDataMap>(
+/** Writes content to assets/<id>.<kind>.<ext> and returns an AssetRef. Does not emit an event. */
+export async function writeAsset<K extends keyof AssetDataMap>(
   options: WriteAssetOptions<K> & {
     directory: string
     name: string
     id?: string
-    source?: EventSource
-    timestamp: () => number
   },
-): Promise<string> {
-  const { directory, name, kind, contentType, content, ext = 'json', metadata, source, timestamp } = options
+): Promise<AssetRef> {
+  const { directory, name, kind, contentType, content, ext = 'json', metadata } = options
   const id = options.id ?? randomUUID().replace(/-/g, '').slice(0, 8)
   const filename = `${id}.${kind}.${ext}`
   const path = `assets/${filename}`
   await writeFile(join(directory, name, path), content)
   const size = typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength
-  const event = {
-    id: randomUUID().replace(/-/g, '').slice(0, 8),
-    type: 'asset' as const,
-    timestamp: timestamp(),
-    source: (source ?? 'agent') as EventSource,
-    data: { path, kind, contentType, size, ...(metadata ?? {}) },
-  }
-  await appendFile(join(directory, name, 'events.ndjson'), JSON.stringify(event) + '\n')
-  return path
+  return { path, kind, contentType, size, ...(metadata ?? {}) } as AssetRef
 }
 
 export async function finalizeSession(outDir: string, sessionId: string, endedAt: number): Promise<void> {

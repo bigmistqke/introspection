@@ -1,3 +1,4 @@
+import type { Dirent } from 'fs'
 import { readdir, readFile, mkdir, writeFile, access } from 'fs/promises'
 import { join, resolve, isAbsolute } from 'path'
 
@@ -34,7 +35,7 @@ async function exists(p: string): Promise<boolean> {
 // ─── Exported logic ───────────────────────────────────────────────────────────
 
 export async function listSkills(skillsDir: string): Promise<SkillMeta[]> {
-  let dirents: import('fs').Dirent[]
+  let dirents: Dirent[]
   try {
     dirents = await readdir(skillsDir, { withFileTypes: true })
   } catch {
@@ -79,7 +80,7 @@ export function getInstallRoot(opts: { platform: 'claude'; cwd: string; dir?: st
 }
 
 export async function installSkills(skillsDir: string, installRoot: string): Promise<InstallResult[]> {
-  let dirents: import('fs').Dirent[]
+  let dirents: Dirent[]
   try {
     dirents = await readdir(skillsDir, { withFileTypes: true })
   } catch {

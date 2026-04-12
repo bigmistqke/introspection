@@ -1,6 +1,6 @@
 import { createFetchAdapter } from "@introspection/demo-shared/fetch-adapter";
 import { createSessionReader } from "@introspection/read";
-import type { AssetEvent, SessionReader, TraceEvent } from "@introspection/types";
+import type { AssetRef, SessionReader, TraceEvent } from "@introspection/types";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { useAssetContent } from "./hooks/useAssetContent.js";
 import { useEventSource } from "./hooks/useEventSource.js";
@@ -18,7 +18,6 @@ const COLORS: Record<string, string> = {
   "js.error": "#fc6c6c",
   "console": "#fcb86c",
   "browser.navigate": "#e0e0e0",
-  "asset": "#e8a0e8",
   "page.attach": "#888",
   "page.detach": "#888",
   "solid.detected": "#4c8dff",
@@ -42,8 +41,6 @@ function formatEvent(event: TraceEvent): string {
       return `${event.data.status ?? "unknown"} (${event.data.duration}ms)`;
     case "browser.navigate":
       return `${event.data.from} → ${event.data.to}`;
-    case "asset":
-      return `[${event.data.kind}] ${event.data.contentType} ${event.data.path}`;
     default:
       return "";
   }
@@ -155,8 +152,10 @@ function SessionView(props: { session?: SessionReader }) {
                   <div class="label">Data</div>
                   <pre>{JSON.stringify(event().data, null, 2)}</pre>
                 </div>
-                <Show when={event().type === 'asset' ? event() as AssetEvent : null}>
-                  {(assetEvent) => <AssetPreview session={props.session} event={assetEvent()} />}
+                <Show when={event().assets && event().assets!.length > 0}>
+                  <For each={event().assets}>
+                    {(asset) => <AssetPreview session={props.session} asset={asset} />}
+                  </For>
                 </Show>
               </>
             )}
@@ -167,22 +166,22 @@ function SessionView(props: { session?: SessionReader }) {
   );
 }
 
-function AssetPreview(props: { session?: SessionReader; event: AssetEvent }) {
-  const assetUrl = () => `/__introspect/stream/${props.event.data.path}`
+function AssetPreview(props: { session?: SessionReader; asset: AssetRef }) {
+  const assetUrl = () => `/__introspect/stream/${props.asset.path}`
 
   const [content] = createResource(
-    () => props.event.data.path,
+    () => props.asset.path,
     (path) => {
       if (!props.session) return null
-      if (props.event.data.contentType === 'image') return null
+      if (props.asset.contentType === 'image') return null
       return props.session.assets.readText(path)
     },
   )
 
   return (
     <div class="field">
-      <div class="label">Asset Content</div>
-      <Show when={props.event.data.contentType === 'image'}>
+      <div class="label">{props.asset.kind} ({props.asset.contentType})</div>
+      <Show when={props.asset.contentType === 'image'}>
         <img src={assetUrl()} class="asset-image" />
       </Show>
       <Show when={content.loading}>

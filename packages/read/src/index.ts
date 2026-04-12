@@ -1,4 +1,4 @@
-import type { TraceEvent, AssetEvent, SessionReader, EventsFilter, Watchable, WatchableWithFilter } from '@introspection/types'
+import type { TraceEvent, AssetRef, SessionReader, EventsFilter, Watchable, WatchableWithFilter } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 
 export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI, Watchable, WatchableWithFilter } from '@introspection/types'
@@ -167,10 +167,22 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
       },
     },
     assets: {
-      ls: () => Promise.resolve(events.filter((event): event is AssetEvent => event.type === 'asset')),
-      metadata: (path) => Promise.resolve(
-        events.find((event): event is AssetEvent => event.type === 'asset' && event.data.path === path),
-      ),
+      ls: () => {
+        const refs: AssetRef[] = []
+        for (const event of events) {
+          if (event.assets) refs.push(...event.assets)
+        }
+        return Promise.resolve(refs)
+      },
+      metadata: (path) => {
+        for (const event of events) {
+          if (event.assets) {
+            const found = event.assets.find(asset => asset.path === path)
+            if (found) return Promise.resolve(found)
+          }
+        }
+        return Promise.resolve(undefined)
+      },
       readText: (path) => adapter.readText(`${id}/${path}`),
       readBinary: adapter.readBinary
         ? (path) => adapter.readBinary!(`${id}/${path}`)

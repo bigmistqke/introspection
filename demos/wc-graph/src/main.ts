@@ -1,10 +1,11 @@
+import type { TraceEvent } from '@introspection/types'
 import { createSessionReader, listSessions } from '@introspection/read'
 import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
 import './widgets/event-graph.js'
 
 const adapter = createFetchAdapter('/__introspect')
 const selectElement = document.getElementById('session-select') as HTMLSelectElement
-const graphElement = document.querySelector('event-graph') as HTMLElement & { load(events: import('@introspection/types').TraceEvent[]): void }
+const graphElement = document.querySelector('event-graph') as HTMLElement & { load(events: TraceEvent[]): void }
 
 async function loadSession(sessionId: string) {
   const session = await createSessionReader(adapter, { sessionId })

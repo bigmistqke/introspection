@@ -153,12 +153,13 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
         trigger: 'manual',
         url: await page.evaluate(() => location.href).catch(() => ''),
       })
-      await session.writeAsset({
+      const asset = await session.writeAsset({
         kind: 'snapshot',
         contentType: 'json',
         content: JSON.stringify(snap),
         metadata: { trigger: 'manual', url: snap.url, scopeCount: snap.scopes.length },
       })
+      emit({ type: 'mark', source: 'agent', assets: [asset], data: { label: 'snapshot' } })
       await bus.emit('manual', { trigger: 'manual', timestamp: timestamp() })
     },
     async detach(detachResult?: DetachResult) {

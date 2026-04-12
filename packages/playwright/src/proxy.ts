@@ -1,4 +1,4 @@
-import type { TraceEvent, WriteAssetOptions } from '@introspection/types'
+import type { EmitInput, WriteAssetOptions, AssetRef } from '@introspection/types'
 import type { Page } from '@playwright/test'
 
 const TRACKED_METHODS = new Set([
@@ -8,9 +8,9 @@ const TRACKED_METHODS = new Set([
 
 const ARTIFACT_METHODS = new Set(['screenshot'])
 
-type EmitFn = (event: Omit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }) => void
+type EmitFn = (event: EmitInput) => void
 
-type WriteAssetFn = (options: WriteAssetOptions) => Promise<string>
+type WriteAssetFn = (options: WriteAssetOptions) => Promise<AssetRef>
 
 export interface PageProxyOptions {
   emit: EmitFn
@@ -42,7 +42,7 @@ export function createPageProxy(options: PageProxyOptions): Page {
           const result = await (original as Function).apply(target, args)
           if (prop === 'screenshot') {
             const viewport = target.viewportSize()
-            const path = await writeAsset({
+            const asset = await writeAsset({
               kind: 'screenshot',
               contentType: 'image',
               content: result as Buffer,
@@ -52,10 +52,8 @@ export function createPageProxy(options: PageProxyOptions): Page {
             emit({
               type: 'playwright.screenshot',
               source: 'playwright',
-              data: {
-                path,
-                ...(viewport ? { viewport } : {}),
-              },
+              assets: [asset],
+              data: {},
             })
           }
           return result

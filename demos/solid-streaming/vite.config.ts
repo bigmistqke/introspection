@@ -1,3 +1,4 @@
+import type { Plugin, ViteDevServer } from 'vite'
 import { defineConfig } from 'vite'
 import solid from 'vite-plugin-solid'
 import { readFileSync, readdirSync, existsSync, statSync, createReadStream } from 'fs'
@@ -27,7 +28,7 @@ function streamingPlugin() {
 
   return {
     name: 'streaming-introspect',
-    configureServer(server: import('vite').ViteDevServer) {
+    configureServer(server: ViteDevServer) {
       server.middlewares.use((request, response, next) => {
         const url = request.url ?? ''
 
@@ -142,7 +143,7 @@ function streamingPlugin() {
         next()
       })
     },
-  } satisfies import('vite').Plugin
+  } satisfies Plugin
 }
 
 export default defineConfig({

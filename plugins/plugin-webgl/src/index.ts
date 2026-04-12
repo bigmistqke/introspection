@@ -75,25 +75,34 @@ export function webgl(): WebGLPlugin {
       return plugin?.captureCanvases?.() ?? []
     })
 
+    const assets = []
+
     for (const snapshot of snapshots) {
-      await ctx.writeAsset({
+      const asset = await ctx.writeAsset({
         kind: 'webgl-state',
         contentType: 'json',
         content: JSON.stringify(snapshot),
-        metadata: {
-          timestamp: captureTimestamp,
-        },
       })
+      assets.push(asset)
     }
 
     for (const { contextId, dataUrl } of canvases) {
       const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-      await ctx.writeAsset({
+      const asset = await ctx.writeAsset({
         kind: 'webgl-canvas',
         contentType: 'image',
         content: Buffer.from(base64, 'base64'),
         ext: 'png',
-        
+      })
+      assets.push(asset)
+    }
+
+    if (assets.length > 0) {
+      ctx.emit({
+        type: 'mark' as const,
+        source: 'plugin',
+        assets,
+        data: { label: 'webgl.capture' },
       })
     }
   }
@@ -152,15 +161,24 @@ export function webgl(): WebGLPlugin {
         } | undefined)?.webgl
         return plugin?.captureCanvases?.() ?? []
       })
+      const captureAssets = []
       for (const { contextId, dataUrl } of canvases) {
         if (opts?.contextId !== undefined && contextId !== opts.contextId) continue
         const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-        await pluginCtx.writeAsset({
+        const asset = await pluginCtx.writeAsset({
           kind: 'webgl-canvas',
           contentType: 'image',
           content: Buffer.from(base64, 'base64'),
           ext: 'png',
-          
+        })
+        captureAssets.push(asset)
+      }
+      if (captureAssets.length > 0) {
+        pluginCtx.emit({
+          type: 'mark' as const,
+          source: 'plugin',
+          assets: captureAssets,
+          data: { label: 'webgl.canvas-capture' },
         })
       }
     },

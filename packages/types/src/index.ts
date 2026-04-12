@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test'
+
 // ─── Event types ────────────────────────────────────────────────────────────
 
 export type EventSource = 'cdp' | 'agent' | 'playwright' | 'plugin'
@@ -8,6 +10,7 @@ export interface BaseEvent {
   source: EventSource
   initiator?: string  // id of event that caused this one (best-effort)
   pageId?: string     // identifies which page emitted this event
+  assets?: AssetRef[] // files written to the assets directory by this event
 }
 
 // ─── Core events (emitted by the framework, not plugins) ────────────────────
@@ -39,7 +42,7 @@ export interface PlaywrightResultEvent extends BaseEvent {
 
 export interface PlaywrightScreenshotEvent extends BaseEvent {
   type: 'playwright.screenshot'
-  data: { path: string; viewport?: { width: number; height: number } }
+  data: Record<string, never>
 }
 
 // ─── Asset data map ─────────────────────────────────────────────────────────
@@ -70,12 +73,7 @@ export interface AssetDataMap {
   'webgl-canvas': { path: string; size?: number; contentType: 'image' }
 }
 
-export type AssetEventData = { [K in keyof AssetDataMap]: { kind: K } & AssetDataMap[K] }[keyof AssetDataMap]
-
-export interface AssetEvent extends BaseEvent {
-  type: 'asset'
-  data: AssetEventData
-}
+export type AssetRef = { [K in keyof AssetDataMap]: { kind: K } & AssetDataMap[K] }[keyof AssetDataMap]
 
 export interface PageAttachEvent extends BaseEvent {
   type: 'page.attach'
@@ -279,7 +277,6 @@ export interface TraceEventMap {
   'playwright.test.start': PlaywrightTestStartEvent
   'playwright.result': PlaywrightResultEvent
   'playwright.screenshot': PlaywrightScreenshotEvent
-  'asset': AssetEvent
   'page.attach': PageAttachEvent
   'page.detach': PageDetachEvent
   'describe.start': DescribeStartEvent
@@ -344,7 +341,16 @@ export interface WatchHandle {
   unwatch(): Promise<void>
 }
 
-export interface PluginContext {
+export interface AssetWriter {
+  writeAsset<K extends keyof AssetDataMap>(opts: WriteAssetOptions<K>): Promise<AssetRef>
+}
+
+export interface SessionBus {
+  on<T extends BusTrigger>(trigger: T, handler: (payload: BusPayloadMap[T]) => void | Promise<void>): void
+  emit<T extends BusTrigger>(trigger: T, payload: BusPayloadMap[T]): Promise<void>
+}
+
+export interface PluginContext extends AssetWriter {
   page: PluginPage
   cdpSession: {
     send(method: string, params?: Record<string, unknown>): Promise<unknown>
@@ -352,18 +358,11 @@ export interface PluginContext {
     on(event: string, handler: (params: unknown) => void): void
   }
   emit(event: EmitInput): void
-  writeAsset<K extends keyof AssetDataMap>(opts: WriteAssetOptions<K>): Promise<string>
   timestamp(): number
   /** Installs a browser-side watch and registers it for navigation recovery. */
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
   /** Typed async event bus scoped to this session. */
-  bus: {
-    on<T extends BusTrigger>(
-      trigger: T,
-      handler: (payload: BusPayloadMap[T]) => void | Promise<void>
-    ): void
-    emit<T extends BusTrigger>(trigger: T, payload: BusPayloadMap[T]): Promise<void>
-  }
+  bus: SessionBus
 }
 
 export interface IntrospectionPlugin {
@@ -447,15 +446,11 @@ export type WriteAssetOptions<K extends keyof AssetDataMap = keyof AssetDataMap>
 
 // ─── SessionWriter (returned by createSession()) ────────────────────────────
 
-export interface SessionWriter {
+export interface SessionWriter extends AssetWriter {
   id: string
   emit(event: EmitInput): void
-  writeAsset<K extends keyof AssetDataMap>(opts: WriteAssetOptions<K>): Promise<string>
   timestamp(): number
-  bus: {
-    on<T extends BusTrigger>(trigger: T, handler: (payload: BusPayloadMap[T]) => void | Promise<void>): void
-    emit<T extends BusTrigger>(trigger: T, payload: BusPayloadMap[T]): Promise<void>
-  }
+  bus: SessionBus
   finalize(): Promise<void>
 }
 
@@ -482,8 +477,8 @@ export interface EventsAPI {
 }
 
 export interface AssetsAPI {
-  ls(): Promise<AssetEvent[]>
-  metadata(path: string): Promise<AssetEvent | undefined>
+  ls(): Promise<AssetRef[]>
+  metadata(path: string): Promise<AssetRef | undefined>
   readText(path: string): Promise<string>
   readBinary?(path: string): Promise<ArrayBuffer>
 }
@@ -503,13 +498,12 @@ export interface DetachResult {
   titlePath?: string[]
 }
 
-export interface IntrospectHandle {
+export interface IntrospectHandle extends AssetWriter {
   session: SessionWriter
   pageId: string
-  page: import('@playwright/test').Page   // Proxy-wrapped page
+  page: Page   // Proxy-wrapped page
   mark(label: string, data?: Record<string, unknown>): void
   emit(event: EmitInput): void
-  writeAsset<K extends keyof AssetDataMap>(opts: WriteAssetOptions<K>): Promise<string>
   snapshot(): Promise<void>
   detach(result?: DetachResult): Promise<void>
 }

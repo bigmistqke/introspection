@@ -55,7 +55,9 @@ export function formatTimeline(events: TraceEvent[]): string {
     else if (event.type === 'js.error') detail += ` ${(event.data as { message: string }).message}`
     else if (event.type === 'mark') detail += ` "${(event.data as { label: string }).label}"`
     else if (event.type === 'playwright.action') detail += ` ${(event.data as { method: string }).method}(${(event.data as { args: unknown[] }).args[0] ?? ''})`
-    else if (event.type === 'asset') detail += ` ${(event.data as { kind: string }).kind} ${(event.data as { path: string }).path}`
+    if (event.assets && event.assets.length > 0) {
+      detail += ` [${event.assets.map(a => `${a.kind}:${a.path}`).join(', ')}]`
+    }
     return `[${timestampStr}] ${src} ${detail}`
   }).join('\n')
 }

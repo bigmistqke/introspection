@@ -209,21 +209,20 @@ test('push event from browser appears in events.ndjson with source: plugin', asy
   expect(pushed.data.value).toBe(1.5)
 })
 
-test('ctx.writeAsset produces an asset event with source: plugin in events.ndjson', async ({ page }) => {
+test('ctx.writeAsset writes file and returns AssetRef', async ({ page }) => {
   let savedCtx: PluginContext
   const plugin: IntrospectionPlugin = {
     name: 'test', script: '',
     async install(ctx) { savedCtx = ctx },
   }
   const handle = await attach(page, { outDir: dir, plugins: [plugin] })
-  await savedCtx!.writeAsset({ kind: 'webgl-state', contentType: 'json', content: '{"ok":true}' })
+  const asset = await savedCtx!.writeAsset({ kind: 'webgl-state', contentType: 'json', content: '{"ok":true}' })
   await handle.detach()
 
-  const events = await readEvents(dir)
-  const asset = events.find((event: { type: string }) => event.type === 'asset')
-  expect(asset).toBeDefined()
-  expect(asset.source).toBe('plugin')
-  expect(asset.data.kind).toBe('webgl-state')
+  expect(asset.kind).toBe('webgl-state')
+  expect(asset.contentType).toBe('json')
+  expect(asset.size).toBeGreaterThan(0)
+  expect(asset.path).toMatch(/^assets\/.*\.webgl-state\.json$/)
 })
 
 test('custom session ID is used as directory name', async ({ page }) => {
@@ -293,9 +292,10 @@ test('bus "detach" handler is called and can write assets', async ({ page }) => 
   await handle.detach()
 
   expect(detachCalled).toBe(true)
-  const events = await readEvents(dir)
-  const asset = events.find((event: { type: string; data?: { kind: string } }) =>
-    event.type === 'asset' && event.data?.kind === 'webgl-state')
-  expect(asset).toBeDefined()
-  expect(asset.source).toBe('plugin')
+  // Verify the asset file was written to the session's assets directory
+  const sessionEntries = await readdir(dir)
+  const sessionDir = sessionEntries.find(entry => entry.length > 30)
+  expect(sessionDir).toBeDefined()
+  const assetFiles = await readdir(join(dir, sessionDir!, 'assets'))
+  expect(assetFiles.some(f => f.includes('webgl-state'))).toBe(true)
 })

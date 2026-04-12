@@ -44,11 +44,9 @@ program.command('assets')
 
     if (path) {
       const asset = await session.assets.metadata(path)
-      const contentType = asset?.data.contentType
 
-      if (contentType === 'image') {
-        const size = asset?.data.size
-        console.log(`image: ${path}${size ? ` (${(size / 1024).toFixed(1)}KB)` : ''}`)
+      if (asset?.contentType === 'image') {
+        console.log(`image: ${path}${asset.size ? ` (${(asset.size / 1024).toFixed(1)}KB)` : ''}`)
       } else {
         const content = await session.assets.readText(path)
         console.log(content)
@@ -59,8 +57,8 @@ program.command('assets')
         console.log('(no assets found)')
         return
       }
-      for (const a of assets) {
-        console.log(a.data.path)
+      for (const asset of assets) {
+        console.log(`${asset.kind.padEnd(20)} ${asset.contentType.padEnd(6)} ${asset.path}`)
       }
     }
   })
