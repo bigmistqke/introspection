@@ -4,16 +4,22 @@ import { readFile, stat } from 'fs/promises'
 import { createReadStream } from 'fs'
 import { createServer } from 'http'
 import { attach } from '@introspection/playwright'
+import { createDebug } from '@introspection/utils'
 
 export interface DebugOptions {
   url?: string
   serve?: string
   config?: string
   playwright?: string
+  verbose?: boolean
   dir: string
 }
 
 export async function runDebug(opts: DebugOptions) {
+  const debug = createDebug('introspect:debug', opts.verbose ?? false)
+
+  debug('Starting debug session', { url: opts.url, serve: opts.serve, verbose: opts.verbose })
+
   // Validate inputs
   if (!opts.url && !opts.serve) {
     throw new Error('Either url or --serve must be provided')
@@ -23,21 +29,48 @@ export async function runDebug(opts: DebugOptions) {
     throw new Error('Cannot use both url and --serve')
   }
 
+  debug('Resolving config...')
+
   // Resolve config
   const configPath = resolvePath(process.cwd(), opts.config || './introspect.config.ts')
 
   // Load config (Node 24+ handles .ts natively)
-  let config: { plugins: any[] }
+  // Default to empty plugins array if config not found or invalid
+  let config: { plugins: any[] } = { plugins: [] }
+
+  // Check if config file exists before trying to import
+  let configExists = false
   try {
-    const configModule = await import(configPath)
-    config = configModule.default
-  } catch (err) {
-    console.error(`Failed to load config from ${configPath}`)
-    throw err
+    await stat(configPath)
+    configExists = true
+  } catch (e) {
+    configExists = false
   }
 
-  if (!config.plugins || !Array.isArray(config.plugins)) {
-    throw new Error('Config must export default object with plugins array')
+  debug(`configPath: ${configPath}, configExists: ${configExists}, opts.config: ${opts.config}`)
+
+  if (configExists || opts.config) {
+    // Config file exists or was explicitly provided - try to load it
+    try {
+      const configModule = await import(configPath)
+      config = configModule.default
+      if (!config.plugins || !Array.isArray(config.plugins)) {
+        if (opts.config) {
+          // Explicit config must be valid
+          throw new Error('Config must export default object with plugins array')
+        }
+        // Otherwise silently use empty plugins
+        config = { plugins: [] }
+      }
+    } catch (err) {
+      if (opts.config) {
+        // Explicit config must load successfully
+        console.error(`Failed to load config from ${configPath}`)
+        throw err
+      }
+      // Otherwise silently use empty plugins
+      config = { plugins: [] }
+    }
   }
 
   let navigationUrl: string

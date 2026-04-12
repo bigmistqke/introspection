@@ -25,11 +25,12 @@ program
   .command('debug [url]')
   .description('Debug a live page with introspection')
   .option('--serve <path>', 'Serve a local file or directory instead of a URL')
-  .option('--config <path>', 'Path to introspect.config.ts', './introspect.config.ts')
+  .option('--config <path>', 'Path to introspect.config.ts')
   .option('--playwright <script>', 'Playwright script to run (file or inline)')
+  .option('--verbose', 'Enable verbose debug logging')
   .action(async (url, opts) => {
     const dir = program.opts().dir as string
-    await runDebug({ url, serve: opts.serve, config: opts.config, playwright: opts.playwright, dir })
+    await runDebug({ url, serve: opts.serve, config: opts.config, playwright: opts.playwright, verbose: opts.verbose, dir })
   })
 
 program.command('summary').option('--session-id <id>').action(async (opts) => {

@@ -4,4 +4,7 @@ import { introspectionServe } from '@introspection/demo-shared/vite-plugin'
 
 export default defineConfig({
   plugins: [react(), introspectionServe()],
+  server: {
+    port: 5175,
+  },
 })

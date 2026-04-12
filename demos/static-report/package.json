@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "generate": "tsx generate.ts",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -12,6 +13,11 @@
     "@introspection/types": "workspace:*"
   },
   "devDependencies": {
-    "tsx": "^4.0.0"
+    "@introspection/playwright": "workspace:*",
+    "@introspection/plugin-defaults": "workspace:*",
+    "@playwright/test": "^1.40.0",
+    "execa": "^6.0.0",
+    "tsx": "^4.0.0",
+    "vitest": "^2.0.0"
   }
 }

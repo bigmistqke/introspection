@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test": "playwright test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -15,6 +16,9 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@introspection/playwright": "workspace:*",
+    "@introspection/plugin-defaults": "workspace:*",
+    "@playwright/test": "^1.40.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
