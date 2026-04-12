@@ -2,12 +2,9 @@ import type { Page } from '@playwright/test'
 
 // ─── Event types ────────────────────────────────────────────────────────────
 
-export type EventSource = 'cdp' | 'agent' | 'playwright' | 'plugin'
-
 export interface BaseEvent {
   id: string
   timestamp: number   // ms since test start
-  source: EventSource
   initiator?: string  // id of event that caused this one (best-effort)
   pageId?: string     // identifies which page emitted this event
   assets?: AssetRef[] // files written to the assets directory by this event
@@ -433,7 +430,6 @@ export interface SessionWriter extends AssetWriter {
 
 export interface EventsFilter {
   type?: string | string[]
-  source?: EventSource | EventSource[]
   since?: number
   until?: number
   initiator?: string

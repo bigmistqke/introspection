@@ -3,12 +3,12 @@ import { formatNetworkTable } from '../../src/commands/network.js'
 import type { TraceEvent } from '@introspection/types'
 
 const events: TraceEvent[] = [
-  { id: 'evt-aaa1', type: 'network.request', timestamp: 10, source: 'cdp', metadata: { cdpRequestId: '1000.1', cdpTimestamp: 0, cdpWallTime: 0, url: '/api/users', method: 'GET', headers: {} } },
-  { id: 'evt-aaa2', type: 'network.response', timestamp: 50, source: 'cdp', initiator: 'evt-aaa1', metadata: { cdpRequestId: '1000.1', cdpTimestamp: 0, requestId: '1000.1', url: '/api/users', status: 200, headers: {} } },
-  { id: 'evt-bbb1', type: 'network.request', timestamp: 60, source: 'cdp', metadata: { cdpRequestId: '1000.2', cdpTimestamp: 0, cdpWallTime: 0, url: '/api/auth', method: 'POST', headers: {} } },
-  { id: 'evt-bbb2', type: 'network.response', timestamp: 100, source: 'cdp', initiator: 'evt-bbb1', metadata: { cdpRequestId: '1000.2', cdpTimestamp: 0, requestId: '1000.2', url: '/api/auth', status: 401, headers: {} } },
-  { id: 'evt-ccc1', type: 'network.request', timestamp: 110, source: 'cdp', metadata: { cdpRequestId: '1000.3', cdpTimestamp: 0, cdpWallTime: 0, url: '/api/slow', method: 'GET', headers: {} } },
-  { id: 'evt-ccc2', type: 'network.error', timestamp: 200, source: 'cdp', metadata: { cdpRequestId: '1000.3', url: '/api/slow', errorText: 'net::ERR_CONNECTION_TIMED_OUT' } },
+  { id: 'evt-aaa1', type: 'network.request', timestamp: 10, metadata: { cdpRequestId: '1000.1', cdpTimestamp: 0, cdpWallTime: 0, url: '/api/users', method: 'GET', headers: {} } },
+  { id: 'evt-aaa2', type: 'network.response', timestamp: 50, initiator: 'evt-aaa1', metadata: { cdpRequestId: '1000.1', cdpTimestamp: 0, requestId: '1000.1', url: '/api/users', status: 200, headers: {} } },
+  { id: 'evt-bbb1', type: 'network.request', timestamp: 60, metadata: { cdpRequestId: '1000.2', cdpTimestamp: 0, cdpWallTime: 0, url: '/api/auth', method: 'POST', headers: {} } },
+  { id: 'evt-bbb2', type: 'network.response', timestamp: 100, initiator: 'evt-bbb1', metadata: { cdpRequestId: '1000.2', cdpTimestamp: 0, requestId: '1000.2', url: '/api/auth', status: 401, headers: {} } },
+  { id: 'evt-ccc1', type: 'network.request', timestamp: 110, metadata: { cdpRequestId: '1000.3', cdpTimestamp: 0, cdpWallTime: 0, url: '/api/slow', method: 'GET', headers: {} } },
+  { id: 'evt-ccc2', type: 'network.error', timestamp: 200, metadata: { cdpRequestId: '1000.3', url: '/api/slow', errorText: 'net::ERR_CONNECTION_TIMED_OUT' } },
 ]
 
 describe('formatNetworkTable', () => {
@@ -42,7 +42,7 @@ describe('formatNetworkTable', () => {
 
   it('shows ? for method when response has no matching request', () => {
     const orphanEvents: TraceEvent[] = [
-      { id: 'evt-1', type: 'network.response', timestamp: 50, source: 'cdp', metadata: { cdpRequestId: 'orphan', cdpTimestamp: 0, requestId: 'orphan', url: '/api/orphan', status: 200, headers: {} } },
+      { id: 'evt-1', type: 'network.response', timestamp: 50, metadata: { cdpRequestId: 'orphan', cdpTimestamp: 0, requestId: 'orphan', url: '/api/orphan', status: 200, headers: {} } },
     ]
     const out = formatNetworkTable(orphanEvents, {})
     expect(out).toContain('?')

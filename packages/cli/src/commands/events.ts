@@ -1,11 +1,9 @@
 import { runInNewContext } from 'vm'
 import type { TraceEvent } from '../types.js'
-
-const VALID_SOURCES = new Set(['cdp', 'agent', 'playwright', 'plugin'])
+import { matchEventType } from '@introspection/read'
 
 export interface EventFilterOpts {
   type?: string
-  source?: string
   after?: number
   before?: number
   since?: string
@@ -15,9 +13,6 @@ export interface EventFilterOpts {
 }
 
 export function applyEventFilters(events: TraceEvent[], opts: EventFilterOpts): TraceEvent[] {
-  if (opts.source !== undefined && !VALID_SOURCES.has(opts.source)) {
-    throw new Error(`unknown source "${opts.source}". Valid values: cdp, agent, playwright, plugin`)
-  }
   if (opts.last !== undefined && (!Number.isInteger(opts.last) || opts.last < 1)) {
     throw new Error('--last must be a positive integer')
   }
@@ -31,11 +26,10 @@ export function applyEventFilters(events: TraceEvent[], opts: EventFilterOpts): 
     lowerBound = Math.max(lowerBound, mark.timestamp)
   }
 
-  const types = opts.type ? opts.type.split(',').map(type => type.trim()).filter(Boolean) : null
+  const patterns = opts.type ? opts.type.split(',').map(type => type.trim()).filter(Boolean) : null
 
   let result = events.filter(event => {
-    if (types && !types.includes(event.type)) return false
-    if (opts.source && event.source !== opts.source) return false
+    if (patterns && !patterns.some(pattern => matchEventType(pattern, event.type))) return false
     if (event.timestamp <= lowerBound) return false
     if (opts.before !== undefined && event.timestamp >= opts.before) return false
     return true
@@ -48,7 +42,6 @@ export function applyEventFilters(events: TraceEvent[], opts: EventFilterOpts): 
 export function formatTimeline(events: TraceEvent[]): string {
   return events.map(event => {
     const timestampStr = String(event.timestamp).padStart(6) + 'ms'
-    const src = event.source.padEnd(10)
     let detail = event.type
     if (event.type === 'network.request') detail += ` ${(event.metadata as { method: string }).method} ${(event.metadata as { url: string }).url}`
     else if (event.type === 'network.response') detail += ` ${(event.metadata as { status: number }).status} ${(event.metadata as { url: string }).url}`
@@ -56,9 +49,9 @@ export function formatTimeline(events: TraceEvent[]): string {
     else if (event.type === 'mark') detail += ` "${(event.metadata as { label: string }).label}"`
     else if (event.type === 'playwright.action') detail += ` ${(event.metadata as { method: string }).method}(${(event.metadata as { args: unknown[] }).args[0] ?? ''})`
     if (event.assets && event.assets.length > 0) {
-      detail += ` [${event.assets.map(a => `${a.kind}:${a.path}`).join(', ')}]`
+      detail += ` [${event.assets.map(asset => `${asset.kind}:${asset.path}`).join(', ')}]`
     }
-    return `[${timestampStr}] ${src} ${detail}`
+    return `[${timestampStr}] ${detail}`
   }).join('\n')
 }
 

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EventSource, EmitInput } from '@introspection/types'
+import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput } from '@introspection/types'
 import { initSessionDir, appendEvent, writeAsset, finalizeSession } from './session-writer.js'
 import { createBus } from '@introspection/utils'
 

@@ -33,8 +33,8 @@ test('captures console.log', async ({ page }) => {
   const events = await readEvents(dir)
   const consoleEvent = events.find((e: { type: string }) => e.type === 'console')
   expect(consoleEvent).toBeDefined()
-  expect(consoleEvent.data.level).toBe('log')
-  expect(consoleEvent.data.message).toBe('hello world')
+  expect(consoleEvent.metadata.level).toBe('log')
+  expect(consoleEvent.metadata.message).toBe('hello world')
 })
 
 test('captures console.warn and console.error', async ({ page }) => {
@@ -53,10 +53,10 @@ test('captures console.warn and console.error', async ({ page }) => {
   const events = await readEvents(dir)
   const consoleEvents = events.filter((e: { type: string }) => e.type === 'console')
   expect(consoleEvents.length).toBe(2)
-  expect(consoleEvents[0].data.level).toBe('warn')
-  expect(consoleEvents[0].data.message).toBe('careful')
-  expect(consoleEvents[1].data.level).toBe('error')
-  expect(consoleEvents[1].data.message).toBe('oops')
+  expect(consoleEvents[0].metadata.level).toBe('warn')
+  expect(consoleEvents[0].metadata.message).toBe('careful')
+  expect(consoleEvents[1].metadata.level).toBe('error')
+  expect(consoleEvents[1].metadata.message).toBe('oops')
 })
 
 test('filters levels when levels option is set', async ({ page }) => {
@@ -76,22 +76,7 @@ test('filters levels when levels option is set', async ({ page }) => {
   const events = await readEvents(dir)
   const consoleEvents = events.filter((e: { type: string }) => e.type === 'console')
   expect(consoleEvents.length).toBe(1)
-  expect(consoleEvents[0].data.level).toBe('error')
-  expect(consoleEvents[0].data.message).toBe('capture me')
+  expect(consoleEvents[0].metadata.level).toBe('error')
+  expect(consoleEvents[0].metadata.message).toBe('capture me')
 })
 
-test('source is plugin', async ({ page }) => {
-  await page.route('**/*', route =>
-    route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' })
-  )
-  await page.goto('http://localhost:9999/')
-  const handle = await attach(page, { outDir: dir, plugins: [consolePlugin()] })
-
-  await page.evaluate(() => console.log('test'))
-  await new Promise(r => setTimeout(r, 100))
-  await handle.detach()
-
-  const events = await readEvents(dir)
-  const consoleEvent = events.find((e: { type: string }) => e.type === 'console')
-  expect(consoleEvent.source).toBe('plugin')
-})

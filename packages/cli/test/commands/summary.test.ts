@@ -5,10 +5,10 @@ import type { SessionSummary } from '@introspection/read'
 
 const session: SessionSummary = { id: 'sess-1', startedAt: 1000, endedAt: 3000, label: 'login test' }
 const events: TraceEvent[] = [
-  { id: 'e1', type: 'playwright.action', timestamp: 50, source: 'playwright', metadata: { method: 'goto', args: ['/login'] } },
-  { id: 'e2', type: 'network.request', timestamp: 100, source: 'cdp', metadata: { cdpRequestId: '1', cdpTimestamp: 0, cdpWallTime: 0, url: '/api/auth/login', method: 'POST', headers: {} } },
-  { id: 'e3', type: 'network.response', timestamp: 150, source: 'cdp', initiator: 'e2', metadata: { cdpRequestId: '1', cdpTimestamp: 0, requestId: 'e2', url: '/api/auth/login', status: 401, headers: {} } },
-  { id: 'e4', type: 'js.error', timestamp: 200, source: 'cdp', metadata: { cdpTimestamp: 0, message: 'TypeError: Cannot read properties', stack: [] } },
+  { id: 'e1', type: 'playwright.action', timestamp: 50, metadata: { method: 'goto', args: ['/login'] } },
+  { id: 'e2', type: 'network.request', timestamp: 100, metadata: { cdpRequestId: '1', cdpTimestamp: 0, cdpWallTime: 0, url: '/api/auth/login', method: 'POST', headers: {} } },
+  { id: 'e3', type: 'network.response', timestamp: 150, initiator: 'e2', metadata: { cdpRequestId: '1', cdpTimestamp: 0, requestId: 'e2', url: '/api/auth/login', status: 401, headers: {} } },
+  { id: 'e4', type: 'js.error', timestamp: 200, metadata: { cdpTimestamp: 0, message: 'TypeError: Cannot read properties', stack: [] } },
 ]
 
 describe('buildSummary', () => {
@@ -45,7 +45,7 @@ describe('buildSummary', () => {
 
   it('formats action with no args using empty string', () => {
     const noArgs: TraceEvent[] = [
-      { id: 'e1', type: 'playwright.action', timestamp: 50, source: 'playwright', metadata: { method: 'reload', args: [] } },
+      { id: 'e1', type: 'playwright.action', timestamp: 50, metadata: { method: 'reload', args: [] } },
     ]
     const out = buildSummary(session, noArgs)
     expect(out).toContain('reload()')

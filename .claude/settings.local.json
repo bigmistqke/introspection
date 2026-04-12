@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(../../node_modules/.bin/tsc --traceResolution)",
+      "Bash(pnpm --filter @introspection/types run build)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(claude plugin:*)"
+    ]
+  }
+}

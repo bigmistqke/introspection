@@ -39,15 +39,14 @@ test('emits perf.cwv event with metric lcp on navigation', async ({ page }) => {
 
   const events = await endSession(handle, outDir)
   const lcpEvents = events.filter(
-    (event: { type: string; data: { metric: string } }) =>
-      event.type === 'perf.cwv' && event.data.metric === 'lcp'
+    (event: { type: string; metadata: { metric: string } }) =>
+      event.type === 'perf.cwv' && event.metadata.metric === 'lcp'
   )
 
   expect(lcpEvents.length).toBeGreaterThanOrEqual(1)
   const lcp = lcpEvents[0]
-  expect(lcp.source).toBe('plugin')
-  expect(typeof lcp.data.value).toBe('number')
-  expect(typeof lcp.data.startTime).toBe('number')
+  expect(typeof lcp.metadata.value).toBe('number')
+  expect(typeof lcp.metadata.startTime).toBe('number')
 })
 
 test('emits perf.layout-shift events when layout shifts occur', async ({ page }) => {
@@ -75,9 +74,8 @@ test('emits perf.layout-shift events when layout shifts occur', async ({ page })
 
   expect(shiftEvents.length).toBeGreaterThanOrEqual(1)
   const shift = shiftEvents[0]
-  expect(shift.source).toBe('plugin')
-  expect(typeof shift.data.score).toBe('number')
-  expect(typeof shift.data.hadRecentInput).toBe('boolean')
+  expect(typeof shift.metadata.score).toBe('number')
+  expect(typeof shift.metadata.hadRecentInput).toBe('boolean')
 })
 
 test('emits perf.cwv event with metric inp on user interaction', async ({ page }) => {
@@ -96,13 +94,13 @@ test('emits perf.cwv event with metric inp on user interaction', async ({ page }
 
   const events = await endSession(handle, outDir)
   const inpEvents = events.filter(
-    (event: { type: string; data: { metric: string } }) =>
-      event.type === 'perf.cwv' && event.data.metric === 'inp'
+    (event: { type: string; metadata: { metric: string } }) =>
+      event.type === 'perf.cwv' && event.metadata.metric === 'inp'
   )
 
   expect(inpEvents.length).toBeGreaterThanOrEqual(1)
-  expect(typeof inpEvents[0].data.value).toBe('number')
-  expect(typeof inpEvents[0].data.startTime).toBe('number')
+  expect(typeof inpEvents[0].metadata.value).toBe('number')
+  expect(typeof inpEvents[0].metadata.startTime).toBe('number')
 })
 
 test('emits perf.resource events for loaded resources', async ({ page }) => {
@@ -126,14 +124,13 @@ test('emits perf.resource events for loaded resources', async ({ page }) => {
   const resourceEvents = events.filter((event: { type: string }) => event.type === 'perf.resource')
 
   expect(resourceEvents.length).toBeGreaterThanOrEqual(1)
-  const cssResource = resourceEvents.find((event: { data: { name: string } }) =>
-    event.data.name.includes('style.css')
+  const cssResource = resourceEvents.find((event: { metadata: { name: string } }) =>
+    event.metadata.name.includes('style.css')
   )
   expect(cssResource).toBeDefined()
-  expect(cssResource.source).toBe('plugin')
-  expect(typeof cssResource.data.transferSize).toBe('number')
-  expect(typeof cssResource.data.total).toBe('number')
-  expect(typeof cssResource.data.initiatorType).toBe('string')
+  expect(typeof cssResource.metadata.transferSize).toBe('number')
+  expect(typeof cssResource.metadata.total).toBe('number')
+  expect(typeof cssResource.metadata.initiatorType).toBe('string')
 })
 
 test('suppresses perf.resource events when resources option is false', async ({ page }) => {
@@ -174,9 +171,8 @@ test('emits perf.long-task events for tasks exceeding 50ms', async ({ page }) =>
   const longTaskEvents = events.filter((event: { type: string }) => event.type === 'perf.long-task')
 
   expect(longTaskEvents.length).toBeGreaterThanOrEqual(1)
-  expect(longTaskEvents[0].source).toBe('plugin')
-  expect(typeof longTaskEvents[0].data.duration).toBe('number')
-  expect(longTaskEvents[0].data.duration).toBeGreaterThanOrEqual(50)
+  expect(typeof longTaskEvents[0].metadata.duration).toBe('number')
+  expect(longTaskEvents[0].metadata.duration).toBeGreaterThanOrEqual(50)
 })
 
 test('suppresses perf.long-task events when longTasks option is false', async ({ page }) => {
@@ -222,13 +218,13 @@ test('emits perf.cwv event with metric cls for layout shifts without recent inpu
 
   const events = await endSession(handle, outDir)
   const clsEvents = events.filter(
-    (event: { type: string; data: { metric: string } }) =>
-      event.type === 'perf.cwv' && event.data.metric === 'cls'
+    (event: { type: string; metadata: { metric: string } }) =>
+      event.type === 'perf.cwv' && event.metadata.metric === 'cls'
   )
 
   expect(clsEvents.length).toBeGreaterThanOrEqual(1)
-  expect(typeof clsEvents[0].data.value).toBe('number')
-  expect(clsEvents[0].data.value).toBeGreaterThan(0)
+  expect(typeof clsEvents[0].metadata.value).toBe('number')
+  expect(clsEvents[0].metadata.value).toBeGreaterThan(0)
 })
 
 test('re-captures events after navigation', async ({ page }) => {
@@ -270,8 +266,7 @@ test('emits perf.paint events for FP and FCP on navigation', async ({ page }) =>
   const paintEvents = events.filter((event: { type: string }) => event.type === 'perf.paint')
 
   expect(paintEvents.length).toBeGreaterThanOrEqual(1)
-  const fcp = paintEvents.find((event: { data: { name: string } }) => event.data.name === 'first-contentful-paint')
+  const fcp = paintEvents.find((event: { metadata: { name: string } }) => event.metadata.name === 'first-contentful-paint')
   expect(fcp).toBeDefined()
-  expect(fcp.source).toBe('plugin')
-  expect(typeof fcp.data.startTime).toBe('number')
+  expect(typeof fcp.metadata.startTime).toBe('number')
 })

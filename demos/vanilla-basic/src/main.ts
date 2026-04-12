@@ -68,10 +68,6 @@ function renderDetail(event: TraceEvent) {
       <div class="label">Timestamp</div>
       <div class="value">${event.timestamp}ms</div>
     </div>
-    <div class="field">
-      <div class="label">Source</div>
-      <div class="value">${event.source}</div>
-    </div>
     ${event.initiator ? `<div class="field"><div class="label">Initiator</div><div class="value">${event.initiator}</div></div>` : ''}
     ${event.metadata ? `<div class="field"><div class="label">Metadata</div><pre>${JSON.stringify(event.metadata, null, 2)}</pre></div>` : ''}
   `

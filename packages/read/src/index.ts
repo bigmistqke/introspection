@@ -11,6 +11,21 @@ export interface StorageAdapter {
   readBinary?(path: string): Promise<ArrayBuffer>
 }
 
+// ─── Type matching ───────────────────────────────────────────────────────────
+
+/**
+ * Matches an event type against a pattern. Supports trailing `.*` for prefix
+ * matching (e.g. `network.*` matches `network.request`, `network.response`,
+ * `network.error`). Bare patterns are exact-match.
+ */
+export function matchEventType(pattern: string, eventType: string): boolean {
+  if (pattern.endsWith('.*')) {
+    const prefix = pattern.slice(0, -2)
+    return eventType === prefix || eventType.startsWith(prefix + '.')
+  }
+  return eventType === pattern
+}
+
 // ─── Session summary ─────────────────────────────────────────────────────────
 
 export interface SessionSummary {
@@ -84,12 +99,8 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
   function filterEvents(filter?: EventsFilter): TraceEvent[] {
     let result = events
     if (filter?.type) {
-      const types = Array.isArray(filter.type) ? filter.type : [filter.type]
-      result = result.filter(event => types.includes(event.type))
-    }
-    if (filter?.source) {
-      const sources = Array.isArray(filter.source) ? filter.source : [filter.source]
-      result = result.filter(event => sources.includes(event.source))
+      const patterns = Array.isArray(filter.type) ? filter.type : [filter.type]
+      result = result.filter(event => patterns.some(pattern => matchEventType(pattern, event.type)))
     }
     if (filter?.since !== undefined) {
       result = result.filter(event => event.timestamp >= filter.since!)

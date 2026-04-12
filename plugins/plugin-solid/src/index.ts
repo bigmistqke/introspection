@@ -43,7 +43,6 @@ async function captureState(context: PluginContext): Promise<void> {
   if (assets.length > 0) {
     context.emit({
       type: 'mark' as const,
-      source: 'plugin',
       assets,
       metadata: { label: 'solid.state' },
     })

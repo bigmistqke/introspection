@@ -98,7 +98,6 @@ export function webgl(): WebGLPlugin {
     if (assets.length > 0) {
       ctx.emit({
         type: 'mark' as const,
-        source: 'plugin',
         assets,
         metadata: { label: 'webgl.capture' },
       })
@@ -173,7 +172,6 @@ export function webgl(): WebGLPlugin {
       if (captureAssets.length > 0) {
         pluginCtx.emit({
           type: 'mark' as const,
-          source: 'plugin',
           assets: captureAssets,
           metadata: { label: 'webgl.canvas-capture' },
         })

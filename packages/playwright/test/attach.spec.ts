@@ -45,7 +45,7 @@ test('mark() appends a mark event to events.ndjson', async ({ page }) => {
   const events = await readEvents(dir)
   const mark = events.find((event: { type: string }) => event.type === 'mark')
   expect(mark).toBeDefined()
-  expect(mark.data.label).toBe('step 1')
+  expect(mark.metadata.label).toBe('step 1')
 })
 
 test('detach() writes playwright.result event when result is passed', async ({ page }) => {
@@ -54,7 +54,7 @@ test('detach() writes playwright.result event when result is passed', async ({ p
   const events = await readEvents(dir)
   const resultEvent = events.find((event: { type: string }) => event.type === 'playwright.result')
   expect(resultEvent).toBeDefined()
-  expect(resultEvent.data.status).toBe('failed')
+  expect(resultEvent.metadata.status).toBe('failed')
 })
 
 test('network request appends network.request event', async ({ page }) => {
@@ -72,7 +72,7 @@ test('network request appends network.request event', async ({ page }) => {
   await handle.detach()
   const events = await readEvents(dir)
   const networkRequest = events.find((event: { type: string; data?: { url: string } }) =>
-    event.type === 'network.request' && event.data?.url?.includes('/api/test'))
+    event.type === 'network.request' && event.metadata?.url?.includes('/api/test'))
   expect(networkRequest).toBeDefined()
 })
 
@@ -92,7 +92,7 @@ test('Runtime.exceptionThrown appends js.error event', async ({ page }) => {
   const events = await readEvents(dir)
   const errorEvent = events.find((event: { type: string }) => event.type === 'js.error')
   expect(errorEvent).toBeDefined()
-  expect(errorEvent.data.message).toContain('oops')
+  expect(errorEvent.metadata.message).toContain('oops')
 })
 
 test('network response body is captured as an asset', async ({ page }) => {
@@ -111,10 +111,10 @@ test('network response body is captured as an asset', async ({ page }) => {
 
   const events = await readEvents(dir)
   const response = events.find((event: { type: string; data?: { url: string } }) =>
-    event.type === 'network.response' && event.data?.url?.includes('/api/data'))
+    event.type === 'network.response' && event.metadata?.url?.includes('/api/data'))
   expect(response).toBeDefined()
   const bodyAsset = events.find((event: { type: string; data?: { kind: string } }) =>
-    event.type === 'asset' && event.data?.kind === 'body')
+    event.type === 'asset' && event.metadata?.kind === 'body')
   expect(bodyAsset).toBeDefined()
 })
 
@@ -187,7 +187,7 @@ test('does not create a .socket file inside session directory', async ({ page })
   await handle.detach()
 })
 
-test('push event from browser appears in events.ndjson with source: plugin', async ({ page }) => {
+test('push event from browser appears in events.ndjson', async ({ page }) => {
   const plugin: IntrospectionPlugin = {
     name: 'test', script: '', install: async () => {},
   }
@@ -204,9 +204,8 @@ test('push event from browser appears in events.ndjson with source: plugin', asy
   const events = await readEvents(dir)
   const pushed = events.find((event: { type: string }) => event.type === 'webgl.uniform')
   expect(pushed).toBeDefined()
-  expect(pushed.source).toBe('plugin')
-  expect(pushed.data.name).toBe('u_time')
-  expect(pushed.data.value).toBe(1.5)
+  expect(pushed.metadata.name).toBe('u_time')
+  expect(pushed.metadata.value).toBe(1.5)
 })
 
 test('ctx.writeAsset writes file and returns AssetRef', async ({ page }) => {
@@ -216,13 +215,12 @@ test('ctx.writeAsset writes file and returns AssetRef', async ({ page }) => {
     async install(ctx) { savedCtx = ctx },
   }
   const handle = await attach(page, { outDir: dir, plugins: [plugin] })
-  const asset = await savedCtx!.writeAsset({ kind: 'webgl-state', contentType: 'json', content: '{"ok":true}' })
+  const asset = await savedCtx!.writeAsset({ kind: 'json', content: '{"ok":true}' })
   await handle.detach()
 
-  expect(asset.kind).toBe('webgl-state')
-  expect(asset.contentType).toBe('json')
+  expect(asset.kind).toBe('json')
   expect(asset.size).toBeGreaterThan(0)
-  expect(asset.path).toMatch(/^assets\/.*\.webgl-state\.json$/)
+  expect(asset.path).toMatch(/^assets\/.*\.json$/)
 })
 
 test('custom session ID is used as directory name', async ({ page }) => {
@@ -269,8 +267,8 @@ test('plugin-redux captures dispatch events via push bridge', async ({ page }) =
   const events = await readEvents(dir)
   const dispatch = events.find((event: { type: string }) => event.type === 'redux.dispatch')
   expect(dispatch).toBeDefined()
-  expect(dispatch.data.action).toBe('INCREMENT')
-  expect(dispatch.data.payload).toEqual({ amount: 1 })
+  expect(dispatch.metadata.action).toBe('INCREMENT')
+  expect(dispatch.metadata.payload).toEqual({ amount: 1 })
 })
 
 test('bus "detach" handler is called and can write assets', async ({ page }) => {
@@ -281,8 +279,7 @@ test('bus "detach" handler is called and can write assets', async ({ page }) => 
       ctx.bus.on('detach', async () => {
         detachCalled = true
         await ctx.writeAsset({
-          kind: 'webgl-state',
-          contentType: 'json',
+          kind: 'json',
           content: '{"detached":true}',
         })
       })

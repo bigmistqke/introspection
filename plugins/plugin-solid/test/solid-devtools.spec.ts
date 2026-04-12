@@ -6,7 +6,8 @@ import { fileURLToPath } from 'url'
 import { createServer, type ViteDevServer } from 'vite'
 import { solidDevtools } from '../dist/index.js'
 import { attach } from '@introspection/playwright'
-import type { IntrospectHandle, SolidDevtoolsOptions } from '../dist/index.js'
+import type { IntrospectHandle } from '@introspection/types'
+import type { SolidDevtoolsOptions } from '../src/types.js'
 
 const directory = fileURLToPath(new URL('..', import.meta.url))
 
@@ -79,7 +80,6 @@ test.describe('solid devtools plugin', () => {
       (event: { type: string }) => event.type === 'solid.structure',
     )
     expect(structureEvents.length).toBeGreaterThanOrEqual(1)
-    expect(structureEvents[0].source).toBe('plugin')
   })
 
   test('captures structure asset on manual trigger', async ({ page }) => {
@@ -119,7 +119,6 @@ test.describe('solid devtools plugin', () => {
       (event: { type: string }) => event.type === 'solid.warning',
     )
     expect(warnings.length).toBeGreaterThanOrEqual(1)
-    expect(warnings[0].source).toBe('plugin')
     expect(warnings[0].data.message).toContain('@introspection/plugin-solid/setup')
   })
 })

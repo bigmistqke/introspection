@@ -1,7 +1,7 @@
 import { writeFile, mkdir, appendFile, readFile, stat } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
-import type { TraceEvent, SessionMeta, EventSource, PluginMeta, WriteAssetOptions, AssetRef } from '@introspection/types'
+import type { TraceEvent, SessionMeta, PluginMeta, WriteAssetOptions, AssetRef } from '@introspection/types'
 
 export interface SessionInitParams {
   id: string

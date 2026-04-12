@@ -30,13 +30,12 @@ test('proxied page emits playwright.action event for tracked methods', async ({ 
 
   const events = await readEvents(dir)
   const actions = events.filter((e: { type: string }) => e.type === 'playwright.action')
-  const gotoAction = actions.find((e: { data: { method: string } }) => e.data.method === 'goto')
-  const clickAction = actions.find((e: { data: { method: string } }) => e.data.method === 'click')
+  const gotoAction = actions.find((e: { data: { method: string } }) => e.metadata.method === 'goto')
+  const clickAction = actions.find((e: { data: { method: string } }) => e.metadata.method === 'click')
 
   expect(gotoAction).toBeDefined()
-  expect(gotoAction.source).toBe('playwright')
   expect(clickAction).toBeDefined()
-  expect(clickAction.data.args[0]).toBe('#btn')
+  expect(clickAction.metadata.args[0]).toBe('#btn')
 })
 
 test('proxied page still performs the original action', async ({ page }) => {
@@ -69,10 +68,10 @@ test('function args in evaluate are sanitized to [function]', async ({ page }) =
   const events = await readEvents(dir)
   const evalAction = events.find(
     (e: { type: string; data?: { method: string } }) =>
-      e.type === 'playwright.action' && e.data?.method === 'evaluate',
+      e.type === 'playwright.action' && e.metadata?.method === 'evaluate',
   )
   expect(evalAction).toBeDefined()
-  expect(evalAction.data.args[0]).toBe('[function]')
+  expect(evalAction.metadata.args[0]).toBe('[function]')
 })
 
 test('proxied page.screenshot() saves asset and emits playwright.screenshot event', async ({ page }) => {
@@ -89,14 +88,13 @@ test('proxied page.screenshot() saves asset and emits playwright.screenshot even
   const events = await readEvents(dir)
   const screenshotEvent = events.find((e: { type: string }) => e.type === 'playwright.screenshot')
   expect(screenshotEvent).toBeDefined()
-  expect(screenshotEvent.source).toBe('playwright')
-  expect(screenshotEvent.data.path).toContain('screenshot')
-  expect(screenshotEvent.data.viewport).toBeDefined()
+  expect(screenshotEvent.metadata.path).toContain('screenshot')
+  expect(screenshotEvent.metadata.viewport).toBeDefined()
 
   // Verify the asset file exists
   const entries = (await readdir(dir)).filter(e => !e.startsWith('.'))
   const sessionDir = join(dir, entries[0])
-  const assetPath = join(sessionDir, screenshotEvent.data.path)
+  const assetPath = join(sessionDir, screenshotEvent.metadata.path)
   const assetContent = await readFile(assetPath)
   expect(assetContent.length).toBeGreaterThan(0)
 })

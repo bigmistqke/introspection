@@ -30,7 +30,6 @@ export function createPageProxy(options: PageProxyOptions): Page {
         return (...args: unknown[]) => {
           emit({
             type: 'playwright.action',
-            source: 'playwright',
             metadata: { method: prop as string, args: sanitizeArgs(args) },
           })
           return (original as Function).apply(target, args)
@@ -48,7 +47,6 @@ export function createPageProxy(options: PageProxyOptions): Page {
             })
             emit({
               type: 'playwright.screenshot',
-              source: 'playwright',
               assets: [asset],
             })
           }

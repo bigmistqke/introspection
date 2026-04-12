@@ -39,7 +39,6 @@ export function consolePlugin(options?: ConsoleOptions): IntrospectionPlugin {
         const message = params.args.map(a => a.value ?? a.description ?? '').join(' ')
 
         ctx.emit({
-          source: 'plugin',
           type: 'console',
           timestamp: ctx.timestamp(),
           metadata: { level, message },

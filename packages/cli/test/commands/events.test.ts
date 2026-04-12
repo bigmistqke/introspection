@@ -3,12 +3,12 @@ import { applyEventFilters, formatEvents } from '../../src/commands/events.js'
 import type { TraceEvent } from '@introspection/types'
 
 const events: TraceEvent[] = [
-  { id: 'e1', type: 'mark',              timestamp: 50,  source: 'agent',      metadata: { label: 'before-add' } },
-  { id: 'e2', type: 'redux.dispatch',    timestamp: 100, source: 'cdp',        metadata: { action: 'CART/ADD' } },
-  { id: 'e3', type: 'network.request',   timestamp: 200, source: 'cdp',        metadata: { cdpRequestId: '1', cdpTimestamp: 0, cdpWallTime: 0, url: '/api/cart', method: 'POST', headers: {} } },
-  { id: 'e4', type: 'redux.dispatch',    timestamp: 300, source: 'cdp',        metadata: { action: 'CART/REMOVE' } },
-  { id: 'e5', type: 'playwright.action', timestamp: 400, source: 'playwright', metadata: { method: 'click', args: ['button'] } },
-  { id: 'e6', type: 'webgl.uniform',     timestamp: 450, source: 'plugin',     metadata: { contextId: 'ctx-1', name: 'u_time', value: 1.5, glType: 'FLOAT' } },
+  { id: 'e1', type: 'mark',              timestamp: 50,  metadata: { label: 'before-add' } },
+  { id: 'e2', type: 'redux.dispatch',    timestamp: 100, metadata: { action: 'CART/ADD' } },
+  { id: 'e3', type: 'network.request',   timestamp: 200, metadata: { cdpRequestId: '1', cdpTimestamp: 0, cdpWallTime: 0, url: '/api/cart', method: 'POST', headers: {} } },
+  { id: 'e4', type: 'redux.dispatch',    timestamp: 300, metadata: { action: 'CART/REMOVE' } },
+  { id: 'e5', type: 'playwright.action', timestamp: 400, metadata: { method: 'click', args: ['button'] } },
+  { id: 'e6', type: 'webgl.uniform',     timestamp: 450, metadata: { contextId: 'ctx-1', name: 'u_time', value: 1.5, glType: 'FLOAT' } },
 ]
 
 describe('applyEventFilters', () => {
@@ -31,21 +31,24 @@ describe('applyEventFilters', () => {
     expect(applyEventFilters(events, { type: 'nonexistent' })).toHaveLength(0)
   })
 
-  it('--source filters by source field', () => {
-    const result = applyEventFilters(events, { source: 'playwright' })
-    expect(result).toHaveLength(1)
-    expect(result.every(event => event.source === 'playwright')).toBe(true)
+  it('--type supports trailing .* for prefix match', () => {
+    const result = applyEventFilters(events, { type: 'network.*' })
+    expect(result.map(event => event.id)).toEqual(['e3'])
   })
 
-  it('--source plugin returns only plugin events', () => {
-    const result = applyEventFilters(events, { source: 'plugin' })
-    expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('e6')
+  it('--type prefix matches event family across multiple types', () => {
+    const mixed: TraceEvent[] = [
+      ...events,
+      { id: 'e7', type: 'network.response', timestamp: 250, metadata: { cdpRequestId: '1', cdpTimestamp: 0, requestId: '1', url: '/api/cart', status: 200, headers: {} } },
+      { id: 'e8', type: 'network.error',    timestamp: 260, metadata: { url: '/api/cart', errorText: 'nope' } },
+    ]
+    const result = applyEventFilters(mixed, { type: 'network.*' })
+    expect(result.map(event => event.id)).toEqual(['e3', 'e7', 'e8'])
   })
 
-  it('--source throws on unrecognised value', () => {
-    expect(() => applyEventFilters(events, { source: 'typo' }))
-      .toThrow('unknown source "typo"')
+  it('--type mixes prefix and exact patterns', () => {
+    const result = applyEventFilters(events, { type: 'network.*,mark' })
+    expect(result.map(event => event.id)).toEqual(['e1', 'e3'])
   })
 
   it('--after keeps events with ts strictly greater than value', () => {
@@ -122,11 +125,10 @@ describe('formatEvents — text output (default)', () => {
 
 describe('formatEvents — --filter predicate', () => {
   it('keeps only events where predicate is truthy', () => {
-    const out = formatEvents(events, { filter: 'event.source === "cdp"' })
+    const out = formatEvents(events, { filter: 'event.type.startsWith("redux.")' })
     expect(out).toContain('redux.dispatch')
-    expect(out).toContain('network.request')
     expect(out).not.toContain('mark')
-    expect(out).not.toContain('playwright.action')
+    expect(out).not.toContain('network.request')
   })
 
   it('predicate that throws for an event excludes that event', () => {
@@ -152,13 +154,13 @@ describe('formatEvents — --format json', () => {
     const out = formatEvents(events, { format: 'json', type: 'mark' })
     const parsed = JSON.parse(out)
     expect(parsed).toHaveLength(1)
-    expect(parsed[0]).toMatchObject({ id: 'e1', type: 'mark', source: 'agent' })
+    expect(parsed[0]).toMatchObject({ id: 'e1', type: 'mark' })
   })
 
   it('combined with --filter returns only matching events as JSON', () => {
-    const out = formatEvents(events, { format: 'json', filter: 'event.source === "cdp"' })
+    const out = formatEvents(events, { format: 'json', filter: 'event.type.startsWith("redux.")' })
     const parsed = JSON.parse(out)
-    expect(parsed.every((event: { source: string }) => event.source === 'cdp')).toBe(true)
+    expect(parsed.every((event: { type: string }) => event.type.startsWith('redux.'))).toBe(true)
   })
 
   it('returns empty array when no events match', () => {

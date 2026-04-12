@@ -75,7 +75,6 @@ function createProxiedTest(
 
       currentSession.emit({
         type: 'test.start',
-        source: 'playwright',
         metadata: { label: title, titlePath },
       })
 
@@ -96,7 +95,6 @@ function createProxiedTest(
 
         currentSession.emit({
           type: 'test.end',
-          source: 'playwright',
           metadata: {
             label: title,
             titlePath,
@@ -117,7 +115,6 @@ function createProxiedTest(
         if (currentSession) {
           currentSession.emit({
             type: 'describe.start',
-            source: 'playwright',
             metadata: { label: title },
           })
         }
@@ -130,7 +127,6 @@ function createProxiedTest(
         if (currentSession) {
           currentSession.emit({
             type: 'describe.end',
-            source: 'playwright',
             metadata: { label: title },
           })
         }
@@ -144,7 +140,7 @@ function createProxiedTest(
       original.beforeAll(async () => {
         const currentSession = getSession()
         if (currentSession) {
-          currentSession.emit({ type: 'describe.start', source: 'playwright', metadata: { label: title } })
+          currentSession.emit({ type: 'describe.start', metadata: { label: title } })
         }
       })
 
@@ -153,7 +149,7 @@ function createProxiedTest(
       original.afterAll(async () => {
         const currentSession = getSession()
         if (currentSession) {
-          currentSession.emit({ type: 'describe.end', source: 'playwright', metadata: { label: title } })
+          currentSession.emit({ type: 'describe.end', metadata: { label: title } })
         }
       })
     })
@@ -164,7 +160,7 @@ function createProxiedTest(
       original.beforeAll(async () => {
         const currentSession = getSession()
         if (currentSession) {
-          currentSession.emit({ type: 'describe.start', source: 'playwright', metadata: { label: title } })
+          currentSession.emit({ type: 'describe.start', metadata: { label: title } })
         }
       })
 
@@ -173,7 +169,7 @@ function createProxiedTest(
       original.afterAll(async () => {
         const currentSession = getSession()
         if (currentSession) {
-          currentSession.emit({ type: 'describe.end', source: 'playwright', metadata: { label: title } })
+          currentSession.emit({ type: 'describe.end', metadata: { label: title } })
         }
       })
     })

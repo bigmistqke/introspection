@@ -145,10 +145,6 @@ function SessionView(props: { session?: SessionReader }) {
                   <div class="label">Timestamp</div>
                   <div class="value">{event().timestamp}ms</div>
                 </div>
-                <div class="field">
-                  <div class="label">Source</div>
-                  <div class="value">{event().source}</div>
-                </div>
                 <Show when={event().initiator}>
                   <div class="field">
                     <div class="label">Initiator</div>
