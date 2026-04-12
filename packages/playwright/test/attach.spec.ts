@@ -110,12 +110,12 @@ test('network response body is captured as an asset', async ({ page }) => {
   await handle.detach()
 
   const events = await readEvents(dir)
-  const response = events.find((event: { type: string; data?: { url: string } }) =>
+  const response = events.find((event: { type: string; metadata?: { url: string } }) =>
     event.type === 'network.response' && event.metadata?.url?.includes('/api/data'))
   expect(response).toBeDefined()
-  const bodyAsset = events.find((event: { type: string; data?: { kind: string } }) =>
-    event.type === 'asset' && event.metadata?.kind === 'body')
-  expect(bodyAsset).toBeDefined()
+  expect(response.assets).toBeDefined()
+  expect(response.assets.length).toBeGreaterThanOrEqual(1)
+  expect(response.assets[0].kind).toBe('json')
 })
 
 test('malformed plugin push is silently discarded', async ({ page }) => {
@@ -195,7 +195,7 @@ test('push event from browser appears in events.ndjson', async ({ page }) => {
 
   await page.evaluate(() => {
     ;(window as unknown as Record<string, Function>).__introspect_push__(
-      JSON.stringify({ type: 'webgl.uniform', data: { name: 'u_time', value: 1.5, glType: 'float' } })
+      JSON.stringify({ type: 'webgl.uniform', metadata: { name: 'u_time', value: 1.5, glType: 'float', contextId: 'ctx-1' } })
     )
   })
   await new Promise(r => setTimeout(r, 50))
@@ -294,5 +294,5 @@ test('bus "detach" handler is called and can write assets', async ({ page }) => 
   const sessionDir = sessionEntries.find(entry => entry.length > 30)
   expect(sessionDir).toBeDefined()
   const assetFiles = await readdir(join(dir, sessionDir!, 'assets'))
-  expect(assetFiles.some(f => f.includes('webgl-state'))).toBe(true)
+  expect(assetFiles.some(f => f.endsWith('.json'))).toBe(true)
 })

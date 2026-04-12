@@ -32,17 +32,17 @@ test.afterAll(() => {
 
   const mark = allEvents.find((event: Record<string, unknown>) => event.type === 'mark') as Record<string, unknown> | undefined
   expect(mark).toBeDefined()
-  expect((mark!.data as Record<string, unknown>).label).toBe('step 1')
+  expect((mark!.metadata as Record<string, unknown>).label).toBe('step 1')
 
   const playwrightResult = allEvents.find((event: Record<string, unknown>) => event.type === 'playwright.result') as Record<string, unknown> | undefined
   expect(playwrightResult).toBeDefined()
-  expect((playwrightResult!.data as Record<string, unknown>).status).toBe('passed')
-  expect((playwrightResult!.data as Record<string, unknown>).titlePath).toBeDefined()
+  expect((playwrightResult!.metadata as Record<string, unknown>).status).toBe('passed')
+  expect((playwrightResult!.metadata as Record<string, unknown>).titlePath).toBeDefined()
 
   const testStart = allEvents.find((event: Record<string, unknown>) => event.type === 'playwright.test.start') as Record<string, unknown> | undefined
   expect(testStart).toBeDefined()
-  expect((testStart!.data as Record<string, unknown>).titlePath).toBeDefined()
-  expect(Array.isArray((testStart!.data as Record<string, unknown>).titlePath)).toBe(true)
+  expect((testStart!.metadata as Record<string, unknown>).titlePath).toBeDefined()
+  expect(Array.isArray((testStart!.metadata as Record<string, unknown>).titlePath)).toBe(true)
 
   rmSync(outDir, { recursive: true, force: true })
 })

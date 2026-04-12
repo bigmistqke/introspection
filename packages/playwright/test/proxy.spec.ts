@@ -88,13 +88,14 @@ test('proxied page.screenshot() saves asset and emits playwright.screenshot even
   const events = await readEvents(dir)
   const screenshotEvent = events.find((e: { type: string }) => e.type === 'playwright.screenshot')
   expect(screenshotEvent).toBeDefined()
-  expect(screenshotEvent.metadata.path).toContain('screenshot')
-  expect(screenshotEvent.metadata.viewport).toBeDefined()
+  expect(screenshotEvent.assets).toBeDefined()
+  expect(screenshotEvent.assets.length).toBeGreaterThanOrEqual(1)
+  expect(screenshotEvent.assets[0].kind).toBe('image')
 
   // Verify the asset file exists
   const entries = (await readdir(dir)).filter(e => !e.startsWith('.'))
   const sessionDir = join(dir, entries[0])
-  const assetPath = join(sessionDir, screenshotEvent.metadata.path)
+  const assetPath = join(sessionDir, screenshotEvent.assets[0].path)
   const assetContent = await readFile(assetPath)
   expect(assetContent.length).toBeGreaterThan(0)
 })
