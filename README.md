@@ -4,7 +4,7 @@ Introspection is a Playwright-integrated tracing framework. A session records a 
 
 When an end-to-end test fails, the usual debugging loop is: read the error, guess what the app was doing, add more logs or breakpoints, re-run. With a trace on disk, you can query the recorded session instead of re-running the test.
 
-The log is also designed to be consumed by AI assistants. Run `introspect summary` and paste the output into a conversation; the model has the full execution context to reason about.
+Introspection is built primarily for AI-assisted debugging — the trace gives a model the full execution context to reason about — but the same trace is queryable by humans too, via the [`introspect`](packages/cli/README.md) CLI or programmatically through [`@introspection/read`](packages/read/README.md).
 
 ---
 
