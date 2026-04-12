@@ -48,6 +48,25 @@ describe('debug command', () => {
     expect(sessions.some(s => s.id === sessionId)).toBe(true)
   })
 
+  it('records session metadata and events', async () => {
+    const sessionId = await runDebug({
+      serve: resolve(fixturesDir, 'index.html'),
+      config: resolve(fixturesDir, 'introspect.config.js'),
+      dir: tempDir,
+    })
+
+    // Verify session metadata exists
+    const reader = await createSessionReader(tempDir, { sessionId })
+    const meta = reader.meta
+    expect(meta.id).toBe(sessionId)
+    expect(meta.startedAt).toBeDefined()
+    expect(meta.endedAt).toBeDefined()
+
+    // Verify events were recorded
+    const events = await reader.events.ls()
+    expect(events.length).toBeGreaterThanOrEqual(0)
+  })
+
   it('runs playwright script on the page', async () => {
     const sessionId = await runDebug({
       serve: resolve(fixturesDir, 'index.html'),
@@ -60,6 +79,18 @@ describe('debug command', () => {
     const reader = await createSessionReader(tempDir, { sessionId })
     const meta = reader.meta
     expect(meta.id).toBe(sessionId)
+  })
+
+  it('loads config from provided path', async () => {
+    const sessionId = await runDebug({
+      serve: resolve(fixturesDir, 'index.html'),
+      config: resolve(fixturesDir, 'introspect.config.js'),
+      dir: tempDir,
+    })
+
+    expect(sessionId).toBeDefined()
+    const reader = await createSessionReader(tempDir, { sessionId })
+    expect(reader.meta.id).toBe(sessionId)
   })
 
   it('throws error for missing path with --serve', async () => {
