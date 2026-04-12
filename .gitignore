@@ -4,5 +4,5 @@ dist/
 .introspect/
 test-results/
 playground/
-.turbo/.env.local
+.turbo/
 .env.local
