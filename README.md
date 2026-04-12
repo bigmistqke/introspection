@@ -15,6 +15,7 @@ The log is also designed to be consumed by AI assistants. Run `introspect summar
 - [Plugins](#plugins)
 - [Quick start](#quick-start)
 - [Session format](#session-format)
+- [Continuous releases](#continuous-releases)
 
 ---
 
@@ -106,3 +107,11 @@ Each test produces a session directory:
 ```
 
 Events are plain JSON objects with a `type`, `source`, `ts` (ms since test start), and `data`. The format is stable and easy to parse or stream into an LLM context.
+
+---
+
+## Continuous releases
+
+Every push to `main` publishes preview builds via [pkg.pr.new](https://pkg.pr.new). You can install any commit's build directly without waiting for a versioned release — useful for trying unreleased fixes or features.
+
+The full list of published previews is tracked on the [`releases` branch](https://github.com/bigmistqke/introspection/tree/releases), with install commands for each package at every commit and a JSON list for use in `package.json` `overrides` (e.g. in a monorepo).
