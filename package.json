@@ -7,6 +7,7 @@
     "test": "pnpm -r --filter '!ctf/**' --filter '!demos/**' run test",
     "test:vitest": "vitest run",
     "test:watch": "vitest",
+    "introspect": "node packages/cli/dist/index.js",
     "demos:static-report": "pnpm --filter @introspection/demo-static-report run generate",
     "demos:vanilla-basic": "pnpm --filter @introspection/demo-vanilla-basic dev",
     "demos:solid-streaming": "pnpm --filter @introspection/demo-solid-streaming dev",
