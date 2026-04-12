@@ -18,7 +18,7 @@ jobs:
       - run: pnpm install
       - run: pnpm dlx playwright install
       - run: pnpm build
-      - run: pnpm test
+      - run: pnpm test -- --no-cache
       - run: pnpm typecheck
 
   publish:

@@ -1,12 +1,13 @@
 {
   "name": "introspection-monorepo",
   "private": true,
+  "packageManager": "pnpm@10.11.0",
   "type": "module",
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
-    "build": "pnpm -r --changed run build",
-    "typecheck": "pnpm -r --changed run typecheck",
-    "test": "pnpm -r --changed --filter '!./ctf/**' --filter '!./demos/**' run test",
+    "build": "turbo build",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test --filter '!./{ctf,demos}/**'",
     "test:vitest": "vitest run",
     "test:watch": "vitest",
     "introspect": "node packages/cli/dist/index.js",
@@ -18,10 +19,11 @@
     "demos:react-session-list": "pnpm --filter @introspection/demo-react-session-list dev"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
-    "vitest": "^2.0.0",
+    "@types/node": "^20.0.0",
     "tsup": "^8.0.0",
-    "@types/node": "^20.0.0"
+    "turbo": "^2.9.6",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
