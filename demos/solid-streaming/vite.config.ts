@@ -4,6 +4,35 @@ import solid from 'vite-plugin-solid'
 import { readFileSync, readdirSync, existsSync, statSync, createReadStream } from 'fs'
 import { join, resolve } from 'path'
 
+const KIND_CONTENT_TYPES: Record<string, string> = {
+  json: 'application/json',
+  html: 'text/html',
+  text: 'text/plain',
+  image: 'image/png',
+  binary: 'application/octet-stream',
+}
+
+let cachedIndex: { sessionId: string; map: Map<string, string> } | null = null
+
+function getAssetKindMap(introspectDirectory: string, sessionId: string): Map<string, string> {
+  if (cachedIndex?.sessionId === sessionId) return cachedIndex.map
+  const map = new Map<string, string>()
+  const eventsPath = join(introspectDirectory, sessionId, 'events.ndjson')
+  if (existsSync(eventsPath)) {
+    for (const line of readFileSync(eventsPath, 'utf-8').split('\n')) {
+      if (!line.trim()) continue
+      try {
+        const event = JSON.parse(line)
+        for (const asset of event.assets ?? []) {
+          if (asset.path && asset.kind) map.set(asset.path, asset.kind)
+        }
+      } catch { /* skip malformed lines */ }
+    }
+  }
+  cachedIndex = { sessionId, map }
+  return map
+}
+
 function getLatestSession(directory: string) {
   if (!existsSync(directory)) return null
 
@@ -78,11 +107,13 @@ function streamingPlugin() {
           }
 
           const fileStat = statSync(filePath)
+          const kindMap = getAssetKindMap(introspectDirectory, latest.id)
+          const kind = kindMap.get(assetPath)
           const extension = filePath.split('.').pop()?.toLowerCase()
-          const contentTypes: Record<string, string> = {
-            json: 'application/json', png: 'image/png', html: 'text/html', txt: 'text/plain',
-          }
-          response.setHeader('Content-Type', contentTypes[extension ?? ''] ?? 'application/octet-stream')
+          const contentType = kind
+            ? KIND_CONTENT_TYPES[kind] ?? 'application/octet-stream'
+            : ({ json: 'application/json', png: 'image/png', html: 'text/html', txt: 'text/plain' }[extension ?? ''] ?? 'application/octet-stream')
+          response.setHeader('Content-Type', contentType)
           response.setHeader('Content-Length', fileStat.size)
           createReadStream(filePath).pipe(response)
           return
