@@ -4,6 +4,8 @@ import { defaults } from '@introspection/plugin-defaults'
 import { solidDevtools } from '@introspection/plugin-solid'
 
 test('streaming demo auto-connects and streams events', async ({ page }) => {
+  const startTime = Date.now()
+
   const handle = await attach(page, {
     testTitle: 'streaming demo',
     plugins: [...defaults(), solidDevtools()],
@@ -40,5 +42,5 @@ test('streaming demo auto-connects and streams events', async ({ page }) => {
   // Screenshot: event selected, detail panel showing
   await handle.page.screenshot()
 
-  await handle.detach({ status: 'passed', duration: 0 })
+  await handle.detach({ status: 'passed', duration: Date.now() - startTime })
 })
