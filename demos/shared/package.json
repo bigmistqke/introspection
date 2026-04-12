@@ -14,7 +14,8 @@
     }
   },
   "dependencies": {
-    "@introspection/read": "workspace:*"
+    "@introspection/read": "workspace:*",
+    "@introspection/utils": "workspace:*"
   },
   "devDependencies": {
     "vite": "^6.0.0",

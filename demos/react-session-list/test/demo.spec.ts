@@ -1,50 +1,31 @@
 import { test, expect } from '@playwright/test'
 import { attach } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
+import { reactScanPlugin } from '@introspection/plugin-react-scan'
+import { createSessionReader } from '@introspection/read/node'
+import { join } from 'node:path'
 
-test('renders session cards with event counts', async ({ page }) => {
-  // Set up a simple fixture page
-  await page.route('/fixture', route => route.fulfill({
-    contentType: 'text/html',
-    body: '<html><head><title>Test Fixture</title></head><body><button id="test-btn">Click me</button></body></html>',
-  }))
-
-  // Attach introspection and generate events
+test('captures react renders from the demo', async ({ page }) => {
   const handle = await attach(page, {
-    plugins: [...defaults()],
+    plugins: [...defaults(), reactScanPlugin({ verbose: true })],
     outDir: '.introspect',
+    testTitle: 'react-plugin-capture',
   })
 
-  await handle.page.goto('/fixture')
-  await handle.page.click('#test-btn')
+  await handle.page.goto('/')
+  await expect(page.locator('body')).toContainText(/Sessions|No sessions/, { timeout: 10000 })
 
   await handle.detach({ status: 'passed' })
 
-  // Wait for session to be fully written to disk before navigating
-  // This is important because the demo will try to fetch from /__introspect/
-  await page.waitForTimeout(2000)
+  const reader = await createSessionReader(join(process.cwd(), '.introspect'), {
+    sessionId: handle.session.id,
+  })
+  const events = await reader.events.ls()
 
-  // Navigate to the demo to view the session
-  await page.goto('/', { waitUntil: 'networkidle' })
+  const renders = events.filter(event => event.type === 'react.render')
+  const commits = events.filter(event => event.type === 'react.commit')
 
-  // Wait a moment for the page to settle
-  await page.waitForTimeout(500)
-
-  // Check what we have
-  const content = await page.locator('body').textContent()
-  console.log('Page text:', content)
-
-  // Check for any console errors
-  page.on('console', msg => console.log('Browser console:', msg.type(), msg.text()))
-  page.on('pageerror', err => console.error('Page error:', err))
-
-  // Wait for the h1 with "Sessions" to appear (should load quickly)
-  await page.waitForSelector('h1', { timeout: 5000 })
-
-  // Verify that the page loaded properly
-  const heading = await page.locator('h1').textContent()
-  expect(heading).toContain('Sessions')
-
-  // The page should eventually show sessions (might need time for Suspense to resolve)
-  await expect(page.locator('text=actions')).toBeVisible({ timeout: 10000 })
+  expect(renders.length).toBeGreaterThan(0)
+  expect(commits.length).toBeGreaterThan(0)
+  expect(renders.some(event => String(event.metadata?.component ?? '').includes('App'))).toBe(true)
 })

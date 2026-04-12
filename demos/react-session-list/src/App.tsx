@@ -1,12 +1,16 @@
-import { Suspense, use, useMemo } from 'react'
+import { Suspense, use } from 'react'
 import { listSessions } from '@introspection/read'
 import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
 import { SessionCard } from './SessionCard.jsx'
 
-const adapter = createFetchAdapter('/__introspect')
+const baseUrl = typeof window !== 'undefined'
+  ? `${window.location.origin}/__introspect`
+  : 'http://localhost:5175/__introspect'
+
+const adapter = createFetchAdapter(baseUrl)
+const sessionsPromise = listSessions(adapter)
 
 export default function App() {
-  const sessionsPromise = useMemo(() => listSessions(adapter), [])
   const sessions = use(sessionsPromise)
 
   if (sessions.length === 0) return <p style={{ color: '#fc6c6c' }}>No sessions found in .introspect/</p>
