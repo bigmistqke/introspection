@@ -7,6 +7,7 @@ CLI for querying introspection traces recorded by `@introspection/playwright`.
 - [Install](#install)
 - [Global options](#global-options)
 - [Commands](#commands)
+  - [debug](#debug)
   - [list](#list)
   - [summary](#summary)
   - [events](#events)
@@ -33,6 +34,44 @@ All commands accept `--dir` to point at a non-default trace directory.
 ---
 
 ## Commands
+
+### `debug`
+
+Launch a browser and record a live debugging session with introspection. Useful for capturing ad-hoc behavior without writing a test.
+
+```
+introspect debug [<url> | --serve <path>] [--config <path>] [--playwright <script>]
+```
+
+| Flag | Description |
+|---|---|
+| `<url>` | Navigate to a remote URL (e.g. `https://example.com`) |
+| `--serve <path>` | Serve a local file or directory and navigate to it (auto-picks free port) |
+| `--config <path>` | Path to `introspect.config.ts` (default: `./introspect.config.ts`) |
+| `--playwright <script>` | Playwright script to run: file path or inline code. Has `page` in scope. |
+
+The command loads plugins from `introspect.config.ts`, records the session to `.introspect/`, and prints the session ID.
+
+**Examples:**
+
+```bash
+# Debug a remote site
+introspect debug https://example.com
+
+# Serve a local HTML file and debug it
+introspect debug --serve ./index.html
+
+# Serve a directory (navigates to index.html)
+introspect debug --serve ./dist
+
+# Run interactions with a Playwright script
+introspect debug --serve ./app.html --playwright ./interactions.ts
+
+# Inline Playwright script
+introspect debug https://example.com --playwright 'await page.click("button")'
+```
+
+---
 
 ### `list`
 
