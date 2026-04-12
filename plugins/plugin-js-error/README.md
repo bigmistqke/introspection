@@ -9,7 +9,7 @@ Automatically records all runtime errors and unhandled promise rejections as the
 - [Install](#install)
 - [Usage](#usage)
 - [What it emits](#what-it-emits)
-- [Bus augmentation](#bus-augmentation)
+- [Bus events](#bus-events)
 - [Scopes](#scopes)
 
 ## Install
@@ -59,27 +59,30 @@ const handle = await attach(page, { plugins: defaults() })
 }
 ```
 
-Also emits on the bus (`'js.error'` trigger) for plugin coordination.
+## Bus events
 
-## Bus augmentation
-
-This plugin augments `BusPayloadMap` with a `'js.error'` trigger:
+| Bus trigger | Description |
+|---|---|
+| `'js.error'` | JS exception or unhandled promise rejection occurs |
 
 ```ts
-interface BusPayloadMap {
-  'js.error': { trigger: 'js.error'; timestamp: number; message: string }
+{
+  trigger: 'js.error'
+  timestamp: number
+  message: string
 }
 ```
 
-Other plugins can react to JS errors by subscribing to this trigger:
+Other plugins subscribe and react:
 
 ```ts
 ctx.bus.on('js.error', async (payload) => {
-  // capture additional state when a JS error occurs
+  // payload.message contains the error message
+  // payload.timestamp is when the error occurred
 })
 ```
 
-To get the type augmentation, import the package (even as a side-effect):
+To get TypeScript types for the augmentation, import the package (even as a side-effect):
 
 ```ts
 import '@introspection/plugin-js-error'
