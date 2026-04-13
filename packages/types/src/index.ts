@@ -315,6 +315,27 @@ export interface CdpEventEvent extends BaseEvent {
   }
 }
 
+export interface IntrospectWarningEvent extends BaseEvent {
+  type: 'introspect.warning'
+  metadata: {
+    source: 'cdp' | 'write' | 'parse' | 'plugin'
+    pluginName?: string
+    method?: string
+    message: string
+    stack?: string
+    cause?: { name: string; message: string }
+  }
+}
+
+export interface IntrospectDebugEvent extends BaseEvent {
+  type: 'introspect.debug'
+  metadata: {
+    label: string
+    message: string
+    args: unknown[]
+  }
+}
+
 // ─── TraceEventMap ──────────────────────────────────────────────────────────
 //
 // All known event types. Third-party plugins can still augment this
@@ -379,6 +400,9 @@ export interface TraceEventMap {
   // CDP trace
   'cdp.command': CdpCommandEvent
   'cdp.event': CdpEventEvent
+  // Introspection
+  'introspect.warning': IntrospectWarningEvent
+  'introspect.debug': IntrospectDebugEvent
 }
 
 export type TraceEvent = TraceEventMap[keyof TraceEventMap]
@@ -395,6 +419,8 @@ export type BusPayloadMap = TraceEventMap & {
   'snapshot': { trigger: 'manual' | 'js.error' | 'debugger.paused'; timestamp: number }
   'manual': { trigger: 'manual'; timestamp: number }
   'detach': { trigger: 'detach'; timestamp: number }
+  'introspect:warning': { error: { name: string; message: string; source: 'cdp' | 'write' | 'parse' | 'plugin'; cause?: unknown; stack?: string; pluginName?: string; method?: string } }
+  'introspect:debug': { label: string; message: string; args: unknown[]; timestamp: number }
 }
 
 export type BusTrigger = keyof BusPayloadMap
