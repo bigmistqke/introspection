@@ -162,24 +162,11 @@ The framework does **not** classify the cause. The error is wrapped in `CdpError
 - For handlers on application channels (anything not starting with `introspect:`), a `bus.emit('introspect:warning', ...)` records the failure on the internal channel.
 - For handlers on the internal `introspect:warning` / `introspect:debug` channels, stderr is the only surface — no re-emission, to avoid recursion. (If `plugin-introspection` itself throws, the failure hits stderr and is visible at dev time; it does not loop back into the trace.)
 
-**Plugin-install loop** (`attach.ts:113`): each plugin's `install(ctx)` is wrapped in try/catch. A failed plugin is **recorded in session metadata with `failed: true; failureReason: string`** (not silently dropped — consumers need to know which plugins were attempted), and subsequent plugins still install. The install failure also emits on `bus.emit('introspect:warning')` and stderr.
+**Plugin-install loop** (`attach.ts:113`): each plugin's `install(ctx)` is wrapped in try/catch. A failed plugin does **not** mutate `meta.json` — install failure is a runtime event, not metadata. It emits on `bus.emit('introspect:warning', { error: PluginError })` and stderr (via `debug`), and the loop continues with subsequent plugins. `meta.plugins` records what was *attempted*; `introspect events --type introspect.warning` filtered by `metadata.source === 'plugin'` records what *failed*. Single source of truth.
 
-The wrapping also covers `await page.evaluate(plugin.script)` (currently `attach.ts:111` with `.catch(() => {})`) and the implicit `await ctx.cdpSession.send(...)` calls plugins make inside their `install`. Any of those rejecting trips the plugin-failed path; the loop continues with the next plugin.
+The wrapping also covers `await page.evaluate(plugin.script)` (currently `attach.ts:111` with `.catch(() => {})`) and the implicit `await ctx.cdpSession.send(...)` calls plugins make inside their `install`. Any of those rejecting trips the same warning path; the loop continues with the next plugin.
 
-`PluginMeta` gains:
-
-```ts
-interface PluginMeta {
-  name: string
-  description?: string
-  events?: Record<string, string>
-  options?: Record<string, { description: string; value: unknown }>
-  failed?: boolean              // new
-  failureReason?: string        // new — `error.message` from the install failure
-}
-```
-
-CLI surfacing: `introspect plugins` shows `[failed: <reason>]` next to plugins that didn't install successfully.
+`PluginMeta` stays unchanged — no mutable fields, no `updatePluginMeta` API on `SessionWriter`.
 
 ### Non-boundary sites: throw
 
@@ -317,7 +304,7 @@ Follows every plugin convention — `verbose`, `createDebug`, `events` map, READ
 - **Unit tests** for each error class (`packages/utils/test/errors.test.ts`): subclass `instanceof` checks, `source` discrimination, `cause` preservation, message format.
 - **Playwright tests** in `packages/playwright/test/failure-handling.spec.ts`:
   - Plugin-handler throws → other plugins still receive events.
-  - Plugin-install throws → subsequent plugins still install; session metadata records `failed: true` for the broken plugin; an `introspect:warning` is emitted with the cause.
+  - Plugin-install throws → subsequent plugins still install; an `introspect.warning` event is written to the trace with `metadata.source === 'plugin'` and the failed plugin's name.
   - Write queue disk-error → test fails with WriteError (simulate via `mkdir` of the ndjson path).
   - Navigation context destruction during CDP call → no throw, no silent swallow, a failure bus event fires.
 - **Plugin test** `plugins/plugin-introspection/test/introspection.spec.ts`:
@@ -333,7 +320,7 @@ Follows every plugin convention — `verbose`, `createDebug`, `events` map, READ
 | `packages/utils/src/errors.ts` | New file, 5 error classes, ~40 lines. |
 | `packages/utils/src/debug.ts` | `createDebug` gains a `.subscribe(callback)` method on the returned function. No other API change; remains introspection-unaware. |
 | `packages/utils/src/bus.ts` | Line 22: report rejections via stderr + (for app channels) re-emit on `introspect:warning`. Internal channels stderr-only to avoid recursion. |
-| `packages/types/src/index.ts` | Add 2 trace event types (`introspect.warning`, `introspect.debug`), 2 internal bus channels (`introspect:warning`, `introspect:debug`). Extend `PluginMeta` with `failed?: boolean; failureReason?: string`. No `PluginContext` / `SessionWriter` API changes — wiring is done via `debug.subscribe` + `ctx.bus.emit`. |
+| `packages/types/src/index.ts` | Add 2 trace event types (`introspect.warning`, `introspect.debug`), 2 internal bus channels (`introspect:warning`, `introspect:debug`). No `PluginMeta` / `PluginContext` / `SessionWriter` API changes — wiring is done via `debug.subscribe` + `ctx.bus.emit`. |
 | `packages/playwright/src/attach.ts` | Remove 5 `.catch(() => {})` sites. Wrap plugin handlers in try/catch → bus emit. Wrap plugin-install loop. Navigation-recovery catch → report. Subscribe own framework `debug` to session bus. |
 | `packages/playwright/src/snapshot.ts` | Three non-fatal catches → report on bus. |
 | `packages/write/src/session.ts` | Remove the swallow on line 18. Write errors propagate. Subscribe own framework `debug` to session bus. |
