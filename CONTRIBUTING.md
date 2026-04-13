@@ -84,6 +84,16 @@ When capture requires running in the page (e.g. `PerformanceObserver`, framework
 
 For browser-side subscriptions that must survive navigation, use `ctx.addSubscription(pluginName, spec)`. See `plugins/plugin-performance/` for a complete example.
 
+### Plugin shapes: prior art
+
+Framework- and library-specific plugins hook into their target in visibly different ways, because the shape is forced by a constraint in the target library. These are the shapes we've used so far — not a closed taxonomy.
+
+- **Protocol shim.** The target library talks to a devtool through a global wire protocol (e.g. `window.__REDUX_DEVTOOLS_EXTENSION__`). The plugin impersonates the protocol consumer. Ships a plain script, zero deps, zero user code. *Example: `plugin-redux`.*
+- **Bundled injection.** The target devtool can function standalone because it communicates with the app framework through a published global hook (e.g. `__REACT_DEVTOOLS_GLOBAL_HOOK__`), not shared module state. The plugin bundles the devtool + a thin adapter as an IIFE and injects it before page scripts run. Zero user code. *Example: `plugin-react-scan`.*
+- **Bundled injection + user setup.** The target devtool needs the same *module instance* as the app — typically because the framework's reactive or instrumentation state is module-scoped, so a bundled copy can't see the app's state. The plugin ships an IIFE *and* a `/setup` submodule; the user imports the submodule in their app entry, which instantiates the devtool with the app's runtime and exposes it globally for the IIFE to pick up. *Example: `plugin-solid-devtools`.*
+
+When considering a new framework/library plugin, work backward from the target library's constraints: does it publish a wire protocol on globals? Can its devtool run with its own module instance, or does it need module-identity with the app? Does it have a first-class debug hook, or need build-time transformation? The answers may land you in one of the three shapes above — or in a fourth. If you find yourself inventing a new shape, document it here so the next author sees it.
+
 ### Step-by-step: adding a new in-repo plugin
 
 1. **Scaffold** `plugins/plugin-<name>/` by copying the layout from `plugin-js-error` (the minimal example):

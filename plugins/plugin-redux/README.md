@@ -120,3 +120,7 @@ Payloads and state are captured via `JSON.parse(JSON.stringify(...))`. Non-seria
 ### `captureState` cost
 
 Cloning the full store on every dispatch is O(state size) per action. For large stores or chatty action streams, leave `captureState` off and rely on `action` + `payload` alone.
+
+## Architecture
+
+This plugin is a **protocol shim**: the Redux DevTools Extension defines a wire protocol on `window.__REDUX_DEVTOOLS_EXTENSION__` / `__REDUX_DEVTOOLS_EXTENSION_COMPOSE__`, so we intercept at that layer and any compatible store (Redux, Zustand, MobX-state-tree, XState, Jotai, Effector, Valtio) connects automatically — no app changes required. See [Plugin shapes: prior art](../../CONTRIBUTING.md#plugin-shapes-prior-art) for the full catalogue.

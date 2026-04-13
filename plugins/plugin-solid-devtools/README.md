@@ -84,3 +84,7 @@ The plugin re-exports types from `@solid-devtools/debugger` for parsing the capt
 ```ts
 import type { NodeID, NodeType, StructureUpdates, DGraphUpdate, SerializedDGraph } from '@introspection/plugin-solid-devtools'
 ```
+
+## Architecture
+
+This plugin is a **bundled injection + user setup**: `solid-js` reactivity is module-scoped, so `useDebugger()` only observes reactive roots created with the *same* `solid-js` module instance. A bundled copy can't see the app's reactive graph. The user imports `@introspection/plugin-solid-devtools/setup` in the app entry, which instantiates the debugger with the app's runtime and exposes it globally; our bundled IIFE picks it up. See [Plugin shapes: prior art](../../CONTRIBUTING.md#plugin-shapes-prior-art) for the full catalogue.
