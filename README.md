@@ -28,37 +28,37 @@ Introspection is built primarily for AI-assisted debugging — the trace gives a
 
 ## Packages
 
-| Package | Description |
-|---|---|
-| [`introspect`](packages/cli/README.md) | CLI for querying traces: summary, events, list, plugins |
-| [`@introspection/playwright`](packages/playwright/README.md) | Attach tracing to a Playwright page — the main integration point |
-| [`@introspection/read`](packages/read/README.md) | Programmatic access to traces — adapter-based, environment-agnostic |
-| [`@introspection/write`](packages/write/) | Session recording — creates sessions, appends events, writes assets |
-| [`@introspection/utils`](packages/utils/) | Shared utilities: CDP normalizers, event bus, debug, snapshot |
-| [`@introspection/types`](packages/types/README.md) | Shared TypeScript types for events, plugins, and session format |
+| Package                                                      | Description                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------- |
+| [`introspect`](packages/cli/README.md)                       | CLI for querying traces: summary, events, list, plugins             |
+| [`@introspection/playwright`](packages/playwright/README.md) | Attach tracing to a Playwright page — the main integration point    |
+| [`@introspection/read`](packages/read/README.md)             | Programmatic access to traces — adapter-based, environment-agnostic |
+| [`@introspection/write`](packages/write/)                    | Session recording — creates sessions, appends events, writes assets |
+| [`@introspection/utils`](packages/utils/)                    | Shared utilities: CDP normalizers, event bus, debug, snapshot       |
+| [`@introspection/types`](packages/types/README.md)           | Shared TypeScript types for events, plugins, and session format     |
 
 ## Plugins
 
 Every capability is a plugin. If you don't wire it up, it won't log. Pass the plugins you want to `attach()` via the required `plugins` option.
 
-| Plugin | Package | What it captures |
-|---|---|---|
-| `cdp()` | [`@introspection/plugin-cdp`](plugins/plugin-cdp/README.md) | Raw Chrome DevTools Protocol commands and events (advanced instrumentation) |
-| `consolePlugin()` | [`@introspection/plugin-console`](plugins/plugin-console/README.md) | Browser console output |
-| `debuggerPlugin()` | [`@introspection/plugin-debugger`](plugins/plugin-debugger/README.md) | Debugger pauses with scope locals and call stack |
-| `defaults()` | [`@introspection/plugin-defaults`](plugins/plugin-defaults/README.md) | Composition: `[network(), jsError(), debuggerPlugin(), consolePlugin()]` |
-| `jsError()` | [`@introspection/plugin-js-error`](plugins/plugin-js-error/README.md) | JS exceptions and unhandled rejections |
-| `network()` | [`@introspection/plugin-network`](plugins/plugin-network/README.md) | HTTP requests, responses, and response bodies |
-| `performance()` | [`@introspection/plugin-performance`](plugins/plugin-performance/README.md) | Core Web Vitals, resource timing, long tasks, layout shifts, and paint |
-| `webgl()` | [`@introspection/plugin-webgl`](plugins/plugin-webgl/README.md) | WebGL state, uniforms, draw calls, textures, and canvas PNGs |
+| Plugin             | Package                                                                     | What it captures                                                            |
+| ------------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `cdp()`            | [`@introspection/plugin-cdp`](plugins/plugin-cdp/README.md)                 | Raw Chrome DevTools Protocol commands and events (advanced instrumentation) |
+| `consolePlugin()`  | [`@introspection/plugin-console`](plugins/plugin-console/README.md)         | Browser console output                                                      |
+| `debuggerPlugin()` | [`@introspection/plugin-debugger`](plugins/plugin-debugger/README.md)       | Debugger pauses with scope locals and call stack                            |
+| `defaults()`       | [`@introspection/plugin-defaults`](plugins/plugin-defaults/README.md)       | Composition: `[network(), jsError(), debuggerPlugin(), consolePlugin()]`    |
+| `jsError()`        | [`@introspection/plugin-js-error`](plugins/plugin-js-error/README.md)       | JS exceptions and unhandled rejections                                      |
+| `network()`        | [`@introspection/plugin-network`](plugins/plugin-network/README.md)         | HTTP requests, responses, and response bodies                               |
+| `performance()`    | [`@introspection/plugin-performance`](plugins/plugin-performance/README.md) | Core Web Vitals, resource timing, long tasks, layout shifts, and paint      |
+| `webgl()`          | [`@introspection/plugin-webgl`](plugins/plugin-webgl/README.md)             | WebGL state, uniforms, draw calls, textures, and canvas PNGs                |
 
 ### Framework Specific Plugins
 
-| Plugin | Package | What it captures |
-|---|---|---|
-| `reactScanPlugin()` | [`@introspection/plugin-react-scan`](plugins/plugin-react-scan/README.md) | React component renders and reconciler commits, via react-scan |
-| `redux()` | [`@introspection/plugin-redux`](plugins/plugin-redux/README.md) | Store dispatches from Redux, Zustand, Valtio, and other Redux DevTools–compatible libraries, with optional state snapshots |
-| `solidDevtools()` | [`@introspection/plugin-solid-devtools`](plugins/plugin-solid-devtools/README.md) | SolidJS component structure, reactive updates, and dependency graph |
+| Plugin              | Package                                                                           | What it captures                                                                                                           |
+| ------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `reactScanPlugin()` | [`@introspection/plugin-react-scan`](plugins/plugin-react-scan/README.md)         | React component renders and reconciler commits, via react-scan                                                             |
+| `redux()`           | [`@introspection/plugin-redux`](plugins/plugin-redux/README.md)                   | Store dispatches from Redux, Zustand, Valtio, and other Redux DevTools–compatible libraries, with optional state snapshots |
+| `solidDevtools()`   | [`@introspection/plugin-solid-devtools`](plugins/plugin-solid-devtools/README.md) | SolidJS component structure, reactive updates, and dependency graph                                                        |
 
 ---
 
@@ -69,17 +69,20 @@ pnpm add -D @introspection/playwright introspect
 ```
 
 ```ts
-import { attach } from '@introspection/playwright'
-import { defaults } from '@introspection/plugin-defaults'
+import { attach } from "@introspection/playwright";
+import { defaults } from "@introspection/plugin-defaults";
 
-test('checkout flow', async ({ page }) => {
-  const handle = await attach(page, { testTitle: 'checkout flow', plugins: defaults() })
+test("checkout flow", async ({ page }) => {
+  const handle = await attach(page, {
+    testTitle: "checkout flow",
+    plugins: defaults(),
+  });
 
-  await handle.page.goto('/cart')
-  await handle.page.getByRole('button', { name: 'Checkout' }).click()
+  await handle.page.goto("/cart");
+  await handle.page.getByRole("button", { name: "Checkout" }).click();
 
-  await handle.detach()
-})
+  await handle.detach();
+});
 ```
 
 After the test runs, query the session:
@@ -92,6 +95,7 @@ introspect events --type network.response --filter 'event.metadata.status >= 400
 ```
 
 **Full documentation:**
+
 - [`@introspection/playwright`](packages/playwright/README.md) — `attach()` fixture and options
 - [`introspect` CLI](packages/cli/README.md) — `debug`, `summary`, `events`, `network`, `assets` commands
 - [`@introspection/plugin-*`](plugins/) — Available plugins and their options
@@ -110,7 +114,7 @@ Each test produces a session directory:
     assets/          ← response bodies, DOM snapshots, plugin captures
 ```
 
-Events are plain JSON objects with a `type`, `source`, `ts` (ms since test start), and `data`. The format is stable and easy to parse or stream into an LLM context.
+[TraceEvents](./packages/types/README.md#TraceEvent) are plain JSON objects with a unique `id`, `type`, `timestamp` (ms since test start), references to corresponding `assets` and event-specific `metadata`.
 
 ---
 
