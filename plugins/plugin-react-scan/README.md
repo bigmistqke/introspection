@@ -4,36 +4,34 @@ Captures React component renders and reconciler commits, via [react-scan](https:
 
 ## Events
 
-| Event | Description |
-|-------|-------------|
-| `react-scan.render` | Component render (mount or update), per commit |
-| `react-scan.commit` | Reconciler commit phase boundary (`phase: 'start' \| 'finish'`) |
+| Event               | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `react-scan.render` | Component render (mount or update), per commit                    |
+| `react-scan.commit` | Reconciler commit phase boundary (`phase: 'start' \| 'finish'`)   |
 | `react-scan.report` | Aggregate render report, emitted when `plugin.report()` is called |
 
 ## Usage
 
 ```typescript
-import { attach } from '@introspection/playwright'
-import { reactScanPlugin } from '@introspection/plugin-react-scan'
+import { attach } from "@introspection/playwright";
+import { reactScanPlugin } from "@introspection/plugin-react-scan";
 
-const plugin = reactScanPlugin()
+const plugin = reactScanPlugin();
 
 const handle = await attach(page, {
   plugins: [plugin],
-  outDir: '.introspect',
-})
+  outDir: ".introspect",
+});
 
-await page.goto('http://localhost:3000')
+await page.goto("http://localhost:3000");
 // ...interact with the app...
 
 // Pull a summary of every component's render count/time at any point:
-const report = await plugin.report()
+const report = await plugin.report();
 // Also emits a `react-scan.report` event to the trace.
 
-await handle.detach()
+await handle.detach();
 ```
-
-The plugin must be registered before the page navigates to the React app — `attach()` runs the plugin's script via `page.addInitScript()`, which executes before any page script on each navigation.
 
 ## Options
 
@@ -100,4 +98,4 @@ Maintaining React internals (fiber walking, version compat, hook installation) i
 
 ## Architecture
 
-This plugin is a **bundled injection**: `react-scan` communicates with React via the published `__REACT_DEVTOOLS_GLOBAL_HOOK__` global rather than sharing React's module state, so a self-contained copy observes the app's React correctly. We ship the devtool + adapter as a single IIFE and no user setup is needed. See [Plugin shapes: prior art](../../CONTRIBUTING.md#plugin-shapes-prior-art) for the full catalogue.
+**Bundled injection.** We ship `react-scan` and its adapter as a single script injected before the app loads — no user setup needed. See [Plugin shapes: prior art](../../CONTRIBUTING.md#plugin-shapes-prior-art) for the full catalogue.
