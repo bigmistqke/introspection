@@ -178,8 +178,10 @@ The two-phase emit (`network.response` always, `network.response.body` when `Net
 
 ### Dev-mode / live companion
 
-- **Dev mode (no test required)** — `introspect debug <url> [--duration 5s] [--console]` launches a headless browser, attaches `defaults()`, captures for N seconds. Quick "what is this page doing?" without writing a test. Shifts introspection from post-mortem toward live dev companion.
+(Base `introspect debug [url] [--serve <path>]` is shipped. The items below extend it.)
+
 - **Vite plugin for fixture-aware tracing** — `@introspection/vite` middleware auto-injects the browser-side machinery into every served page. Removes the `attach()` step for ad-hoc debugging; generic HTTP middleware for non-Vite servers.
+- **`debug` duration / auto-exit** — `--duration 5s` flag for non-interactive capture ("run this page for 5s and give me the trace").
 - **Auto-reattach watch mode** — `introspect debug <url> --watch --watch-files 'src/**/*.ts'` re-runs capture on source change, writing a fresh session each time. Fixture dev, intermittent-bug chasing.
 - **Live mode dashboard** — `introspect watch` tails `events.ndjson` in real time. Structured and filterable tail-f.
 
@@ -201,13 +203,13 @@ The two-phase emit (`network.response` always, `network.response.body` when `Net
 
 ### Capture ergonomics
 
-- **Mark API sugar** — `introspect.time('label')` / `introspect.timeEnd('label')` emits a `mark` event with duration. Lightweight perf instrumentation from test code.
+- **Mark API sugar** — `introspect.mark(label)` is shipped (`packages/playwright/src/attach.ts:151`). Missing: `introspect.time('label')` / `introspect.timeEnd('label')` that emits a paired mark with duration. Lightweight perf instrumentation from test code.
 - **Conditional capture** — capture config driven by env vars. `INTROSPECT_LEVEL=verbose` turns on response bodies; `minimal` captures only errors and actions. Good for CI vs. local.
 - **Redaction profiles** — named presets for `capture.network.ignoreHeaders` and response body — e.g. `redaction: 'pci'` strips card numbers, CVVs, auth tokens.
 
 ### Dogfood loop
 
-- **Dogfood reflections as a committed artifact** — `introspect-reflect` currently writes retros to `.claude/reflections/<date>-<slug>.md`. Open: move to `docs/dogfood/` (committed, team-visible) so accumulated feedback is a shared backlog rather than per-agent notes. Trade-off: visibility vs. repo-history noise.
+- **Dogfood reflections as a committed artifact** — *shipped*: `introspect-reflect` writes retros to `docs/analysis/<date>-<slug>.md`. Same folder also holds code-quality reviews and the failure-handling catalog. Open: decide whether this grows well as one flat folder or wants sub-structure (`docs/analysis/reviews/`, `docs/analysis/reflections/`) once we accumulate more.
 
 ---
 

@@ -15,7 +15,7 @@ Dogfood review. Turn what just happened into structured feedback on `introspect`
 
 ## What to produce
 
-Write a markdown file at `.claude/reflections/<YYYY-MM-DD>-<slug>.md`. Keep it ≤150 lines. Structure:
+Write a markdown file at `docs/analysis/<YYYY-MM-DD>-<slug>.md`. Keep it ≤150 lines. Structure:
 
 ```
 # <one-sentence summary of the problem debugged>
