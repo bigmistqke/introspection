@@ -410,6 +410,10 @@ importers:
       '@introspection/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.17)
 
   packages/write:
     dependencies:
