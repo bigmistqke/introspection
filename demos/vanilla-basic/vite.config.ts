@@ -5,5 +5,6 @@ export default defineConfig({
   plugins: [introspectionServe()],
   server: {
     port: 5174,
+    strictPort: true,
   },
 })

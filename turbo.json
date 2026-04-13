@@ -1,6 +1,5 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "concurrency": "100%",
   "tasks": {
     "build": {
       "outputs": ["dist/**", "build/**"],

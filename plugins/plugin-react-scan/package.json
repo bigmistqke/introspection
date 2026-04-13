@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "fixtures": "vite --config test/fixtures/vite.config.ts --port 8766",
+    "fixtures": "vite --config test/fixtures/vite.config.ts",
     "test": "playwright test",
     "typecheck": "tsc --noEmit"
   },

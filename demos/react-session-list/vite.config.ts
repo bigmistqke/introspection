@@ -6,5 +6,6 @@ export default defineConfig({
   plugins: [react(), introspectionServe()],
   server: {
     port: 5175,
+    strictPort: true,
   },
 })
