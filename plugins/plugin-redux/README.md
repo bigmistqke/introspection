@@ -9,9 +9,9 @@ Records every action dispatch with full payloads and optional before/after state
 - [Install](#install)
 - [Usage](#usage)
 - [Supported libraries](#supported-libraries)
+- [Multiple stores](#multiple-stores)
 - [Options](#options)
 - [What it emits](#what-it-emits)
-- [How it works](#how-it-works)
 - [Caveats](#caveats)
 
 ## Install
@@ -30,29 +30,6 @@ const handle = await attach(page, { plugins: [redux()] })
 ```
 
 That's it — no app changes required, as long as the store is connected to Redux DevTools (the default for RTK in development, and for most libraries' `devtools` middleware).
-
-## How it works
-
-The plugin installs stubs for `window.__REDUX_DEVTOOLS_EXTENSION__` and `window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__` *before* page scripts run. Any of the standard devtools wire-ups will then route through us:
-
-```ts
-// Redux Toolkit (default in development)
-const store = configureStore({ reducer })
-
-// Manual composer pattern
-const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose
-const store = createStore(reducer, composeEnhancers(applyMiddleware(...)))
-
-// Direct enhancer
-const store = createStore(reducer, window.__REDUX_DEVTOOLS_EXTENSION__())
-
-// Manual connect() — what Zustand, MobX, XState, etc. use under the hood
-const devtools = window.__REDUX_DEVTOOLS_EXTENSION__.connect({ name: 'my-store' })
-devtools.init(store.getState())
-store.subscribe(() => devtools.send('STATE', store.getState()))
-```
-
-All four patterns are intercepted. The plugin's enhancer wraps `dispatch` (or hooks into the `connect()` channel) and emits a `redux.dispatch` event for every action.
 
 ## Supported libraries
 
@@ -120,7 +97,3 @@ Payloads and state are captured via `JSON.parse(JSON.stringify(...))`. Non-seria
 ### `captureState` cost
 
 Cloning the full store on every dispatch is O(state size) per action. For large stores or chatty action streams, leave `captureState` off and rely on `action` + `payload` alone.
-
-## Architecture
-
-This plugin is a **protocol shim**: the Redux DevTools Extension defines a wire protocol on `window.__REDUX_DEVTOOLS_EXTENSION__` / `__REDUX_DEVTOOLS_EXTENSION_COMPOSE__`, so we intercept at that layer and any compatible store (Redux, Zustand, MobX-state-tree, XState, Jotai, Effector, Valtio) connects automatically — no app changes required. See [Plugin shapes: prior art](../../CONTRIBUTING.md#plugin-shapes-prior-art) for the full catalogue.

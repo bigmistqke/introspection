@@ -26,7 +26,7 @@ Peer dependencies — installed in the app under test:
 - `solid-js` `>=1.7.0`
 - `@solid-devtools/debugger` `>=0.23.0`
 
-The app must also import `@introspection/plugin-solid-devtools/setup` in its entry file. This submodule creates the debugger instance using the *app's* own `solid-js` runtime and exposes it globally for the plugin's browser script to pick up. Because Solid's reactivity is module-scoped, the debugger only observes reactive roots created with the same `solid-js` copy — see [Architecture](#architecture) below.
+The app must also import `@introspection/plugin-solid-devtools/setup` in its entry file. This submodule creates the debugger using the *app's* own `solid-js` runtime and exposes it globally for the plugin to pick up. (Solid's reactivity is module-scoped: the debugger only sees reactive roots created with the same `solid-js` instance, so it has to share the app's copy rather than a bundled one.)
 
 ## Usage
 
@@ -97,7 +97,3 @@ The plugin re-exports types from `@solid-devtools/debugger` for parsing the capt
 ```ts
 import type { NodeID, NodeType, StructureUpdates, DGraphUpdate, SerializedDGraph } from '@introspection/plugin-solid-devtools'
 ```
-
-## Architecture
-
-This plugin is a **bundled injection + user setup**: `solid-js` reactivity is module-scoped, so `useDebugger()` only observes reactive roots created with the *same* `solid-js` module instance. A bundled copy can't see the app's reactive graph. The user imports `@introspection/plugin-solid-devtools/setup` in the app entry, which instantiates the debugger with the app's runtime and exposes it globally; our bundled IIFE picks it up. See [Plugin shapes: prior art](../../CONTRIBUTING.md#plugin-shapes-prior-art) for the full catalogue.

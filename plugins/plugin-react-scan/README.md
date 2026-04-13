@@ -90,12 +90,3 @@ Evaluates `react-scan.getReport()` in the page, emits a `react-scan.report` even
 }
 ```
 
-## How it works
-
-The plugin bundles [react-scan](https://github.com/aidenybai/react-scan) + a thin adapter into a single IIFE (`dist/browser.global.js`), which is injected into the page via `page.addInitScript()` before React loads. react-scan installs the React DevTools hook, instruments the reconciler, and calls our `onRender` / `onCommitStart` / `onCommitFinish` callbacks — we push each event through the shared `window.__introspect_push__` CDP binding.
-
-Maintaining React internals (fiber walking, version compat, hook installation) is out of scope; that responsibility lives in react-scan.
-
-## Architecture
-
-**Bundled injection.** We ship `react-scan` and its adapter as a single script injected before the app loads — no user setup needed. See [Plugin shapes: prior art](../../CONTRIBUTING.md#plugin-shapes-prior-art) for the full catalogue.
