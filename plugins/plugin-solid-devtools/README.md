@@ -21,10 +21,23 @@ pnpm add -D @introspection/plugin-solid-devtools
 
 ## Requirements
 
-- The app must be running with `solid-devtools` installed (either as a Vite plugin or via the browser extension API)
-- `SolidDevtools$$` must be present on the global scope before the page loads
+Peer dependencies — installed in the app under test:
+
+- `solid-js` `>=1.7.0`
+- `@solid-devtools/debugger` `>=0.23.0`
+
+The app must also import `@introspection/plugin-solid-devtools/setup` in its entry file. This submodule creates the debugger instance using the *app's* own `solid-js` runtime and exposes it globally for the plugin's browser script to pick up. Because Solid's reactivity is module-scoped, the debugger only observes reactive roots created with the same `solid-js` copy — see [Architecture](#architecture) below.
 
 ## Usage
+
+**In the app entry** (e.g. `src/index.tsx`), alongside any existing `solid-devtools` import:
+
+```ts
+import 'solid-devtools'
+import '@introspection/plugin-solid-devtools/setup'
+```
+
+**In the test** (or wherever you call `attach()`):
 
 ```ts
 import { attach } from '@introspection/playwright'
