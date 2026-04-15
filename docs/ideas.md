@@ -195,6 +195,10 @@ The two-phase emit (`network.response` always, `network.response.body` when `Net
 - **`introspect init`** — interactive setup wizard. Detects framework and test runner; installs `@introspection/playwright`; writes a minimal `playwright.config.ts` fixture.
 - **`introspect doctor`** — validates setup. `@introspection/playwright` installed? Traces being written? Session directory healthy?
 
+### Plugin testing
+
+- **Shared test helpers across plugin specs.** Each plugin spec currently reimplements `readEvents()` / NDJSON parsing independently. A `@introspection/test-utils` package (or a `test/` helper in the monorepo root) with `readEvents(outDir)`, `tmpDir()`, and common `attach`/`detach` wrappers would eliminate the duplication and make specs easier to write.
+
 ### Plugin DX
 
 - **`introspect plugin add <name>`** — detect package manager (via `nypm` / `package-manager-detector`); install the `@introspection/plugin-*` package. `introspect plugin ls` lists known plugins with install status.
@@ -241,6 +245,7 @@ Shared primitive worth considering: `maxAssetSize` / `maxEventBytes` in `CreateS
 
 ## Schema gaps
 
+- **Named assets (`Record<string, AssetRef>`) on `BaseEvent`.** Currently `assets` is `AssetRef[]`. For plugins that emit multiple semantically distinct assets per event (e.g. `stateBefore` / `stateAfter` on `redux.dispatch`), callers must rely on array index conventions. A `Record<string, AssetRef>` would make the relationship explicit and self-documenting. Breaking change — worth revisiting once more plugins emit multi-asset events.
 - **`BaseEvent.initiator` isn't a typed link.** Marked "best-effort" in `packages/types/src/index.ts`. `network.response.body` documents in a comment that `initiator` points to a response-event id; `debugger.capture` and `snapshot` have no such convention. Readers can't tell at the type level what kind of event an `initiator` points at. Consider `initiator?: { type: TraceEvent['type']; id: string }` or per-event-type subinterface.
 - **No standard way to mark "this event is incomplete."** Needed for backpressure, body truncation, scope truncation, partial snapshots. Adding optional `truncated?: { reason: string; limit?: number }` to `BaseEvent` gives readers a uniform signal.
 
