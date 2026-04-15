@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync, createReadStream } from 'fs'
+import { existsSync, readdirSync, readFileSync, statSync, createReadStream, watch as fsWatch, openSync, readSync, closeSync } from 'fs'
 import { resolve, join } from 'path'
 import type { ServeOptions, SessionMeta } from './types.js'
 import { errorResponse, ERROR_SESSION_NOT_FOUND, ERROR_ASSET_NOT_FOUND, ERROR_STREAMING_NOT_ENABLED } from './errors.js'
@@ -33,7 +33,8 @@ export function createHandler(options: ServeOptions) {
       })
     }
 
-    const segments = path.split('/').filter(Boolean)
+    const pathWithoutLeadingSlash = path.startsWith('/') ? path.slice(1) : path
+    const segments = pathWithoutLeadingSlash.split('/').filter(Boolean)
     const sessionId = segments[0]
     const remainder = segments.slice(1).join('/')
 
@@ -90,22 +91,44 @@ export function createHandler(options: ServeOptions) {
       }
       const encoder = new TextEncoder()
       
+      let watcher: ReturnType<typeof fsWatch> | null = null
       const stream = new ReadableStream({
         start(controller) {
-          const lines = readFileSync(eventsPath, 'utf-8').split('\n').filter(l => l.trim())
-          let index = 0
-          const sendNext = () => {
-            if (index >= lines.length) {
-              controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'))
-              controller.close()
-              return
-            }
-            const event = lines[index]
-            controller.enqueue(encoder.encode(`data: ${event}\n\n`))
-            index++
-            setTimeout(sendNext, 10)
+          let position = 0
+          const sendNewEvents = () => {
+            try {
+              const stat = statSync(eventsPath)
+              if (stat.size > position) {
+                const fd = openSync(eventsPath, 'r')
+                const buffer = Buffer.alloc(stat.size - position)
+                readSync(fd, buffer, 0, buffer.length, position)
+                closeSync(fd)
+                position = stat.size
+                const newLines = buffer.toString('utf-8').split('\n').filter(l => l.trim())
+                for (const line of newLines) {
+                  controller.enqueue(encoder.encode(`data: ${line}\n\n`))
+                }
+              }
+            } catch { /* file deleted or changed during read */ }
           }
-          sendNext()
+          
+          // Send initial events
+          const initial = readFileSync(eventsPath, 'utf-8')
+          position = statSync(eventsPath).size
+          const lines = initial.split('\n').filter(l => l.trim())
+          for (const line of lines) {
+            controller.enqueue(encoder.encode(`data: ${line}\n\n`))
+          }
+          
+          // Watch for new events
+          watcher = fsWatch(eventsPath, (eventType: string) => {
+            if (eventType === 'change') sendNewEvents()
+          })
+          
+          controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'))
+        },
+        cancel() {
+          watcher?.close()
         }
       })
       return new Response(stream, {
