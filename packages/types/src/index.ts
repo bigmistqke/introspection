@@ -566,6 +566,14 @@ export interface SessionWriter extends AssetWriter {
   finalize(): Promise<void>
 }
 
+// ─── Storage Adapter ────────────────────────────────────────────────────────────
+
+export interface StorageAdapter {
+  listDirectories(): Promise<string[]>
+  readText(path: string): Promise<string>
+  readBinary?(path: string): Promise<ArrayBuffer>
+}
+
 // ─── SessionReader (returned by query adapters) ─────────────────────────────
 
 export interface EventsFilter {
