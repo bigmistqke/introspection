@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
-import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput } from '@introspection/types'
+import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, AssetRef } from '@introspection/types'
+import type { MemoryWriteAdapter } from '@introspection/utils'
 import { initSessionDir, appendEvent, writeAsset, finalizeSession } from './session-writer.js'
 import { createBus } from '@introspection/utils'
 
@@ -8,6 +9,7 @@ export interface CreateSessionWriterOptions {
   id?: string
   label?: string
   plugins?: PluginMeta[]
+  adapter?: MemoryWriteAdapter
 }
 
 function createWriteQueue() {
@@ -48,13 +50,26 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
   const id = options.id ?? randomUUID()
   const outDir = options.outDir ?? '.introspect'
   const startedAt = Date.now()
+  const adapter = options.adapter
 
-  await initSessionDir(outDir, {
-    id,
-    startedAt,
-    label: options.label,
-    plugins: options.plugins,
-  })
+  if (adapter) {
+    const meta: SessionMeta = {
+      version: '2',
+      id,
+      startedAt,
+      label: options.label,
+      plugins: options.plugins,
+    }
+    await adapter.writeText(`${id}/meta.json`, JSON.stringify(meta, null, 2))
+    await adapter.writeText(`${id}/events.ndjson`, '')
+  } else {
+    await initSessionDir(outDir, {
+      id,
+      startedAt,
+      label: options.label,
+      plugins: options.plugins,
+    })
+  }
 
   const bus = createBus()
   const queue = createWriteQueue()
@@ -66,7 +81,15 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
 
   function emit(event: EmitInput): Promise<void> {
     const full = { id: randomUUID(), timestamp: timestamp(), ...event } as TraceEvent
-    const writePromise = queue.enqueue(() => appendEvent(outDir, id, full))
+    const writePromise = queue.enqueue(async () => {
+      if (adapter) {
+        const path = `${id}/events.ndjson`
+        const line = JSON.stringify(full) + '\n'
+        await adapter.appendText(path, line)
+      } else {
+        await appendEvent(outDir, id, full)
+      }
+    })
     void bus.emit(full.type, full as BusPayloadMap[typeof full.type])
     return writePromise
   }
@@ -75,11 +98,26 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
     id,
     emit,
     async writeAsset(options) {
-      return queue.enqueue(() => writeAsset({
-        ...options,
-        directory: outDir,
-        name: id,
-      }))
+      return queue.enqueue(async () => {
+        if (adapter) {
+          const assetId = randomUUID().replace(/-/g, '').slice(0, 8)
+          const ext = options.ext ?? 'json'
+          const path = `${id}/assets/${assetId}.${ext}`
+          const content = typeof options.content === 'string' 
+            ? options.content 
+            : new Uint8Array(options.content) as unknown as ArrayBuffer
+          await adapter.writeAsset(path, content)
+          const size = typeof options.content === 'string' 
+            ? Buffer.byteLength(options.content) 
+            : options.content.byteLength
+          return { path, kind: options.kind, size }
+        }
+        return writeAsset({
+          ...options,
+          directory: outDir,
+          name: id,
+        })
+      })
     },
     timestamp,
     bus,
@@ -92,7 +130,19 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
       await bus.emit('detach', { trigger: 'detach', timestamp: timestamp() })
       await tracker.flush()
       await queue.flush()
-      await finalizeSession(outDir, id, Date.now())
+      if (adapter) {
+        const meta: SessionMeta = {
+          version: '2',
+          id,
+          startedAt,
+          label: options.label,
+          plugins: options.plugins,
+        }
+        meta.endedAt = Date.now()
+        await adapter.writeText(`${id}/meta.json`, JSON.stringify(meta, null, 2))
+      } else {
+        await finalizeSession(outDir, id, Date.now())
+      }
     },
   }
 }
