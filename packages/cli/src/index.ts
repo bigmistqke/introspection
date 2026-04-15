@@ -204,15 +204,13 @@ serveCmd
   .option('-p, --port <port>', 'Port to listen on', '3456')
   .option('--prefix <path>', 'URL prefix', '/_introspect')
   .option('--host <address>', 'Host to bind to', '0.0.0.0')
-  .option('--streaming', 'Enable SSE streaming')
-  .action(async (opts: { port: string; prefix: string; host: string; streaming?: boolean }) => {
+  .action(async (opts: { port: string; prefix: string; host: string }) => {
     const dir = program.opts().dir as string
     serve({
       directory: dir,
       port: parseInt(opts.port, 10),
       prefix: opts.prefix,
       host: opts.host,
-      streaming: opts.streaming,
     })
   })
 

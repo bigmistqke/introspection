@@ -42,10 +42,11 @@ describe('createHandler', () => {
     expect(response!.headers.get('content-type')).toBe('application/x-ndjson')
   })
 
-  it('returns 400 for streaming endpoint without streaming enabled', () => {
-    const handler = createHandler({ directory: fixturesDir, streaming: false })
+  it('returns events as JSON', () => {
+    const handler = createHandler({ directory: fixturesDir })
     const response = handler({ url: '/_introspect/session-1/events' })
     expect(response).not.toBeNull()
-    expect(response!.status).toBe(400)
+    expect(response!.status).toBe(200)
+    expect(response!.headers.get('content-type')).toBe('application/json')
   })
 })

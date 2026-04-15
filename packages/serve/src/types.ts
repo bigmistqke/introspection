@@ -1,7 +1,6 @@
 export interface ServeOptions {
   directory: string
   prefix?: string
-  streaming?: boolean
 }
 
 export interface NodeServeOptions extends ServeOptions {

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, createReadStream, watch as fsWatch, openSync, readSync, closeSync } from 'fs'
 import { resolve, join } from 'path'
 import type { ServeOptions, SessionMeta } from './types.js'
-import { errorResponse, ERROR_SESSION_NOT_FOUND, ERROR_ASSET_NOT_FOUND, ERROR_STREAMING_NOT_ENABLED } from './errors.js'
+import { errorResponse, ERROR_SESSION_NOT_FOUND, ERROR_ASSET_NOT_FOUND } from './errors.js'
 
 const CONTENT_TYPES: Record<string, string> = {
   json: 'application/json',
@@ -13,14 +13,18 @@ const CONTENT_TYPES: Record<string, string> = {
 }
 
 export function createHandler(options: ServeOptions) {
-  const { directory, prefix = '/_introspect', streaming = false } = options
+  const { directory, prefix = '/_introspect' } = options
   const resolvedDirectory = resolve(directory)
 
   return (request: { url: string; headers?: Record<string, string> }): Response | null => {
     const url = request.url
     if (!url.startsWith(prefix)) return null
 
-    const path = url.slice(prefix.length)
+    const cleanUrl = url.startsWith(prefix) ? url.slice(prefix.length) : url
+    const [pathStr, queryStr] = cleanUrl.split('?')
+    const params = new URLSearchParams(queryStr)
+    const isSSE = params.has('sse')
+    const path = pathStr
 
     if (path === '' || path === '/') {
       if (!existsSync(resolvedDirectory)) {
@@ -72,9 +76,6 @@ export function createHandler(options: ServeOptions) {
       if (!existsSync(eventsPath)) {
         return new Response('', { headers: { 'Content-Type': 'application/x-ndjson' } })
       }
-      if (streaming) {
-        return new Response('', { headers: { 'Content-Type': 'application/x-ndjson' } })
-      }
       const stat = statSync(eventsPath)
       const stream = createReadStream(eventsPath)
       return new Response(stream as unknown as ReadableStream<Uint8Array>, {
@@ -82,7 +83,21 @@ export function createHandler(options: ServeOptions) {
       })
     }
 
-    if (remainder === 'events' && streaming) {
+    // GET /:session/events -> Event[] (JSON)
+    if (remainder === 'events' && !isSSE) {
+      const eventsPath = join(sessionDir, 'events.ndjson')
+      if (!existsSync(eventsPath)) {
+        return new Response('[]', { headers: { 'Content-Type': 'application/json' } })
+      }
+      const lines = readFileSync(eventsPath, 'utf-8').split('\n').filter(l => l.trim())
+      const events = lines.map(line => JSON.parse(line))
+      return new Response(JSON.stringify(events), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    // GET /:session/events?sse -> SSE
+    if (remainder === 'events' && isSSE) {
       const eventsPath = join(sessionDir, 'events.ndjson')
       if (!existsSync(eventsPath)) {
         return new Response('', { 
@@ -112,7 +127,6 @@ export function createHandler(options: ServeOptions) {
             } catch { /* file deleted or changed during read */ }
           }
           
-          // Send initial events
           const initial = readFileSync(eventsPath, 'utf-8')
           position = statSync(eventsPath).size
           const lines = initial.split('\n').filter(l => l.trim())
@@ -120,7 +134,6 @@ export function createHandler(options: ServeOptions) {
             controller.enqueue(encoder.encode(`data: ${line}\n\n`))
           }
           
-          // Watch for new events
           watcher = fsWatch(eventsPath, (eventType: string) => {
             if (eventType === 'change') sendNewEvents()
           })
@@ -134,10 +147,6 @@ export function createHandler(options: ServeOptions) {
       return new Response(stream, {
         headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
       })
-    }
-
-    if (remainder === 'events' && !streaming) {
-      return errorResponse(400, ERROR_STREAMING_NOT_ENABLED)
     }
 
     if (remainder.startsWith('assets/')) {
