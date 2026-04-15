@@ -7,7 +7,7 @@ export function serve(options: NodeServeOptions): Server {
   const { port, host = '0.0.0.0', ...handlerOptions } = options
   const handler = createHandler(handlerOptions)
 
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     const request = {
       url: req.url ?? '',
       headers: req.headers as Record<string, string>,
@@ -26,24 +26,12 @@ export function serve(options: NodeServeOptions): Server {
     })
 
     const body = response.body
-    if (body instanceof ReadableStream) {
-      const reader = body.getReader()
-      function pump() {
-        reader.read().then(({ done, value }) => {
-          if (done) {
-            res.end()
-            return
-          }
-          res.write(Buffer.from(value))
-          pump()
-        })
+    if (body) {
+      for await (const chunk of body) {
+        res.write(Buffer.from(chunk))
       }
-      pump()
-    } else if (body) {
-      res.end(body)
-    } else {
-      res.end()
     }
+    res.end()
   })
 
   server.listen(port, host, () => {

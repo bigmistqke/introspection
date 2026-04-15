@@ -37,24 +37,12 @@ export function introspectionServe(options?: IntrospectionServeOptions): Plugin 
         })
 
         const body = response.body
-        if (body instanceof ReadableStream) {
-          const reader = body.getReader()
-          function pump() {
-            reader.read().then(({ done, value }) => {
-              if (done) {
-                res.end()
-                return
-              }
-              res.write(Buffer.from(value))
-              pump()
-            })
+        if (body) {
+          for await (const chunk of body) {
+            res.write(Buffer.from(chunk))
           }
-          pump()
-        } else if (body) {
-          res.end(body)
-        } else {
-          res.end()
         }
+        res.end()
       })
     },
   }
