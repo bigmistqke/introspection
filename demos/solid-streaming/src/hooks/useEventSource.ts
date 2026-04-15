@@ -6,13 +6,15 @@ import type { TraceEvent, SessionReader } from '@introspection/types'
  * Automatically connects when the session becomes available.
  */
 export function useEventSource(
-  url: string,
+  getUrl: Accessor<string | null>,
   getSession: Accessor<SessionReader | undefined>,
 ) {
   const [status, setStatus] = createSignal<'connecting' | 'connected' | 'done' | 'error'>('connecting')
   let source: EventSource | null = null
 
   function connect() {
+    const url = getUrl()
+    if (!url) return
     if (source) source.close()
     setStatus('connecting')
 

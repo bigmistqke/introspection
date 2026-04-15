@@ -66,7 +66,10 @@ export default function App() {
 function SessionView(props: { session?: SessionReader }) {
   const [selected, setSelected] = createSignal<TraceEvent | null>(null);
 
-  const { status } = useEventSource("/events", () => props.session);
+  const { status } = useEventSource(
+    () => props.session ? `/__introspect/${props.session.id}/events?sse` : null,
+    () => props.session,
+  );
 
   const allEvents = useWatchedQuery(() => props.session, undefined, {
     verbose: VERBOSE,
@@ -172,7 +175,7 @@ function SessionView(props: { session?: SessionReader }) {
 }
 
 function AssetPreview(props: { session?: SessionReader; asset: AssetRef }) {
-  const assetUrl = () => `/__introspect/stream/${props.asset.path}`
+  const assetUrl = () => `/__introspect/${props.session?.id}/${props.asset.path}`
 
   const [content] = createResource(
     () => props.asset.path,

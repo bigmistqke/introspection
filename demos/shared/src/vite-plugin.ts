@@ -26,7 +26,7 @@ export function introspectionServe(options?: IntrospectionServeOptions): Plugin 
         prefix,
       })
 
-      server.middlewares.use((req, res, next) => {
+      server.middlewares.use(async (req, res, next) => {
         const request = { url: req.url ?? '' }
         const response = handler(request)
         if (response === null) return next()

@@ -110,6 +110,52 @@ test('valtio + react: devtools middleware integration', async ({ page }) => {
   expect(valtioEvents.length).toBeGreaterThanOrEqual(3)
 })
 
+test('zustand + react: emits redux.snapshot on store creation via devtools middleware', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [redux()] })
+  await page.goto('http://localhost:8765/zustand-react/index.html')
+
+  await page.waitForTimeout(100)
+  await handle.flush()
+  await handle.detach()
+
+  const events = await readEvents(outDir)
+  const snapshots = events.filter((e: any) => e.type === 'redux.snapshot')
+
+  expect(snapshots.length).toBeGreaterThanOrEqual(1)
+  const snapshot = snapshots[0]
+  expect(snapshot.assets).toHaveLength(1)
+  expect(snapshot.assets[0].kind).toBe('json')
+
+  const entries = await readdir(outDir)
+  const sessionDir = join(outDir, entries[0])
+  const state = JSON.parse(await readFile(join(sessionDir, snapshot.assets[0].path), 'utf-8'))
+  expect(state).toHaveProperty('count')
+  expect(state).toHaveProperty('items')
+})
+
+test('valtio + react: emits redux.snapshot on store creation via devtools', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [redux()] })
+  await page.goto('http://localhost:8765/valtio-react/index.html')
+
+  await page.waitForTimeout(100)
+  await handle.flush()
+  await handle.detach()
+
+  const events = await readEvents(outDir)
+  const snapshots = events.filter((e: any) => e.type === 'redux.snapshot')
+
+  expect(snapshots.length).toBeGreaterThanOrEqual(1)
+  const snapshot = snapshots[0]
+  expect(snapshot.assets).toHaveLength(1)
+  expect(snapshot.assets[0].kind).toBe('json')
+
+  const entries = await readdir(outDir)
+  const sessionDir = join(outDir, entries[0])
+  const state = JSON.parse(await readFile(join(sessionDir, snapshot.assets[0].path), 'utf-8'))
+  expect(state).toHaveProperty('count')
+  expect(state).toHaveProperty('items')
+})
+
 test('snapshots store state and dispatches compute diffs', async ({ page }) => {
   const handle = await attach(page, { outDir, plugins: [redux()] })
   await page.goto('http://localhost:8765/redux-react/index.html')
