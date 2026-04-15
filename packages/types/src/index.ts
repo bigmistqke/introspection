@@ -591,6 +591,7 @@ export interface AssetsAPI {
   ls(): Promise<AssetRef[]>
   metadata(path: string): Promise<AssetRef | undefined>
   readText(path: string): Promise<string>
+  readJSON<T>(path: string): Promise<T>
   readBinary?(path: string): Promise<ArrayBuffer>
 }
 
