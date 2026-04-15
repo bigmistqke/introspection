@@ -281,7 +281,20 @@ export interface ReactScanReportEvent extends BaseEvent {
   }
 }
 
+export interface JsonPatchOperation {
+  op: 'add' | 'remove' | 'replace' | 'move' | 'copy' | 'test'
+  path: string
+  value?: unknown
+  from?: string
+}
+
 // ─── Plugin events: redux ───────────────────────────────────────────────────
+
+export interface ReduxSnapshotEvent extends BaseEvent {
+  type: 'redux.snapshot'
+  assets: [AssetRef]
+  metadata?: never
+}
 
 export interface ReduxDispatchEvent extends BaseEvent {
   type: 'redux.dispatch'
@@ -289,8 +302,7 @@ export interface ReduxDispatchEvent extends BaseEvent {
     action: string
     instance?: string
     payload?: unknown
-    stateBefore?: unknown
-    stateAfter?: unknown
+    diff: JsonPatchOperation[]
   }
 }
 
@@ -396,6 +408,7 @@ export interface TraceEventMap {
   'react-scan.commit': ReactScanCommitEvent
   'react-scan.report': ReactScanReportEvent
   // Redux
+  'redux.snapshot': ReduxSnapshotEvent
   'redux.dispatch': ReduxDispatchEvent
   // CDP trace
   'cdp.command': CdpCommandEvent
