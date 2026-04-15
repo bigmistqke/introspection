@@ -110,7 +110,7 @@ test('valtio + react: devtools middleware integration', async ({ page }) => {
   expect(valtioEvents.length).toBeGreaterThanOrEqual(3)
 })
 
-test('captureState: snapshots store state before/after', async ({ page }) => {
+test('captureState: snapshots store state before/after as assets', async ({ page }) => {
   const handle = await attach(page, { outDir, plugins: [redux({ captureState: true })] })
   await page.goto('http://localhost:8765/redux-react/index.html')
 
@@ -120,13 +120,26 @@ test('captureState: snapshots store state before/after', async ({ page }) => {
   await handle.flush()
   await handle.detach()
 
+  const entries = await readdir(outDir)
+  const sessionDir = join(outDir, entries[0])
   const events = await readEvents(outDir)
   const incrementEvent = events.find(
     (e: any) => e.type === 'redux.dispatch' && e.metadata.action === 'INCREMENT'
   )
   expect(incrementEvent).toBeDefined()
-  expect(incrementEvent.metadata.stateBefore).toBeDefined()
-  expect(incrementEvent.metadata.stateAfter).toBeDefined()
-  expect(incrementEvent.metadata.stateBefore.count).toBe(0)
-  expect(incrementEvent.metadata.stateAfter.count).toBe(1)
+
+  // State must NOT be inlined in metadata
+  expect(incrementEvent.metadata.stateBefore).toBeUndefined()
+  expect(incrementEvent.metadata.stateAfter).toBeUndefined()
+
+  // State must be written as assets
+  expect(incrementEvent.assets).toHaveLength(2)
+  const [stateBeforeRef, stateAfterRef] = incrementEvent.assets
+  expect(stateBeforeRef.kind).toBe('json')
+  expect(stateAfterRef.kind).toBe('json')
+
+  const stateBefore = JSON.parse(await readFile(join(sessionDir, stateBeforeRef.path), 'utf-8'))
+  const stateAfter = JSON.parse(await readFile(join(sessionDir, stateAfterRef.path), 'utf-8'))
+  expect(stateBefore.count).toBe(0)
+  expect(stateAfter.count).toBe(1)
 })

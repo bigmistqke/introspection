@@ -1,4 +1,4 @@
-import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
+import type { IntrospectionPlugin, PluginContext, EmitInput } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 
 export type { ReduxDispatchEvent } from '@introspection/types'
@@ -47,6 +47,10 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
         if (captureState) {
           if (stateBefore !== undefined) event.metadata.stateBefore = stateBefore;
           if (stateAfter !== undefined) event.metadata.stateAfter = stateAfter;
+          if (window.__introspection_plugin_redux_dispatch) {
+            window.__introspection_plugin_redux_dispatch(JSON.stringify(event));
+            return;
+          }
         }
         if (window.__introspect_push__) {
           window.__introspect_push__(JSON.stringify(event));
@@ -143,9 +147,48 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
       'redux.dispatch': 'Store dispatch with action type and optional payload/state',
     },
     script,
-    async install(_context: PluginContext): Promise<void> {
+    async install(ctx: PluginContext): Promise<void> {
       debug('installing', { captureState })
-      // All work is done browser-side via the script
+
+      if (!captureState) return
+
+      await ctx.cdpSession.send('Runtime.addBinding', {
+        name: '__introspection_plugin_redux_dispatch',
+      })
+
+      ctx.cdpSession.on('Runtime.bindingCalled', async (params: unknown) => {
+        const { name, payload } = params as { name: string; payload: string }
+        if (name !== '__introspection_plugin_redux_dispatch') return
+
+        try {
+          const event = JSON.parse(payload) as EmitInput
+          const metadata = event.metadata as Record<string, unknown>
+
+          const stateBefore = metadata.stateBefore
+          const stateAfter = metadata.stateAfter
+          delete metadata.stateBefore
+          delete metadata.stateAfter
+
+          const assets = []
+
+          if (stateBefore !== undefined) {
+            const ref = await ctx.writeAsset({ kind: 'json', content: JSON.stringify(stateBefore) })
+            assets.push(ref)
+          }
+          if (stateAfter !== undefined) {
+            const ref = await ctx.writeAsset({ kind: 'json', content: JSON.stringify(stateAfter) })
+            assets.push(ref)
+          }
+
+          if (assets.length > 0) {
+            event.assets = assets
+          }
+
+          await ctx.emit(event)
+        } catch (err) {
+          debug('dispatch binding error', (err as Error).message)
+        }
+      })
     },
   }
 }
