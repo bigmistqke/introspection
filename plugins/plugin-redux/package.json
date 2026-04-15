@@ -15,7 +15,9 @@
   },
   "dependencies": {
     "@introspection/types": "workspace:*",
-    "@introspection/utils": "workspace:*"
+    "@introspection/utils": "workspace:*",
+    "@types/fast-json-patch": "^1.1.7",
+    "fast-json-patch": "^3.1.1"
   },
   "devDependencies": {
     "@introspection/playwright": "workspace:*",
