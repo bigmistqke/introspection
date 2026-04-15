@@ -1,15 +1,7 @@
-import type { TraceEvent, AssetRef, SessionReader, SessionMeta, EventsFilter, Watchable, WatchableWithFilter } from '@introspection/types'
+import type { TraceEvent, AssetRef, SessionReader, SessionMeta, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 
-export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI, Watchable, WatchableWithFilter } from '@introspection/types'
-
-// ─── Adapter ─────────────────────────────────────────────────────────────────
-
-export interface StorageAdapter {
-  listDirectories(): Promise<string[]>
-  readText(path: string): Promise<string>
-  readBinary?(path: string): Promise<ArrayBuffer>
-}
+export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
 
 // ─── Type matching ───────────────────────────────────────────────────────────
 
@@ -199,6 +191,10 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
         return Promise.resolve(undefined)
       },
       readText: (path) => adapter.readText(`${id}/${path}`),
+      readJSON: async <T>(path: string): Promise<T> => {
+        const raw = await adapter.readText(`${id}/${path}`)
+        return JSON.parse(raw) as T
+      },
       readBinary: adapter.readBinary
         ? (path) => adapter.readBinary!(`${id}/${path}`)
         : undefined,
