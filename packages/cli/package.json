@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@introspection/read": "workspace:*",
+    "@introspection/serve": "workspace:*",
     "@introspection/types": "workspace:*",
     "@introspection/utils": "workspace:*",
     "@introspection/playwright": "workspace:*",

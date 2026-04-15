@@ -12,9 +12,6 @@
       "import": "./dist/node.js"
     }
   },
-  "bin": {
-    "introspect-serve": "./dist/node.js"
-  },
   "scripts": {
     "build": "tsup src/index.ts src/node.ts --format esm --dts",
     "test": "vitest run",

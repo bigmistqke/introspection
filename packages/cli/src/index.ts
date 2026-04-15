@@ -9,6 +9,7 @@ import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
 import { createSessionReader, listSessions } from '@introspection/read/node'
+import { serve } from '@introspection/serve/node'
 
 const BUNDLED_SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url))
 const program = new Command()
@@ -196,6 +197,23 @@ program
       console.error(`Error: ${(error as Error).message}`)
       process.exit(1)
     }
+  })
+
+const serveCmd = program.command('serve').description('Serve introspection traces over HTTP')
+serveCmd
+  .option('-p, --port <port>', 'Port to listen on', '3456')
+  .option('--prefix <path>', 'URL prefix', '/_introspect')
+  .option('--host <address>', 'Host to bind to', '0.0.0.0')
+  .option('--streaming', 'Enable SSE streaming')
+  .action(async (opts: { port: string; prefix: string; host: string; streaming?: boolean }) => {
+    const dir = program.opts().dir as string
+    serve({
+      directory: dir,
+      port: parseInt(opts.port, 10),
+      prefix: opts.prefix,
+      host: opts.host,
+      streaming: opts.streaming,
+    })
   })
 
 program.parseAsync()
