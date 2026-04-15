@@ -20,11 +20,10 @@ export function createHandler(options: ServeOptions) {
     const url = request.url
     if (!url.startsWith(prefix)) return null
 
-    const cleanUrl = url.startsWith(prefix) ? url.slice(prefix.length) : url
-    const [pathStr, queryStr] = cleanUrl.split('?')
-    const params = new URLSearchParams(queryStr)
+    const cleanUrl = url.slice(prefix.length)
+    const params = new URLSearchParams(cleanUrl)
+    const path = cleanUrl.split('?')[0]
     const isSSE = params.has('sse')
-    const path = pathStr
 
     if (path === '' || path === '/') {
       if (!existsSync(resolvedDirectory)) {
