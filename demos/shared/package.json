@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@introspection/read": "workspace:*",
+    "@introspection/serve": "workspace:*",
     "@introspection/utils": "workspace:*"
   },
   "devDependencies": {
