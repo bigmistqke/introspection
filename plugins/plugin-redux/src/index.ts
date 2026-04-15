@@ -4,6 +4,8 @@ import jsonpatch, { Operation } from 'fast-json-patch'
 
 export type { ReduxDispatchEvent, ReduxSnapshotEvent } from '@introspection/types'
 
+export { reconstruct, ReduxError } from './reconstruct.js'
+
 export interface ReduxPluginOptions {
   verbose?: boolean
 }
