@@ -52,29 +52,3 @@ export function serve(options: NodeServeOptions): Server {
 
   return server
 }
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const args = process.argv.slice(2)
-  const options: NodeServeOptions = {
-    directory: '.introspect',
-    port: 3456,
-    prefix: '/_introspect',
-  }
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    if (arg === '-d' || arg === '--directory') {
-      options.directory = args[++i]
-    } else if (arg === '-p' || arg === '--port') {
-      options.port = parseInt(args[++i], 10)
-    } else if (arg === '--prefix') {
-      options.prefix = args[++i]
-    } else if (arg === '--streaming') {
-      options.streaming = true
-    } else if (arg === '--host') {
-      options.host = args[++i]
-    }
-  }
-
-  serve(options)
-}
