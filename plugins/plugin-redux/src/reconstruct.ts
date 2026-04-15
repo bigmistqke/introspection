@@ -41,7 +41,7 @@ export async function reconstruct(opts: {
 
   let state = snapshotState
 
-  for (let i = snapshotIndex + 1; i <= targetEventIdx; i++) {
+  for (let i = snapshotIndex + 1; i < targetEventIdx; i++) {
     const event = events[i]
     if (event.type === 'redux.dispatch') {
       const dispatch = event as ReduxDispatchEvent

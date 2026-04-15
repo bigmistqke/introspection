@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsup src/index.ts src/reconstruct.ts --format esm --dts",
     "test": "playwright test",
+    "test:unit": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -32,6 +33,7 @@
     "typescript": "^5.0.0",
     "valtio": "^1.11.2",
     "vite": "^5.0.0",
+    "vitest": "^2.1.9",
     "zustand": "^4.4.1"
   }
 }
