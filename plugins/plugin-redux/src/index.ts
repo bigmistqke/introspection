@@ -1,17 +1,15 @@
 import type { IntrospectionPlugin, PluginContext, EmitInput } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
+import jsonpatch, { Operation } from 'fast-json-patch'
 
-export type { ReduxDispatchEvent } from '@introspection/types'
+export type { ReduxDispatchEvent, ReduxSnapshotEvent } from '@introspection/types'
 
 export interface ReduxPluginOptions {
   verbose?: boolean
-  /** Capture state before/after each dispatch. Can be expensive. Default: false */
-  captureState?: boolean
 }
 
 export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
   const debug = createDebug('plugin-redux', options?.verbose ?? false)
-  const captureState = options?.captureState ?? false
 
   // Installs stubs for the Redux DevTools Extension globals so any store
   // wired up with `composeWithDevTools` / `__REDUX_DEVTOOLS_EXTENSION__` —
@@ -20,7 +18,6 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
   // connects to us automatically. No app changes required.
   const script = `
     (function() {
-      var captureState = ${captureState ? 'true' : 'false'};
       var instanceCounter = 0;
 
       function clone(value) {
@@ -35,25 +32,25 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
 
       function emit(action, instance, stateBefore, stateAfter) {
         if (action == null) return;
-        var event = {
-          type: 'redux.dispatch',
-          metadata: { action: actionName(action) }
-        };
-        if (instance) event.metadata.instance = instance;
-        if (action && typeof action === 'object' && action.payload !== undefined) {
-          var payload = clone(action.payload);
-          if (payload !== undefined) event.metadata.payload = payload;
+        var actionPayload = (action && typeof action === 'object' && action.payload !== undefined)
+          ? clone(action.payload)
+          : undefined;
+        var payload = JSON.stringify({
+          action: actionName(action),
+          instance: instance,
+          actionPayload: actionPayload,
+          stateBefore: stateBefore,
+          stateAfter: stateAfter
+        });
+        if (window.__introspection_plugin_redux_dispatch) {
+          window.__introspection_plugin_redux_dispatch(payload);
         }
-        if (captureState) {
-          if (stateBefore !== undefined) event.metadata.stateBefore = stateBefore;
-          if (stateAfter !== undefined) event.metadata.stateAfter = stateAfter;
-          if (window.__introspection_plugin_redux_dispatch) {
-            window.__introspection_plugin_redux_dispatch(JSON.stringify(event));
-            return;
-          }
-        }
-        if (window.__introspect_push__) {
-          window.__introspect_push__(JSON.stringify(event));
+      }
+
+      function emitSnapshot(state) {
+        var snapshotEvent = JSON.stringify({ type: 'redux.snapshot', state: clone(state) });
+        if (window.__introspection_plugin_redux_snapshot) {
+          window.__introspection_plugin_redux_snapshot(snapshotEvent);
         }
       }
 
@@ -69,11 +66,12 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
         return function (createStore) {
           return function (reducer, preloadedState) {
             var store = createStore(reducer, preloadedState);
+            emitSnapshot(store.getState());
             var originalDispatch = store.dispatch;
             store.dispatch = function (action) {
-              var stateBefore = captureState ? clone(store.getState()) : undefined;
+              var stateBefore = clone(store.getState());
               var result = originalDispatch.apply(store, arguments);
-              var stateAfter = captureState ? clone(store.getState()) : undefined;
+              var stateAfter = clone(store.getState());
               emit(action, instance, stateBefore, stateAfter);
               return result;
             };
@@ -91,9 +89,6 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
         });
       }
 
-      // composeWithDevTools — supports both call shapes:
-      //   composeWithDevTools(...enhancers)         // direct
-      //   composeWithDevTools(options)(...enhancers) // curried with options (RTK)
       function composeWithDevTools() {
         var funcs = Array.prototype.slice.call(arguments);
         if (funcs.length === 0) return instrument();
@@ -107,18 +102,18 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
         return compose.apply(null, [instrument()].concat(funcs));
       }
 
-      // Direct enhancer: createStore(reducer, __REDUX_DEVTOOLS_EXTENSION__(options))
       function extension(connectOptions) { return instrument(connectOptions); }
 
-      // Manual connect API — used by Zustand, MobX-state-tree, XState, Jotai,
-      // Effector, Valtio, and any library that talks to devtools by hand.
       extension.connect = function (connectOptions) {
         var instance = instanceNameFromOptions(connectOptions);
         var lastState;
         return {
-          init: function (state) { lastState = captureState ? clone(state) : undefined },
+          init: function (state) {
+            lastState = clone(state);
+            emitSnapshot(state);
+          },
           send: function (action, state) {
-            var nextState = captureState ? clone(state) : undefined;
+            var nextState = clone(state);
             emit(action, instance, lastState, nextState);
             lastState = nextState;
           },
@@ -148,45 +143,56 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
     },
     script,
     async install(ctx: PluginContext): Promise<void> {
-      debug('installing', { captureState })
-
-      if (!captureState) return
+      debug('installing')
 
       await ctx.cdpSession.send('Runtime.addBinding', {
         name: '__introspection_plugin_redux_dispatch',
       })
+      await ctx.cdpSession.send('Runtime.addBinding', {
+        name: '__introspection_plugin_redux_snapshot',
+      })
 
       ctx.cdpSession.on('Runtime.bindingCalled', async (params: unknown) => {
         const { name, payload } = params as { name: string; payload: string }
-        if (name !== '__introspection_plugin_redux_dispatch') return
 
-        try {
-          const event = JSON.parse(payload) as EmitInput
-          const metadata = event.metadata as Record<string, unknown>
-
-          const stateBefore = metadata.stateBefore
-          const stateAfter = metadata.stateAfter
-          delete metadata.stateBefore
-          delete metadata.stateAfter
-
-          const assets = []
-
-          if (stateBefore !== undefined) {
-            const ref = await ctx.writeAsset({ kind: 'json', content: JSON.stringify(stateBefore) })
-            assets.push(ref)
+        if (name === '__introspection_plugin_redux_snapshot') {
+          try {
+            const { type, state } = JSON.parse(payload)
+            if (type === 'redux.snapshot' && state !== undefined) {
+              const ref = await ctx.writeAsset({ kind: 'json', content: JSON.stringify(state) })
+              await ctx.emit({
+                type: 'redux.snapshot',
+                assets: [ref],
+              })
+            }
+          } catch (err) {
+            debug('snapshot binding error', (err as Error).message)
           }
-          if (stateAfter !== undefined) {
-            const ref = await ctx.writeAsset({ kind: 'json', content: JSON.stringify(stateAfter) })
-            assets.push(ref)
-          }
+          return
+        }
 
-          if (assets.length > 0) {
-            event.assets = assets
-          }
+        if (name === '__introspection_plugin_redux_dispatch') {
+          try {
+            const { action, instance, actionPayload, stateBefore, stateAfter } = JSON.parse(payload)
 
-          await ctx.emit(event)
-        } catch (err) {
-          debug('dispatch binding error', (err as Error).message)
+            const diff: Operation[] = stateBefore !== undefined && stateAfter !== undefined
+              ? jsonpatch.compare(stateBefore, stateAfter)
+              : []
+
+            const event: EmitInput = {
+              type: 'redux.dispatch',
+              metadata: {
+                action,
+                ...(instance && { instance }),
+                ...(actionPayload !== undefined && { payload: actionPayload }),
+                diff,
+              },
+            }
+
+            await ctx.emit(event)
+          } catch (err) {
+            debug('dispatch binding error', (err as Error).message)
+          }
         }
       })
     },

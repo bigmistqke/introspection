@@ -110,8 +110,8 @@ test('valtio + react: devtools middleware integration', async ({ page }) => {
   expect(valtioEvents.length).toBeGreaterThanOrEqual(3)
 })
 
-test('captureState: snapshots store state before/after as assets', async ({ page }) => {
-  const handle = await attach(page, { outDir, plugins: [redux({ captureState: true })] })
+test('snapshots store state and dispatches compute diffs', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [redux()] })
   await page.goto('http://localhost:8765/redux-react/index.html')
 
   await page.click('#increment')
@@ -123,23 +123,27 @@ test('captureState: snapshots store state before/after as assets', async ({ page
   const entries = await readdir(outDir)
   const sessionDir = join(outDir, entries[0])
   const events = await readEvents(outDir)
+
+  const snapshotEvent = events.find((e: any) => e.type === 'redux.snapshot')
+  expect(snapshotEvent).toBeDefined()
+  expect(snapshotEvent.assets).toHaveLength(1)
+  const snapshotRef = snapshotEvent.assets[0]
+  expect(snapshotRef.kind).toBe('json')
+  const initialState = JSON.parse(await readFile(join(sessionDir, snapshotRef.path), 'utf-8'))
+  expect(initialState.count).toBe(0)
+
   const incrementEvent = events.find(
     (e: any) => e.type === 'redux.dispatch' && e.metadata.action === 'INCREMENT'
   )
   expect(incrementEvent).toBeDefined()
 
-  // State must NOT be inlined in metadata
   expect(incrementEvent.metadata.stateBefore).toBeUndefined()
   expect(incrementEvent.metadata.stateAfter).toBeUndefined()
+  expect(incrementEvent.assets).toBeUndefined()
 
-  // State must be written as assets
-  expect(incrementEvent.assets).toHaveLength(2)
-  const [stateBeforeRef, stateAfterRef] = incrementEvent.assets
-  expect(stateBeforeRef.kind).toBe('json')
-  expect(stateAfterRef.kind).toBe('json')
-
-  const stateBefore = JSON.parse(await readFile(join(sessionDir, stateBeforeRef.path), 'utf-8'))
-  const stateAfter = JSON.parse(await readFile(join(sessionDir, stateAfterRef.path), 'utf-8'))
-  expect(stateBefore.count).toBe(0)
-  expect(stateAfter.count).toBe(1)
+  expect(incrementEvent.metadata.diff).toBeDefined()
+  expect(incrementEvent.metadata.diff).toHaveLength(1)
+  expect(incrementEvent.metadata.diff[0].op).toBe('replace')
+  expect(incrementEvent.metadata.diff[0].path).toBe('/count')
+  expect(incrementEvent.metadata.diff[0].value).toBe(1)
 })
