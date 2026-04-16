@@ -395,6 +395,9 @@ importers:
         specifier: workspace:*
         version: link:../utils
     devDependencies:
+      '@introspection/write':
+        specifier: workspace:*
+        version: link:../write
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.8)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
@@ -701,6 +704,9 @@ importers:
       vite:
         specifier: ^5.0.0
         version: 5.4.21(@types/node@22.19.17)
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.19.17)
       zustand:
         specifier: ^4.4.1
         version: 4.5.7(@types/react@19.2.14)(immer@9.0.21)(react@18.3.1)

@@ -25,8 +25,7 @@ export function createNodeAdapter(dir: string): StorageAdapter {
       return readFile(join(dir, path), 'utf-8')
     },
     async readBinary(path: string) {
-      const buffer = await readFile(join(dir, path))
-      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer
+      return readFile(join(dir, path))
     },
     async readJSON<T = unknown>(path: string): Promise<T> {
       const text = await readFile(join(dir, path), 'utf-8')

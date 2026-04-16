@@ -24,7 +24,7 @@ export function createFetchAdapter(baseUrl: string): StorageAdapter {
     async readBinary(path: string) {
       const response = await fetch(`${base}/${path}`)
       if (!response.ok) throw new Error(`Failed to fetch ${path}: ${response.status}`)
-      return response.arrayBuffer()
+      return new Uint8Array(await response.arrayBuffer())
     },
 
     async readJSON<T = unknown>(path: string): Promise<T> {

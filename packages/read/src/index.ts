@@ -2,6 +2,7 @@ import type { TraceEvent, AssetRef, SessionReader, SessionMeta, EventsFilter, Wa
 import { createDebug } from '@introspection/utils'
 
 export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
+export { createMemoryReadAdapter } from './memory.js'
 
 // ─── Type matching ───────────────────────────────────────────────────────────
 
@@ -35,11 +36,11 @@ export async function listSessions(adapter: StorageAdapter): Promise<SessionSumm
   if (sessionIds.length === 0) return []
 
   const results = await Promise.all(
-    sessionIds.map(async (id) => {
+    sessionIds.map(async (id): Promise<SessionSummary | null> => {
       try {
         const raw = await adapter.readText(`${id}/meta.json`)
         const meta = JSON.parse(raw) as { id: string; startedAt: number; endedAt?: number; label?: string }
-        return { id: meta.id, label: meta.label, startedAt: meta.startedAt, endedAt: meta.endedAt, duration: meta.endedAt ? meta.endedAt - meta.startedAt : undefined } satisfies SessionSummary
+        return { id: meta.id, label: meta.label, startedAt: meta.startedAt, endedAt: meta.endedAt, duration: meta.endedAt ? meta.endedAt - meta.startedAt : undefined }
       } catch {
         return null // skip malformed sessions
       }

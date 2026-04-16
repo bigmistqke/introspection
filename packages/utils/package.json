@@ -17,8 +17,6 @@
     "@introspection/types": "workspace:*"
   },
   "devDependencies": {
-    "@introspection/read": "workspace:*",
-    "@introspection/write": "workspace:*",
     "vitest": "^2.0.0"
   }
 }

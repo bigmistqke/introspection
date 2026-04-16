@@ -218,14 +218,14 @@ describe('assets API', () => {
     expect(await reader.assets.readText('assets/a1.json')).toBe('{"x":1}')
   })
 
-  it('readBinary returns an ArrayBuffer of the asset bytes', async () => {
+  it('readBinary returns a Uint8Array of the asset bytes', async () => {
     await writeFixtureSession(dir, {
       id: 's',
       startedAt: 0,
       assets: [{ path: 'assets/bin', content: Buffer.from([9, 8, 7]) }],
     })
     const reader = await createSessionReader(dir)
-    const buffer = await reader.assets.readBinary!('assets/bin')
-    expect(Array.from(new Uint8Array(buffer))).toEqual([9, 8, 7])
+    const bytes = await reader.assets.readBinary!('assets/bin')
+    expect(Array.from(bytes)).toEqual([9, 8, 7])
   })
 })

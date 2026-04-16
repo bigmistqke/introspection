@@ -37,11 +37,11 @@ describe('createNodeAdapter', () => {
     expect(await adapter.readText('s/meta.json')).toBe('{"x":1}')
   })
 
-  it('readBinary returns an ArrayBuffer of the file bytes', async () => {
+  it('readBinary returns a Uint8Array of the file bytes', async () => {
     await mkdir(join(dir, 's'))
     await writeFile(join(dir, 's', 'data.bin'), Buffer.from([1, 2, 3, 255]))
     const adapter = createNodeAdapter(dir)
-    const buffer = await adapter.readBinary!('s/data.bin')
-    expect(Array.from(new Uint8Array(buffer))).toEqual([1, 2, 3, 255])
+    const bytes = await adapter.readBinary!('s/data.bin')
+    expect(Array.from(bytes)).toEqual([1, 2, 3, 255])
   })
 })

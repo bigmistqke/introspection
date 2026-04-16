@@ -42,7 +42,10 @@ export async function writeAsset(
   const id = options.id ?? randomUUID().replace(/-/g, '').slice(0, 8)
   const filename = `${id}.${ext}`
   const path = `assets/${filename}`
-  await writeFile(join(directory, name, path), content)
+  const data = typeof content === 'string'
+    ? content
+    : new Uint8Array(content.buffer, content.byteOffset, content.byteLength)
+  await writeFile(join(directory, name, path), data)
   const size = typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength
   return { path, kind, size }
 }

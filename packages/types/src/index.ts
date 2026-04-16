@@ -550,7 +550,7 @@ export type EmitInput = DistributiveOmit<TraceEvent, 'id' | 'timestamp'> & { id?
 
 export interface WriteAssetOptions {
   kind: AssetKind
-  content: string | Buffer
+  content: string | ArrayBufferView
   ext?: string
 }
 
@@ -571,7 +571,7 @@ export interface SessionWriter extends AssetWriter {
 export interface StorageAdapter {
   listDirectories(): Promise<string[]>
   readText(path: string): Promise<string>
-  readBinary(path: string): Promise<ArrayBuffer>
+  readBinary(path: string): Promise<Uint8Array>
   readJSON<T = unknown>(path: string): Promise<T>
 }
 
@@ -601,7 +601,7 @@ export interface AssetsAPI {
   metadata(path: string): Promise<AssetRef | undefined>
   readText(path: string): Promise<string>
   readJSON<T>(path: string): Promise<T>
-  readBinary?(path: string): Promise<ArrayBuffer>
+  readBinary?(path: string): Promise<Uint8Array>
 }
 
 export interface SessionReader {
