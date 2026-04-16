@@ -52,14 +52,15 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
   const startedAt = Date.now()
   const adapter = options.adapter
 
+  const meta: SessionMeta = {
+    version: '2',
+    id,
+    startedAt,
+    label: options.label,
+    plugins: options.plugins,
+  }
+
   if (adapter) {
-    const meta: SessionMeta = {
-      version: '2',
-      id,
-      startedAt,
-      label: options.label,
-      plugins: options.plugins,
-    }
     await adapter.writeText(`${id}/meta.json`, JSON.stringify(meta, null, 2))
     await adapter.writeText(`${id}/events.ndjson`, '')
   } else {
@@ -103,13 +104,10 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
           const assetId = randomUUID().replace(/-/g, '').slice(0, 8)
           const ext = options.ext ?? 'json'
           const path = `${id}/assets/${assetId}.${ext}`
-          const content = typeof options.content === 'string' 
-            ? options.content 
-            : new Uint8Array(options.content) as unknown as ArrayBuffer
+          const isString = typeof options.content === 'string'
+          const content = isString ? options.content : new Uint8Array(options.content) as unknown as ArrayBuffer
           await adapter.writeAsset(path, content)
-          const size = typeof options.content === 'string' 
-            ? Buffer.byteLength(options.content) 
-            : options.content.byteLength
+          const size = isString ? Buffer.byteLength(options.content as string) : (options.content as ArrayBuffer).byteLength
           return { path, kind: options.kind, size }
         }
         return writeAsset({
@@ -131,15 +129,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
       await tracker.flush()
       await queue.flush()
       if (adapter) {
-        const meta: SessionMeta = {
-          version: '2',
-          id,
-          startedAt,
-          label: options.label,
-          plugins: options.plugins,
-        }
-        meta.endedAt = Date.now()
-        await adapter.writeText(`${id}/meta.json`, JSON.stringify(meta, null, 2))
+        await adapter.writeText(`${id}/meta.json`, JSON.stringify({ ...meta, endedAt: Date.now() }, null, 2))
       } else {
         await finalizeSession(outDir, id, Date.now())
       }

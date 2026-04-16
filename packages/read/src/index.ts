@@ -34,30 +34,19 @@ export async function listSessions(adapter: StorageAdapter): Promise<SessionSumm
   const sessionIds = await adapter.listDirectories()
   if (sessionIds.length === 0) return []
 
-  const sessions: SessionSummary[] = []
-
-  for (const id of sessionIds) {
-    try {
-      const raw = await adapter.readText(`${id}/meta.json`)
-      const meta = JSON.parse(raw) as {
-        id: string
-        startedAt: number
-        endedAt?: number
-        label?: string
+  const results = await Promise.all(
+    sessionIds.map(async (id) => {
+      try {
+        const raw = await adapter.readText(`${id}/meta.json`)
+        const meta = JSON.parse(raw) as { id: string; startedAt: number; endedAt?: number; label?: string }
+        return { id: meta.id, label: meta.label, startedAt: meta.startedAt, endedAt: meta.endedAt, duration: meta.endedAt ? meta.endedAt - meta.startedAt : undefined } satisfies SessionSummary
+      } catch {
+        return null // skip malformed sessions
       }
-      sessions.push({
-        id: meta.id,
-        label: meta.label,
-        startedAt: meta.startedAt,
-        endedAt: meta.endedAt,
-        duration: meta.endedAt ? meta.endedAt - meta.startedAt : undefined,
-      })
-    } catch {
-      // skip malformed sessions
-    }
-  }
+    })
+  )
 
-  return sessions.sort((a, b) => b.startedAt - a.startedAt)
+  return results.filter((s): s is SessionSummary => s !== null).sort((a, b) => b.startedAt - a.startedAt)
 }
 
 export interface CreateSessionReaderOptions {
@@ -191,10 +180,7 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
         return Promise.resolve(undefined)
       },
       readText: (path) => adapter.readText(`${id}/${path}`),
-      readJSON: async <T>(path: string): Promise<T> => {
-        const raw = await adapter.readText(`${id}/${path}`)
-        return JSON.parse(raw) as T
-      },
+      readJSON: <T>(path: string): Promise<T> => adapter.readJSON<T>(`${id}/${path}`),
       readBinary: adapter.readBinary
         ? (path) => adapter.readBinary!(`${id}/${path}`)
         : undefined,

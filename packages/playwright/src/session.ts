@@ -1,8 +1,8 @@
 import { test as base } from '@playwright/test'
 import type { TestType, PlaywrightTestArgs, PlaywrightWorkerArgs } from '@playwright/test'
-import type { SessionWriter, IntrospectionPlugin, PluginMeta } from '@introspection/types'
+import type { SessionWriter, IntrospectionPlugin } from '@introspection/types'
 import { createSessionWriter } from '@introspection/write'
-import { attach } from './attach.js'
+import { attach, toPluginMetas } from './attach.js'
 
 export interface SessionOptions {
   plugins?: IntrospectionPlugin[]
@@ -20,14 +20,7 @@ export function session(
   callback: (context: SessionContext) => void,
 ): void {
   const plugins = options.plugins ?? []
-  const pluginMetas: PluginMeta[] = plugins
-    .map(({ name, description, events, options }) => {
-      const meta: PluginMeta = { name }
-      if (description) meta.description = description
-      if (events) meta.events = events
-      if (options) meta.options = options
-      return meta
-    })
+  const pluginMetas = toPluginMetas(plugins)
 
   let sessionRef: SessionWriter | null = null
 
@@ -107,73 +100,35 @@ function createProxiedTest(
     })
   } as unknown as TestType<PlaywrightTestArgs, PlaywrightWorkerArgs>
 
-  // Proxy test.describe to emit describe.start/describe.end
-  wrapped.describe = function describeWrapper(title: string, fn: () => void) {
-    original.describe(title, () => {
+  function wrapDescribe(
+    describeVariant: (title: string, fn: () => void) => void,
+    title: string,
+    fn: () => void,
+  ) {
+    describeVariant(title, () => {
       original.beforeAll(async () => {
-        const currentSession = getSession()
-        if (currentSession) {
-          currentSession.emit({
-            type: 'describe.start',
-            metadata: { label: title },
-          })
-        }
+        getSession()?.emit({ type: 'describe.start', metadata: { label: title } })
       })
-
       fn()
-
       original.afterAll(async () => {
-        const currentSession = getSession()
-        if (currentSession) {
-          currentSession.emit({
-            type: 'describe.end',
-            metadata: { label: title },
-          })
-        }
+        getSession()?.emit({ type: 'describe.end', metadata: { label: title } })
       })
     })
-  } as typeof original.describe
+  }
+
+  // Proxy test.describe to emit describe.start/describe.end
+  wrapped.describe = ((title: string, fn: () => void) => {
+    wrapDescribe(original.describe, title, fn)
+  }) as typeof original.describe
 
   // Forward describe variants
-  wrapped.describe.serial = function serialWrapper(title: string, fn: () => void) {
-    original.describe.serial(title, () => {
-      original.beforeAll(async () => {
-        const currentSession = getSession()
-        if (currentSession) {
-          currentSession.emit({ type: 'describe.start', metadata: { label: title } })
-        }
-      })
+  wrapped.describe.serial = ((title: string, fn: () => void) => {
+    wrapDescribe(original.describe.serial, title, fn)
+  }) as typeof original.describe.serial
 
-      fn()
-
-      original.afterAll(async () => {
-        const currentSession = getSession()
-        if (currentSession) {
-          currentSession.emit({ type: 'describe.end', metadata: { label: title } })
-        }
-      })
-    })
-  } as typeof original.describe.serial
-
-  wrapped.describe.parallel = function parallelWrapper(title: string, fn: () => void) {
-    original.describe.parallel(title, () => {
-      original.beforeAll(async () => {
-        const currentSession = getSession()
-        if (currentSession) {
-          currentSession.emit({ type: 'describe.start', metadata: { label: title } })
-        }
-      })
-
-      fn()
-
-      original.afterAll(async () => {
-        const currentSession = getSession()
-        if (currentSession) {
-          currentSession.emit({ type: 'describe.end', metadata: { label: title } })
-        }
-      })
-    })
-  } as typeof original.describe.parallel
+  wrapped.describe.parallel = ((title: string, fn: () => void) => {
+    wrapDescribe(original.describe.parallel, title, fn)
+  }) as typeof original.describe.parallel
 
   // Forward other test methods
   wrapped.skip = original.skip as typeof wrapped.skip

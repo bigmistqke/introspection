@@ -18,17 +18,20 @@ export interface AttachOptions {
   session?: SessionWriter
 }
 
+export function toPluginMetas(plugins: IntrospectionPlugin[]): PluginMeta[] {
+  return plugins.map(({ name, description, events, options }) => {
+    const meta: PluginMeta = { name }
+    if (description) meta.description = description
+    if (events) meta.events = events
+    if (options) meta.options = options
+    return meta
+  })
+}
+
 export async function attach(page: Page, options: AttachOptions = {}): Promise<IntrospectHandle> {
   const debug = createDebug('introspect', options.verbose ?? false)
   const plugins = options.plugins ?? []
-  const pluginMetas: PluginMeta[] = plugins
-    .map(({ name, description, events, options }) => {
-      const meta: PluginMeta = { name }
-      if (description) meta.description = description
-      if (events) meta.events = events
-      if (options) meta.options = options
-      return meta
-    })
+  const pluginMetas = toPluginMetas(plugins)
 
   // Use provided session or create an implicit one
   const ownsSession = !options.session
@@ -116,13 +119,15 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
   // Re-apply subscriptions after each navigation
   page.on('load', () => {
     session.track(async () => {
-      for (const [nodeId, subscription] of registry.all()) {
-        try {
-          const expression = `(() => { const p = window.__introspect_plugins__?.['${subscription.pluginName}']; return p ? p.watch(${JSON.stringify(subscription.spec)}) : null })()`
-          const evaluationResult = await cdp.send('Runtime.evaluate', { expression, returnByValue: true }) as { result: { value: string } }
-          registry.updateBrowserId(nodeId, evaluationResult.result.value)
-        } catch { /* non-fatal */ }
-      }
+      await Promise.all(
+        Array.from(registry.all()).map(async ([nodeId, subscription]) => {
+          try {
+            const expression = `(() => { const p = window.__introspect_plugins__?.['${subscription.pluginName}']; return p ? p.watch(${JSON.stringify(subscription.spec)}) : null })()`
+            const evaluationResult = await cdp.send('Runtime.evaluate', { expression, returnByValue: true }) as { result: { value: string } }
+            registry.updateBrowserId(nodeId, evaluationResult.result.value)
+          } catch { /* non-fatal */ }
+        })
+      )
     })
   })
 
