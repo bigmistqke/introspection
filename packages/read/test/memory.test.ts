@@ -66,32 +66,32 @@ describe('createSessionReader + createSessionWriter (memory)', () => {
     const readAdapter = createMemoryReadAdapter(store)
 
     const writer = await createSessionWriter({ adapter: writeAdapter, id: 'test-session' })
-    await writer.emit({ type: 'test.event', metadata: { foo: 'bar' } })
-    await writer.emit({ type: 'another.event', metadata: { baz: 123 } })
+    await writer.emit({ type: 'mark', metadata: { label: 'first', extra: { foo: 'bar' } } })
+    await writer.emit({ type: 'playwright.result', metadata: {} })
     await writer.finalize()
 
     const reader = await createSessionReader(readAdapter, { sessionId: 'test-session' })
     const events = await reader.events.ls()
 
     expect(events).toHaveLength(2)
-    expect(events[0]!.type).toBe('test.event')
-    expect(events[1]!.type).toBe('another.event')
-    expect(events[0]!.metadata).toEqual({ foo: 'bar' })
+    expect(events[0]!.type).toBe('mark')
+    expect(events[1]!.type).toBe('playwright.result')
+    expect(events[0]!.metadata).toEqual({ label: 'first', extra: { foo: 'bar' } })
   })
 
   it('appends events correctly (no duplication)', async () => {
     const store = new Map<string, string | Uint8Array>()
     const writer = await createSessionWriter({ adapter: createMemoryWriteAdapter(store), id: 'test' })
 
-    await writer.emit({ type: 'event.1', metadata: {} })
-    await writer.emit({ type: 'event.2', metadata: {} })
-    await writer.emit({ type: 'event.3', metadata: {} })
+    await writer.emit({ type: 'browser.navigate', metadata: { from: '/', to: '/about' } })
+    await writer.emit({ type: 'mark', metadata: { label: 'mid' } })
+    await writer.emit({ type: 'playwright.result', metadata: {} })
     await writer.finalize()
 
     const reader = await createSessionReader(createMemoryReadAdapter(store), { sessionId: 'test' })
     const events = await reader.events.ls()
 
     expect(events).toHaveLength(3)
-    expect(events.map((e) => e.type)).toEqual(['event.1', 'event.2', 'event.3'])
+    expect(events.map((e) => e.type)).toEqual(['browser.navigate', 'mark', 'playwright.result'])
   })
 })
