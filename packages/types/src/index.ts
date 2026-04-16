@@ -571,7 +571,8 @@ export interface SessionWriter extends AssetWriter {
 export interface StorageAdapter {
   listDirectories(): Promise<string[]>
   readText(path: string): Promise<string>
-  readBinary?(path: string): Promise<ArrayBuffer>
+  readBinary(path: string): Promise<ArrayBuffer>
+  readJSON<T = unknown>(path: string): Promise<T>
 }
 
 // ─── SessionReader (returned by query adapters) ─────────────────────────────

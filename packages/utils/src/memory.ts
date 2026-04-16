@@ -36,6 +36,12 @@ export function createMemoryAdapters(
       if (typeof content === 'string') throw new Error(`Not a binary file: ${path}`)
       return content
     },
+    async readJSON<T = unknown>(path: string): Promise<T> {
+      const content = files.get(path)
+      if (content === undefined) throw new Error(`File not found: ${path}`)
+      if (typeof content !== 'string') throw new Error(`Not a text file: ${path}`)
+      return JSON.parse(content) as T
+    },
   }
 
   const write: MemoryWriteAdapter = {

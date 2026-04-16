@@ -28,6 +28,10 @@ export function createNodeAdapter(dir: string): StorageAdapter {
       const buffer = await readFile(join(dir, path))
       return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer
     },
+    async readJSON<T = unknown>(path: string): Promise<T> {
+      const text = await readFile(join(dir, path), 'utf-8')
+      return JSON.parse(text) as T
+    },
   }
 }
 

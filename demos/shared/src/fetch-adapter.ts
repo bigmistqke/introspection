@@ -26,5 +26,11 @@ export function createFetchAdapter(baseUrl: string): StorageAdapter {
       if (!response.ok) throw new Error(`Failed to fetch ${path}: ${response.status}`)
       return response.arrayBuffer()
     },
+
+    async readJSON<T = unknown>(path: string): Promise<T> {
+      const response = await fetch(`${base}/${path}`)
+      if (!response.ok) throw new Error(`Failed to fetch ${path}: ${response.status}`)
+      return response.json() as Promise<T>
+    },
   }
 }
