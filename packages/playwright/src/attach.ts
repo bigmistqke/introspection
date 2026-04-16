@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import type { Page } from '@playwright/test'
-import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginMeta, BusPayloadMap, SessionWriter, EmitInput } from '@introspection/types'
+import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginMeta, BusPayloadMap, SessionWriter, EmitInput, BrowserType } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 import { takeSnapshot } from './snapshot.js'
 import { appendEvent, writeAsset, finalizeSession, createSessionWriter } from '@introspection/write'
@@ -26,6 +26,15 @@ export function toPluginMetas(plugins: IntrospectionPlugin[]): PluginMeta[] {
     if (options) meta.options = options
     return meta
   })
+}
+
+export function detectBrowserType(page: Page): BrowserType {
+  const browser = page.context().browser()
+  if (!browser) return 'chromium'
+  const name = browser.browserType().name()
+  if (name === 'chromium') return 'chromium'
+  if (name === 'firefox') return 'firefox'
+  return 'webkit'
 }
 
 export async function attach(page: Page, options: AttachOptions = {}): Promise<IntrospectHandle> {
@@ -55,6 +64,8 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
 
   const cdp = await page.context().newCDPSession(page)
 
+  const detectedBrowser = detectBrowserType(page)
+
   const registry = new PluginRegistry()
 
   function makePluginContext(plugin: IntrospectionPlugin) {
@@ -68,6 +79,21 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
         on: (event: string, handler: (params: unknown) => void) => cdp.on(event as Parameters<typeof cdp.on>[0], handler as Parameters<typeof cdp.on>[1]),
       },
       rawCdpSession: cdp,
+      bindings: {
+        async addBinding(name: string, callback: (...args: unknown[]) => void) {
+          const bindingName = `__plugin_${plugin.name}_${name}__`
+          await page.exposeBinding(bindingName, (source, ...args) => callback(...args))
+        },
+      },
+      capabilities: {
+        browser: detectedBrowser,
+        hasDebugger: detectedBrowser === 'chromium',
+        hasAddBinding: true,
+        hasNetworkBody: true,
+        hasScopeInspection: false,
+        hasExceptionDetails: detectedBrowser === 'chromium',
+      },
+      warn: (message: string) => console.warn(`[${plugin.name}]`, message),
       emit,
       writeAsset: session.writeAsset.bind(session),
       timestamp,
