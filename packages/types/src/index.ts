@@ -1,5 +1,22 @@
 import type { Page, CDPSession } from '@playwright/test'
 
+// ─── Browser types ─────────────────────────────────────────────────────────
+
+export type BrowserType = 'chromium' | 'firefox' | 'webkit'
+
+export interface ProtocolCapabilities {
+  browser: BrowserType
+  hasDebugger: boolean
+  hasAddBinding: boolean
+  hasNetworkBody: boolean
+  hasScopeInspection: boolean
+  hasExceptionDetails: boolean
+}
+
+export interface PluginBindings {
+  addBinding(name: string, callback: (...args: unknown[]) => void): Promise<void>
+}
+
 // ─── Event types ────────────────────────────────────────────────────────────
 
 export interface BaseEvent {
@@ -120,7 +137,7 @@ export interface NetworkResponseBodyEvent extends BaseEvent {
 
 export interface JsErrorEvent extends BaseEvent {
   type: 'js.error'
-  metadata: { cdpTimestamp: number; message: string; stack: StackFrame[] }
+  metadata: { cdpTimestamp?: number; message: string; stack: StackFrame[] }
 }
 
 // ─── Plugin events: console ─────────────────────────────────────────────────
@@ -444,6 +461,12 @@ export type BusTrigger = keyof BusPayloadMap
 export interface PluginPage {
   evaluate<T>(fn: () => T): Promise<T>
   evaluate<T, A>(fn: (arg: A) => T, arg: A): Promise<T>
+  on<K extends keyof PageEvents>(event: K, handler: (data: PageEvents[K]) => void): void
+}
+
+export interface PageEvents {
+  pageerror: Error
+  console: { type: string; text: string; args: unknown[] }
 }
 
 export interface WatchHandle {
@@ -472,6 +495,9 @@ export interface PluginContext extends AssetWriter {
    * plugin in the session — do not use unless you know what you're doing.
    */
   rawCdpSession: CDPSession
+  bindings: PluginBindings
+  capabilities: ProtocolCapabilities
+  warn(message: string): void
   emit(event: EmitInput): Promise<void>
   timestamp(): number
   /** Installs a browser-side watch and registers it for navigation recovery. */
