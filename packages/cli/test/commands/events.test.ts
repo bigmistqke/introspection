@@ -4,9 +4,9 @@ import type { TraceEvent } from '@introspection/types'
 
 const events: TraceEvent[] = [
   { id: 'e1', type: 'mark',              timestamp: 50,  metadata: { label: 'before-add' } },
-  { id: 'e2', type: 'redux.dispatch',    timestamp: 100, metadata: { action: 'CART/ADD' } },
+  { id: 'e2', type: 'redux.dispatch',    timestamp: 100, metadata: { action: 'CART/ADD',    diff: [] } },
   { id: 'e3', type: 'network.request',   timestamp: 200, metadata: { cdpRequestId: '1', cdpTimestamp: 0, cdpWallTime: 0, url: '/api/cart', method: 'POST', headers: {} } },
-  { id: 'e4', type: 'redux.dispatch',    timestamp: 300, metadata: { action: 'CART/REMOVE' } },
+  { id: 'e4', type: 'redux.dispatch',    timestamp: 300, metadata: { action: 'CART/REMOVE', diff: [] } },
   { id: 'e5', type: 'playwright.action', timestamp: 400, metadata: { method: 'click', args: ['button'] } },
   { id: 'e6', type: 'webgl.uniform',     timestamp: 450, metadata: { contextId: 'ctx-1', name: 'u_time', value: 1.5, glType: 'FLOAT' } },
 ]
