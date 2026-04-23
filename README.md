@@ -1,5 +1,55 @@
 # Continuous Releases
 
+### [e4bc336da6211d1eca97f34a9da66f91d0da0b1b](https://github.com/bigmistqke/introspection/commit/e4bc336da6211d1eca97f34a9da66f91d0da0b1b)
+#### Install Commands
+
+```bash
+pnpm add introspect@https://pkg.pr.new/bigmistqke/introspection/introspect@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/config@https://pkg.pr.new/bigmistqke/introspection/@introspection/config@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/playwright@https://pkg.pr.new/bigmistqke/introspection/@introspection/playwright@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/read@https://pkg.pr.new/bigmistqke/introspection/@introspection/read@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/serve@https://pkg.pr.new/bigmistqke/introspection/@introspection/serve@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/types@https://pkg.pr.new/bigmistqke/introspection/@introspection/types@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/utils@https://pkg.pr.new/bigmistqke/introspection/@introspection/utils@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/write@https://pkg.pr.new/bigmistqke/introspection/@introspection/write@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/plugin-cdp@https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-cdp@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/plugin-console@https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-console@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/plugin-debugger@https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-debugger@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/plugin-defaults@https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-defaults@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/plugin-js-error@https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-js-error@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/plugin-network@https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-network@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/plugin-performance@https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-performance@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/plugin-react-scan@https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-react-scan@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/plugin-redux@https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-redux@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/plugin-solid-devtools@https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-solid-devtools@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+pnpm add @introspection/plugin-webgl@https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-webgl@e4bc336da6211d1eca97f34a9da66f91d0da0b1b
+```
+
+#### Overrides
+
+```json
+{
+  "introspect": "https://pkg.pr.new/bigmistqke/introspection/introspect@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/config": "https://pkg.pr.new/bigmistqke/introspection/@introspection/config@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/playwright": "https://pkg.pr.new/bigmistqke/introspection/@introspection/playwright@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/read": "https://pkg.pr.new/bigmistqke/introspection/@introspection/read@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/serve": "https://pkg.pr.new/bigmistqke/introspection/@introspection/serve@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/types": "https://pkg.pr.new/bigmistqke/introspection/@introspection/types@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/utils": "https://pkg.pr.new/bigmistqke/introspection/@introspection/utils@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/write": "https://pkg.pr.new/bigmistqke/introspection/@introspection/write@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/plugin-cdp": "https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-cdp@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/plugin-console": "https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-console@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/plugin-debugger": "https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-debugger@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/plugin-defaults": "https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-defaults@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/plugin-js-error": "https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-js-error@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/plugin-network": "https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-network@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/plugin-performance": "https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-performance@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/plugin-react-scan": "https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-react-scan@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/plugin-redux": "https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-redux@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/plugin-solid-devtools": "https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-solid-devtools@e4bc336da6211d1eca97f34a9da66f91d0da0b1b",
+  "@introspection/plugin-webgl": "https://pkg.pr.new/bigmistqke/introspection/@introspection/plugin-webgl@e4bc336da6211d1eca97f34a9da66f91d0da0b1b"
+}
+```
 ### [b314c9f123f701625ce574bae44e46c28c4888fc](https://github.com/bigmistqke/introspection/commit/b314c9f123f701625ce574bae44e46c28c4888fc)
 #### Install Commands
 
