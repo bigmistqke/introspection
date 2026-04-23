@@ -6,8 +6,6 @@ import { takeSnapshot } from './snapshot.js'
 import { appendEvent, writeAsset, finalizeSession, createSessionWriter } from '@introspection/write'
 import { createPageProxy } from './proxy.js'
 import { PluginRegistry } from './plugin-registry.js'
-import { loadIntrospectConfig, resolvePlugins } from './config.js'
-
 export interface AttachOptions {
   outDir?: string
   id?: string
@@ -17,7 +15,6 @@ export interface AttachOptions {
   plugins?: IntrospectionPlugin[]
   verbose?: boolean
   session?: SessionWriter
-  cwd?: string
 }
 
 export function toPluginMetas(plugins: IntrospectionPlugin[]): PluginMeta[] {
@@ -32,14 +29,7 @@ export function toPluginMetas(plugins: IntrospectionPlugin[]): PluginMeta[] {
 
 export async function attach(page: Page, options: AttachOptions = {}): Promise<IntrospectHandle> {
   const debug = createDebug('introspect', options.verbose ?? false)
-  const config = (options.plugins || !options.cwd)
-    ? undefined
-    : await loadIntrospectConfig({ cwd: options.cwd })
-  const plugins = resolvePlugins({
-    optsPlugins: options.plugins,
-    config,
-    env: process.env,
-  })
+  const plugins = options.plugins ?? []
   const pluginMetas = toPluginMetas(plugins)
 
   // Use provided session or create an implicit one
