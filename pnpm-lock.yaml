@@ -382,6 +382,9 @@ importers:
 
   packages/playwright:
     dependencies:
+      '@introspection/config':
+        specifier: workspace:*
+        version: link:../config
       '@introspection/types':
         specifier: workspace:*
         version: link:../types
