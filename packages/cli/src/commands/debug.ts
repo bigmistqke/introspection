@@ -5,6 +5,8 @@ import { createReadStream } from 'fs'
 import { createServer } from 'http'
 import { attach } from '@introspection/playwright'
 import { createDebug } from '@introspection/utils'
+import { loadIntrospectConfig, resolvePlugins } from '@introspection/config'
+import type { IntrospectionPlugin } from '@introspection/types'
 
 export interface DebugOptions {
   url?: string
@@ -31,46 +33,20 @@ export async function runDebug(opts: DebugOptions) {
 
   debug('Resolving config...')
 
-  // Resolve config
-  const configPath = resolvePath(process.cwd(), opts.config || './introspect.config.ts')
-
-  // Load config (Node 24+ handles .ts natively)
-  // Default to empty plugins array if config not found or invalid
-  let config: { plugins: any[] } = { plugins: [] }
-
-  // Check if config file exists before trying to import
-  let configExists = false
+  // Resolve config via @introspection/config
+  let plugins: IntrospectionPlugin[] = []
   try {
-    await stat(configPath)
-    configExists = true
-  } catch (e) {
-    configExists = false
-  }
-
-  debug(`configPath: ${configPath}, configExists: ${configExists}, opts.config: ${opts.config}`)
-
-  if (configExists || opts.config) {
-    // Config file exists or was explicitly provided - try to load it
-    try {
-      const configModule = await import(configPath)
-      config = configModule.default
-      if (!config.plugins || !Array.isArray(config.plugins)) {
-        if (opts.config) {
-          // Explicit config must be valid
-          throw new Error('Config must export default object with plugins array')
-        }
-        // Otherwise silently use empty plugins
-        config = { plugins: [] }
-      }
-    } catch (err) {
-      if (opts.config) {
-        // Explicit config must load successfully
-        console.error(`Failed to load config from ${configPath}`)
-        throw err
-      }
-      // Otherwise silently use empty plugins
-      config = { plugins: [] }
+    const config = opts.config
+      ? await loadIntrospectConfig({ configPath: resolvePath(process.cwd(), opts.config) })
+      : await loadIntrospectConfig({ cwd: process.cwd() })
+    plugins = resolvePlugins({ config, env: process.env })
+  } catch (err) {
+    if (opts.config) {
+      console.error(`Failed to load config from ${opts.config}`)
+      throw err
     }
+    // Discovery path: silently fall back to no plugins.
+    plugins = []
   }
 
   let navigationUrl: string
@@ -93,7 +69,7 @@ export async function runDebug(opts: DebugOptions) {
     // Attach introspection
     const handle = await attach(page, {
       outDir: opts.dir,
-      plugins: config.plugins,
+      plugins,
       testTitle: `debug: ${navigationUrl}`,
     })
 
