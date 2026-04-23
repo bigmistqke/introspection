@@ -492,6 +492,21 @@ export interface IntrospectionPlugin {
   install(ctx: PluginContext): Promise<void>
 }
 
+/**
+ * A plugins field in introspect config: either a flat array (single always-active set)
+ * or an object of named presets where `default` is required.
+ */
+export type PluginSet =
+  | IntrospectionPlugin[]
+  | ({ default: IntrospectionPlugin[] } & Record<string, IntrospectionPlugin[]>)
+
+/**
+ * Shape of `introspect.config.{ts,js,mjs,mts}` default export.
+ */
+export interface IntrospectConfig {
+  plugins?: PluginSet
+}
+
 // ─── Supporting types ────────────────────────────────────────────────────────
 
 export interface StackFrame {
