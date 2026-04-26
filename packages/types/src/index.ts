@@ -129,7 +129,15 @@ export type ConsoleLevel = 'log' | 'warn' | 'error' | 'info' | 'debug'
 
 export interface ConsoleEvent extends BaseEvent {
   type: 'console'
-  metadata: { level: ConsoleLevel; message: string }
+  metadata: {
+    level: ConsoleLevel
+    /**
+     * The args the page passed to `console.*`. Primitives keep their type;
+     * objects/arrays are reconstructed from the CDP preview (one level deep);
+     * non-serializable values (functions, symbols) become a descriptive string.
+     */
+    args: unknown[]
+  }
 }
 
 // ─── Plugin events: debugger ────────────────────────────────────────────────

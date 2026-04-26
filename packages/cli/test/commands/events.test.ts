@@ -117,14 +117,16 @@ describe('formatEvents — text output (default)', () => {
     expect(out).not.toContain('network.request')
   })
 
-  it('renders console events with level and message', () => {
+  it('renders console events with level and args', () => {
     const withConsole: TraceEvent[] = [
-      { id: 'c1', type: 'console', timestamp: 120, metadata: { level: 'log', message: '[APP] rendering' } },
-      { id: 'c2', type: 'console', timestamp: 130, metadata: { level: 'error', message: 'boom' } },
+      { id: 'c1', type: 'console', timestamp: 120, metadata: { level: 'log', args: ['[APP] rendering'] } },
+      { id: 'c2', type: 'console', timestamp: 130, metadata: { level: 'error', args: ['boom'] } },
+      { id: 'c3', type: 'console', timestamp: 140, metadata: { level: 'log', args: ['tick', { sceneChildren: 3 }] } },
     ]
     const out = formatEvents(withConsole, {})
     expect(out).toContain('console [log] [APP] rendering')
     expect(out).toContain('console [error] boom')
+    expect(out).toContain('console [log] tick {"sceneChildren":3}')
   })
 
   it('renders browser.navigate with from → to', () => {

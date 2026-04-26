@@ -302,6 +302,230 @@ Shared primitive worth considering: `maxAssetSize` / `maxEventBytes` in `CreateS
 
 ---
 
+## BrowserAdapter Abstraction (2025-04-17)
+
+### Problem
+
+Introspection is currently tightly coupled to Playwright's implementation:
+- Direct usage of Playwright APIs (CDP session, page events, etc.)
+- No abstraction over the browser connection layer
+- Hard to swap implementations (BiDi, MCP, etc.) without refactoring
+
+### Goal
+
+Add an abstraction layer (`BrowserAdapter`) that decouples introspection from Playwright, enabling future flexibility while maintaining current functionality.
+
+### Scope
+
+#### In Scope
+- Define `BrowserAdapter` interface in `@introspection/types`
+- Refactor `@introspection/playwright` to use the adapter pattern
+- Ensure plugins gracefully handle missing capabilities
+
+#### Out of Scope
+- BiDi adapter implementation
+- MCP integration
+- Safari/Firefox-specific adapters
+
+### Package Structure After
+
+```
+packages/
+├── types/
+│   └── src/
+│       ├── index.ts      # existing types
+│       └── adapter.ts    # NEW: BrowserAdapter interface
+└── playwright/
+    └── src/
+        ├── index.ts      # existing entry
+        └── adapter.ts    # NEW: PlaywrightAdapter implementation
+```
+
+### Proposed Interface
+
+```typescript
+export interface BrowserAdapter {
+  // Events
+  subscribe(event: string, handler: (data: any) => void): void;
+  unsubscribe(event: string): void;
+
+  // Scripting
+  evaluate(script: string): Promise<any>;
+
+  // Bindings (optional - may not be supported)
+  addBinding?(name: string): Promise<void>;
+
+  // Info
+  getCapabilities(): BrowserCapabilities;
+}
+
+export interface BrowserCapabilities {
+  bindings: boolean;
+  workerDebugging: boolean;
+  networkBodies: boolean;
+  [key: string]: boolean;
+}
+```
+
+### Current State
+
+The Playwright package directly uses:
+- `page.context().newCDPSession()` for CDP access
+- `page.on()` for event subscriptions
+- `page.evaluate()` for script evaluation
+
+These need to be wrapped behind the adapter interface.
+
+### Full Trade-off Analysis
+
+During the exploration (2025-04-17), we evaluated multiple approaches:
+
+#### 1. Playwright's CDP Mode (Current)
+
+| Aspect | Detail |
+|--------|--------|
+| **CDP Access** | Full — can use `Runtime.addBinding`, `Fetch.getRequestBody`, debugger domains |
+| **Cross-browser** | ❌ Chrome only. Firefox uses Juggler (custom), WebKit uses extended Inspector Protocol |
+| **Playwright's internal abstraction** | Playwright patches Firefox + WebKit to add CDP-like layers internally. This provides equivalent functionality (like addBinding) across browsers, BUT these internal protocols are NOT exposed through the public API. No equivalent of `newCDPSession()` for Safari/Firefox. Playwright owns the complexity of cross-browser debugging, but keeps it internal. |
+| **Use case** | Best for advanced debugging features (bindings, network bodies, scope inspection) |
+
+#### 2. Playwright's BiDi Mode
+
+| Aspect | Detail |
+|--------|--------|
+| **CDP Access** | ❌ Not exposed. Playwright treats protocol as implementation detail — no escape hatch |
+| **Cross-browser** | ✅ Firefox (experimental), WebKit (in progress), Chromium (experimental) |
+| **Status** | Playwright is actively working on BiDi support. See [issue #30237](https://github.com/microsoft/playwright/issues/30237) |
+| **Use case** | Cross-browser automation, but loses advanced introspection features |
+
+#### 3. chromium-bidi Direct
+
+| Aspect | Detail |
+|--------|--------|
+| **CDP Access** | ✅ Via `goog:cdp.sendCommand` extension |
+| **Cross-browser** | ⚠️ Chrome only (BiDi+ is Chrome-specific) |
+| **What is it** | Google's BiDi implementation that adds CDP escape hatch as extensions |
+| **Integration** | Separate project, not part of Playwright — would need standalone integration |
+| **Use case** | When you need both cross-browser protocol AND CDP escape hatch |
+
+#### 4. MCP Servers (Future-looking)
+
+| Aspect | Detail |
+|--------|--------|
+| **What** | `safari-devtools-mcp`, `firefox-devtools-mcp` — MCP servers exposing browser debugging |
+| **Browser support** | Firefox actively building `moz:debugging` module for MCP. Safari has partial |
+| **Format** | JSON-RPC 2.0 over stdio, returns plain text |
+| **Difference from introspection** | MCP is request/response; introspection is streaming NDJSON. MCP is agent-first, introspection is CLI-first |
+| **Potential synergy** | Introspection could expose traces as MCP resources, or consume MCP servers as adapters |
+
+#### 5. WebDriver BiDi Spec
+
+| Aspect | Detail |
+|--------|--------|
+| **Preload scripts** | ✅ Works for window/document contexts |
+| **Workers/Service Workers** | ❌ Not yet. Spec proposal exists (Bootstrap Scripts) but not implemented |
+| **Bindings equivalent** | ❌ No. CDP's `Runtime.addBinding` injects into ALL contexts; BiDi has no equivalent |
+| **Extension mechanism** | ✅ Modules can use `:` in name (e.g., `goog:cdp.*`, `moz:debugging.*`) but only browser vendors implement them |
+| **Key limitation** | BiDi is automation-focused, not debugging-focused. Missing deep introspection features |
+
+### Browser Protocol Landscape
+
+| Browser | Native Protocol | Escape Hatch? | Playwright Uses |
+|---------|-----------------|---------------|-----------------|
+| **Chrome** | CDP | ❌ (native) | CDP |
+| **Firefox** | Juggler (CDP-like) | ❌ | Juggler |
+| **WebKit** | Extended Inspector | ❌ | Patched Inspector |
+| **Chrome (BiDi)** | WebDriver BiDi | ✅ via `goog:cdp.*` (chromium-bidi) | ❌ Not used |
+| **Firefox (BiDi)** | WebDriver BiDi | ❌ | BiDi (experimental) |
+| **Safari (BiDi)** | WebDriver BiDi | ❌ | BiDi (in progress) |
+
+### Plugin Portability Analysis
+
+| Plugin | BiDi Portable | Chrome (CDP) | Safari/Firefox |
+|--------|---------------|--------------|----------------|
+| plugin-console | ✅ `log.entryAdded` | ✅ | ✅ |
+| plugin-page-error | ✅ `log.entryAdded` | ✅ | ✅ |
+| plugin-screenshot | ✅ `browsingContext.captureScreenshot` | ✅ | ✅ |
+| plugin-navigation | ✅ `browsingContext.*` events | ✅ | ✅ |
+| plugin-network-bodies | ❌ | ✅ `Fetch.getRequestBody` | ❌ |
+| plugin-debugger | ❌ | ✅ `Runtime.addBinding`, `Debugger.*` | ❌ |
+| plugin-redux | ⚠️ Partial | ✅ | ⚠️ Partial |
+
+### Recommended Path Forward
+
+```
+Phase 1 (Now):
+├── Define BrowserAdapter interface
+├── Keep Playwright CDP as implementation
+└── Add capability detection (bindings, network bodies, etc.)
+
+Phase 2 (When needed):
+├── Playwright BiDi adapter (cross-browser, graceful degradation)
+└── chromium-bidi adapter (if CDP escape hatch needed)
+
+Phase 3 (Future):
+├── MCP integration potential
+└── Monitor browser vendor escape hatch development
+```
+
+### Why Abstraction is Low Regret
+
+1. **Decouples introspection from Playwright internals** — cleaner boundaries
+2. **Makes future migration tractable** — swap adapters without rewriting plugins
+3. **Already has capability concept** — `ProtocolCapabilities` exists in types
+4. **Playwright is stable** — no urgency to switch, but having the interface ready is valuable
+
+### Backward Compatibility
+
+- **Existing users**: No API changes — internal refactor only
+- **Plugin authors**: Should check capabilities before using features (already recommended)
+
+### Timeline Estimate
+
+- Define interface + Playwright adapter: ~1-2 days
+- Update session to use adapter: ~0.5 day
+- Verify plugins handle capabilities: ~0.5 day
+
+**Total**: ~2-3 days
+
+### Related
+
+- [Playwright BiDi issue](https://github.com/microsoft/playwright/issues/30237)
+- [chromium-bidi](https://github.com/GoogleChromeLabs/chromium-bidi) — BiDi+ implementation
+- [WebDriver BiDi spec](https://www.w3.org/TR/webdriver-bidi/)
+- [Playwright protocol architecture](https://deepwiki.com/microsoft/playwright/8.2-protocol-communication-architecture)
+- [Browser protocol stack](https://deepwiki.com/microsoft/playwright/8.2-protocol-communication-architecture#browser-protocol-stack)
+
+---
+
+## Refactors / Tech Debt
+
+### Move event formatters out of the CLI
+
+`packages/cli/src/commands/events.ts → formatTimeline()` currently has a hardcoded `if/else if` chain over event types, dipping directly into each event's `metadata` shape:
+
+```ts
+if (event.type === 'network.request') detail += ` ${md.method} ${md.url}`
+else if (event.type === 'js.error') detail += ` ${md.message}`
+else if (event.type === 'console') detail += ` [${md.level}] ${md.args.map(…)}`
+else if (event.type === 'mark') detail += ` "${md.label}"`
+// …
+```
+
+This is a leaky abstraction — the CLI shouldn't know the metadata shape of every plugin's events. Adding a new event type (or changing one) requires touching the CLI.
+
+**Direction (TBD):** push formatting back to whatever owns the event type. Three plausible homes:
+
+1. **On the plugin object** — `plugin.format = { 'console': fn, … }`. Co-locates capture and presentation, but couples the (read-side) CLI to (write-side) plugin install code via tree-shake.
+2. **A sibling read-side module per plugin** — `@introspection/plugin-console/format`. Aligns with the existing read/write split; CLI imports each plugin's format subpath, merges into one map. New plugins ship a `format` export — no central PR.
+3. **A central registry package** — `@introspection/formatters`. Single import, but every new event type needs a PR into the central package, killing the "plugins are the unit" property.
+
+Snag: `mark`, `playwright.action`, `browser.navigate` aren't from "plugins" — they come from `@introspection/playwright` and the writer. Whichever direction is picked, those event types need a home for their formatter too.
+
+Until this is sorted, **adding a new event type means updating `formatTimeline` in the CLI** — keep the leak in mind when modifying either side.
+
+---
+
 ## Ideas that don't fit neatly
 
 - **Trace as test** — `introspect assert 'events.filter(e => e.type === "js.error").length === 0'` — exit non-zero if the expression is falsy. Assertions against the trace, not just the app.
