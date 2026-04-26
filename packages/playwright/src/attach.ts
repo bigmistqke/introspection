@@ -6,7 +6,6 @@ import { takeSnapshot } from './snapshot.js'
 import { appendEvent, writeAsset, finalizeSession, createSessionWriter } from '@introspection/write'
 import { createPageProxy } from './proxy.js'
 import { PluginRegistry } from './plugin-registry.js'
-
 export interface AttachOptions {
   outDir?: string
   id?: string

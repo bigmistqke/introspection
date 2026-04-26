@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@introspection/config": "workspace:*",
     "@introspection/utils": "workspace:*",
     "@introspection/write": "workspace:*",
     "@introspection/types": "workspace:*"
