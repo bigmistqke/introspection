@@ -91,10 +91,62 @@ export function cookies(options?: CookiesOptions): IntrospectionPlugin {
 
       const BINDING_NAME = '__introspection_plugin_cookies'
 
-      type PagePayload = { origin: string; kind: string; [k: string]: unknown }
+      type WritePayload = {
+        origin: string
+        kind: 'write'
+        source: 'document.cookie' | 'CookieStore'
+        operation: 'set' | 'delete'
+        name: string
+        value?: string
+        domain?: string
+        path?: string
+        expires?: number
+        secure?: boolean
+        sameSite?: 'Strict' | 'Lax' | 'None'
+        raw?: string
+      }
 
-      function handlePagePayload(_payload: PagePayload): void {
-        // Filled in by Task 5 onwards.
+      type PagePayload = WritePayload
+
+      function handlePagePayload(payload: PagePayload): void {
+        if (payload.kind !== 'write') return
+        if (!nameAllowed(payload.name)) return
+        if (!origins.includes('*')) {
+          let originHost: string | undefined
+          try { originHost = new URL(payload.origin).hostname } catch { /* ignore */ }
+          const allowed = originHost ? origins.some(o => {
+            try { return new URL(o).hostname === originHost } catch { return false }
+          }) : false
+          if (!allowed) return
+        }
+
+        const md: {
+          operation: 'set' | 'delete'
+          source: 'document.cookie' | 'CookieStore'
+          origin: string
+          name: string
+          value?: string
+          domain?: string
+          path?: string
+          expires?: number
+          secure?: boolean
+          sameSite?: 'Strict' | 'Lax' | 'None'
+          raw?: string
+        } = {
+          operation: payload.operation,
+          source: payload.source,
+          origin: payload.origin,
+          name: payload.name,
+        }
+        if (payload.value !== undefined) md.value = payload.value
+        if (payload.domain !== undefined) md.domain = payload.domain
+        if (payload.path !== undefined) md.path = payload.path
+        if (payload.expires !== undefined) md.expires = payload.expires
+        if (payload.secure !== undefined) md.secure = payload.secure
+        if (payload.sameSite !== undefined) md.sameSite = payload.sameSite
+        if (payload.raw !== undefined) md.raw = payload.raw
+
+        void ctx.emit({ type: 'cookie.write', metadata: md })
       }
 
       await ctx.cdpSession.send('Runtime.addBinding', { name: BINDING_NAME })

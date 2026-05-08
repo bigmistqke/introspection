@@ -62,3 +62,43 @@ test('binding bootstrap exposes the emit helper', async ({ page }) => {
 
   await handle.detach()
 })
+
+test('captures document.cookie writes (set, multi-attribute, delete)', async ({ page }) => {
+  await page.goto(fixture.url)
+  const handle = await attach(page, { outDir: dir, plugins: [cookies()] })
+
+  await page.evaluate(() => {
+    document.cookie = 'a=1'
+    document.cookie = 'b=2; path=/sub; secure; samesite=strict'
+    document.cookie = 'a=; max-age=0'
+  })
+  await new Promise(r => setTimeout(r, 150))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const writes = events.filter((e: { type: string }) => e.type === 'cookie.write')
+  expect(writes).toHaveLength(3)
+
+  expect(writes[0].metadata).toMatchObject({
+    operation: 'set',
+    source: 'document.cookie',
+    name: 'a',
+    value: '1',
+  })
+
+  expect(writes[1].metadata).toMatchObject({
+    operation: 'set',
+    source: 'document.cookie',
+    name: 'b',
+    value: '2',
+    path: '/sub',
+    secure: true,
+    sameSite: 'Strict',
+  })
+
+  expect(writes[2].metadata).toMatchObject({
+    operation: 'delete',
+    source: 'document.cookie',
+    name: 'a',
+  })
+})
