@@ -208,42 +208,43 @@ test('bus "detach" handler is called and can write assets', async ({ page }) => 
   expect(assetFiles.some(f => f.endsWith('.json'))).toBe(true)
 })
 
-test('plugin formatEvent populates event.summary on emitted events', async ({ page }) => {
+test('framework formatter populates summary for mark events', async ({ page }) => {
+  const handle = await attach(page, { outDir: dir, plugins: [] })
+  await handle.mark('hello')
+  await handle.detach()
+
+  const events = await readEvents(dir) as Array<{ type: string; metadata: { label: string }; summary?: string }>
+  const mark = events.find((event) => event.type === 'mark')
+  expect(mark?.summary).toBe('"hello"')
+})
+
+test('plugin formatEvent runs when framework formatter returns null', async ({ page }) => {
+  // Emit a custom event type via push; framework formatter doesn't recognise it
+  // so plugin formatter wins.
   const plugin: IntrospectionPlugin = {
     name: 'demo',
-    async install(ctx) {
-      ctx.bus.on('manual', () => {
-        // emit a custom event that our formatter recognises
-        ctx.emit({ type: 'mark', metadata: { label: 'hello-from-plugin' } })
-      })
-    },
+    async install() { /* no listeners */ },
     formatEvent(event) {
-      if (event.type === 'mark') return `mark ${(event.metadata as { label: string }).label}`
+      if (event.type === 'js.error') return `js.error: ${(event.metadata as { message: string }).message}`
       return null
     },
   }
   const handle = await attach(page, { outDir: dir, plugins: [plugin] })
-  await handle.mark('top-level-mark')
+  await handle.emit({ type: 'js.error', metadata: { cdpTimestamp: 0, message: 'boom', stack: [] } })
   await handle.detach()
 
-  const events = await readEvents(dir) as Array<{ type: string; metadata: { label: string }; summary?: string }>
-  const marks = events.filter((event) => event.type === 'mark')
-  expect(marks.length).toBeGreaterThan(0)
-  for (const mark of marks) {
-    expect(mark.summary).toBe(`mark ${mark.metadata.label}`)
-  }
+  const events = await readEvents(dir) as Array<{ type: string; summary?: string }>
+  const error = events.find((event) => event.type === 'js.error')
+  expect(error?.summary).toBe('js.error: boom')
 })
 
-test('formatEvent returning null leaves summary undefined', async ({ page }) => {
-  const plugin: IntrospectionPlugin = {
-    name: 'no-format',
-    async install() {},
-    formatEvent: () => null,
-  }
-  const handle = await attach(page, { outDir: dir, plugins: [plugin] })
-  await handle.mark('x')
+test('summary is undefined when no formatter matches', async ({ page }) => {
+  const handle = await attach(page, { outDir: dir, plugins: [] })
+  // js.error has no framework formatter and no plugin to format it.
+  await handle.emit({ type: 'js.error', metadata: { cdpTimestamp: 0, message: 'boom', stack: [] } })
   await handle.detach()
-  const events = await readEvents(dir)
-  const mark = events.find((event: { type: string }) => event.type === 'mark')
-  expect(mark.summary).toBeUndefined()
+
+  const events = await readEvents(dir) as Array<{ type: string; summary?: string }>
+  const error = events.find((event) => event.type === 'js.error')
+  expect(error?.summary).toBeUndefined()
 })

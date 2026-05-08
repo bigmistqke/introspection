@@ -17,6 +17,38 @@ export interface AttachOptions {
   session?: SessionWriter
 }
 
+/**
+ * Renders a single-line summary for events emitted by the framework itself
+ * (not by plugins). Returns null for unrecognised types so the plugin
+ * formatter chain gets a turn.
+ */
+export function formatFrameworkEvent(event: EmitInput): string | null {
+  switch (event.type) {
+    case 'mark':
+      return `"${(event.metadata as { label: string }).label}"`
+    case 'playwright.action': {
+      const md = event.metadata as { method: string; args: unknown[] }
+      const arg0 = md.args[0]
+      const argStr = typeof arg0 === 'string' ? arg0 : arg0 == null ? '' : JSON.stringify(arg0)
+      return `${md.method}(${argStr})`
+    }
+    case 'playwright.test.start':
+      return (event.metadata as { titlePath: string[] }).titlePath.join(' › ')
+    case 'playwright.result': {
+      const md = event.metadata as { status?: string; duration?: number }
+      const parts = [md.status ?? 'unknown']
+      if (md.duration !== undefined) parts.push(`${md.duration}ms`)
+      return parts.join(' ')
+    }
+    case 'browser.navigate': {
+      const md = event.metadata as { from: string; to: string }
+      return `${md.from} → ${md.to}`
+    }
+    default:
+      return null
+  }
+}
+
 export function toPluginMetas(plugins: IntrospectionPlugin[]): PluginMeta[] {
   return plugins.map(({ name, description, events, options }) => {
     const meta: PluginMeta = { name }
@@ -50,9 +82,11 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
     .filter((fn): fn is NonNullable<IntrospectionPlugin['formatEvent']> => typeof fn === 'function')
 
   // Wrap session.emit to stamp pageId onto every event from this page
-  // and run plugin formatters to populate event.summary.
+  // and populate event.summary. Order: caller-provided summary wins;
+  // then framework formatter for built-in event types; then plugin formatters.
   function emit(event: EmitInput): Promise<void> {
     let summary = event.summary
+    if (summary === undefined) summary = formatFrameworkEvent(event) ?? undefined
     if (summary === undefined) {
       for (const fn of formatters) {
         try {
