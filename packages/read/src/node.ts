@@ -9,7 +9,7 @@ import {
 } from './index.js'
 
 export type { StorageAdapter, SessionSummary } from './index.js'
-export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI } from '@introspection/types'
+export type { SessionReader, EventsFilter, EventsAPI } from '@introspection/types'
 
 export function createNodeAdapter(dir: string): StorageAdapter {
   return {

@@ -888,19 +888,10 @@ export interface EventsAPI {
   push(event: TraceEvent): void
 }
 
-export interface AssetsAPI {
-  ls(): Promise<PayloadAsset[]>
-  metadata(path: string): Promise<PayloadAsset | undefined>
-  readText(path: string): Promise<string>
-  readJSON<T>(path: string): Promise<T>
-  readBinary?(path: string): Promise<Uint8Array>
-}
-
 export interface SessionReader {
   id: string
   meta: SessionMeta
   events: EventsAPI
-  assets: AssetsAPI
   resolvePayload(ref: PayloadRef): Promise<unknown>
 }
 

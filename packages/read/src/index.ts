@@ -1,7 +1,7 @@
 import type { TraceEvent, SessionReader, SessionMeta, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter, PayloadRef } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 
-export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
+export type { SessionReader, EventsFilter, EventsAPI, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
 export { createMemoryReadAdapter } from './memory.js'
 
 // ─── Type matching ───────────────────────────────────────────────────────────
@@ -162,29 +162,6 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
         events.push(event)
         notify()
       },
-    },
-    assets: {
-      ls: () => {
-        const refs: AssetRef[] = []
-        for (const event of events) {
-          if (event.assets) refs.push(...event.assets)
-        }
-        return Promise.resolve(refs)
-      },
-      metadata: (path) => {
-        for (const event of events) {
-          if (event.assets) {
-            const found = event.assets.find(asset => asset.path === path)
-            if (found) return Promise.resolve(found)
-          }
-        }
-        return Promise.resolve(undefined)
-      },
-      readText: (path) => adapter.readText(`${id}/${path}`),
-      readJSON: <T>(path: string): Promise<T> => adapter.readJSON<T>(`${id}/${path}`),
-      readBinary: adapter.readBinary
-        ? (path) => adapter.readBinary!(`${id}/${path}`)
-        : undefined,
     },
     async resolvePayload(ref: PayloadRef): Promise<unknown> {
       if (ref.kind === 'inline') return ref.value

@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
-import type { TraceEvent, SessionMeta, AssetRef } from '@introspection/types'
+import type { TraceEvent, SessionMeta } from '@introspection/types'
 
 export interface FixtureSessionOptions {
   id: string
@@ -37,12 +37,11 @@ export function markEvent(id: string, timestamp: number, label: string): TraceEv
   return { id, type: 'mark', timestamp, metadata: { label } }
 }
 
-export function networkRequestEvent(id: string, timestamp: number, url: string, assets?: AssetRef[]): TraceEvent {
+export function networkRequestEvent(id: string, timestamp: number, url: string): TraceEvent {
   return {
     id,
     type: 'network.request',
     timestamp,
-    assets,
     metadata: {
       cdpRequestId: id,
       cdpTimestamp: 0,
