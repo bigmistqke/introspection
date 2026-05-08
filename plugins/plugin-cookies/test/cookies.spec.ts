@@ -3,6 +3,7 @@ import { mkdtemp, rm, readFile, readdir } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { attach } from '@introspection/playwright'
+import { jsError } from '@introspection/plugin-js-error'
 import { cookies } from '../src/index.js'
 import { startFixtureServer, type FixtureServer } from './server.js'
 
@@ -160,4 +161,38 @@ test('captures HTTP Set-Cookie as cookie.http events', async ({ page }) => {
   expect(theme).toBeDefined()
   expect(theme.metadata.sameSite).toBe('Lax')
   expect(typeof theme.metadata.expires).toBe('number')
+})
+
+test('emits a snapshot on handle.snapshot()', async ({ page }) => {
+  await page.goto(fixture.url)
+  const handle = await attach(page, { outDir: dir, plugins: [cookies()] })
+
+  await page.evaluate(() => { document.cookie = 'after=attach' })
+  await handle.snapshot()
+  await new Promise(r => setTimeout(r, 100))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const snapshots = events.filter((e: { type: string }) => e.type === 'cookie.snapshot')
+
+  const manual = snapshots.find((e: { metadata: { trigger: string } }) => e.metadata.trigger === 'manual')
+  expect(manual).toBeDefined()
+  expect(manual.metadata.cookies.some((c: { name: string }) => c.name === 'after')).toBe(true)
+
+  const detach = snapshots.find((e: { metadata: { trigger: string } }) => e.metadata.trigger === 'detach')
+  expect(detach).toBeDefined()
+})
+
+test('emits a snapshot on js.error', async ({ page }) => {
+  await page.goto(fixture.url)
+  const handle = await attach(page, { outDir: dir, plugins: [cookies(), jsError()] })
+
+  await page.evaluate(() => { setTimeout(() => { throw new Error('boom') }, 0) })
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const snapshots = events.filter((e: { type: string }) => e.type === 'cookie.snapshot')
+  const onError = snapshots.find((e: { metadata: { trigger: string } }) => e.metadata.trigger === 'js.error')
+  expect(onError).toBeDefined()
 })
