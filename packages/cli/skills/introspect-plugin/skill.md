@@ -27,7 +27,7 @@ interface PluginContext {
   }
   rawCdpSession: CDPSession                 // escape hatch — instrumentation plugins only
   emit(event: EmitInput): Promise<void>     // emit a trace event (id + timestamp auto-filled)
-  writeAsset(opts: { kind: AssetKind; content: string | Buffer; ext?: string }): Promise<AssetRef>
+  writeAsset(opts: { format: PayloadFormat; content: string | Buffer; ext?: string }): Promise<PayloadAsset>
   timestamp(): number                       // ms since session start
   track(operation: () => Promise<unknown>): void   // flush() waits on tracked work
   bus: {
@@ -39,6 +39,27 @@ interface PluginContext {
 ```
 
 Every `TraceEvent` type is a valid bus trigger (the payload is the event itself). Lifecycle triggers are `'manual'`, `'detach'`, and `'snapshot'`. `ctx.emit()` already fires on the bus — don't double-emit.
+
+## Payload naming
+
+Payload names are part of the public schema — users will write filters like
+`event.payloads.state.value.user.id` and run `introspect payload <event-id> <name>`.
+Inconsistent names across plugins make cross-plugin queries unreliable.
+
+Canonical names by intent:
+
+| Intent | Name |
+|---|---|
+| The captured "main thing" of a single-payload event | `value` |
+| Application or framework state snapshot | `state` |
+| Network response body (or any captured request/response body) | `body` |
+| Captured image (screenshot, frame) | `image` |
+| Captured HTML or DOM fragment | `html` |
+| Multi-part captures | descriptive nouns (`structure`, `dgraph`, `updates`, ...) |
+
+Rule of thumb: a name is a noun describing what the payload _is_, not what
+produced it (`body` not `responseBody`, `state` not `reduxState`). Grep
+existing usages before inventing a new name.
 
 Plugins are always factories (never singletons) so callers can pass per-instance options:
 
@@ -72,11 +93,29 @@ await ctx.emit({ type: 'my-plugin.thing', metadata: { value: 42 } })
 For large or binary payloads, write an asset and attach its ref to an event:
 
 ```ts
-const asset = await ctx.writeAsset({ kind: 'json', content: JSON.stringify(body) })
-await ctx.emit({ type: 'my-plugin.thing', metadata: { ... }, assets: [asset] })
+const asset = await ctx.writeAsset({ format: 'json', content: JSON.stringify(body) })
+// `asset` is already a PayloadRef
+await ctx.emit({ type: 'my-plugin.thing', metadata: { ... }, payloads: { body: asset } })
 ```
 
 To correlate two events from the same logical operation, set `initiator: otherEvent.id` on the follow-up event.
+
+## Footgun: payload values whose top-level shape is `{ kind: 'inline' | 'asset', ... }`
+
+`emit({ payloads: { name: value } })` treats `value` as a `PayloadRef` if it
+has a top-level `kind` of `'inline'` or `'asset'`, otherwise serializes it as
+a bare value. If your captured value happens to use `kind` as a top-level
+field with one of those literal strings, wrap with `await ctx.payload(value)`
+to disambiguate:
+
+    emit({
+      type: 'my.event',
+      payloads: {
+        config: await ctx.payload({ kind: 'inline', settings: {...} }),
+      },
+    })
+
+**Plan A note:** In Plan A, every plugin passes a pre-resolved `PayloadAsset` (the return of `writeAsset`) as the value, so the discriminator never engages and this footgun is dormant. Plan B (threshold + bare-value emits) makes it relevant.
 
 ## Browser script (optional)
 
@@ -126,13 +165,14 @@ export function myPlugin(): IntrospectionPlugin {
           (window as unknown as { __myCounter?: number }).__myCounter ?? 0
         )
         const asset = await ctx.writeAsset({
-          kind: 'json',
+          format: 'json',
           content: JSON.stringify({ value }),
         })
+        // `asset` is already a PayloadRef
         await ctx.emit({
           type: 'my-plugin.thing',
           metadata: { value },
-          assets: [asset],
+          payloads: { value: asset },
         })
       })
 
