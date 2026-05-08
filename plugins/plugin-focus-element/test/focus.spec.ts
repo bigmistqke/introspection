@@ -88,3 +88,32 @@ test('classifies .focus() calls as programmatic with callSite', async ({ page })
   expect(programmatic!.metadata.callSite).toBeDefined()
   expect(programmatic!.metadata.callSite).toMatch(/focusAlphaFromHelper/)
 })
+
+test('captures role, accessibleName, testid, selector, text on target', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [focusElement()] })
+  await gotoFixture(page, 'simple.html')
+  await page.waitForFunction(() => document.activeElement?.id === 'beta')
+  await page.locator('#go').focus()
+  await handle.flush()
+  await handle.detach()
+
+  const events = (await readEvents(outDir)).filter((e) => e.type === 'focus.changed') as Array<{
+    metadata: { target: {
+      tag: string; id: string | null; testid: string | null; role: string | null;
+      accessibleName: string | null; text: string | null; selector: string
+    } | null }
+  }>
+  const buttonEvent = events.find((e) => e.metadata.target?.id === 'go')
+  expect(buttonEvent).toBeDefined()
+  const { target } = buttonEvent!.metadata
+  expect(target!.tag).toBe('button')
+  expect(target!.testid).toBe('go-btn')
+  expect(target!.role).toBe('button')          // implicit role from tag
+  expect(target!.accessibleName).toBe('Go')    // from innerText fallback
+  expect(target!.text).toBe('Go')
+  expect(target!.selector).toBe('button#go')
+
+  const inputEvent = events.find((e) => e.metadata.target?.id === 'beta')
+  expect(inputEvent!.metadata.target!.role).toBe('textbox')
+  expect(inputEvent!.metadata.target!.accessibleName).toBe('Beta')  // from aria-label
+})

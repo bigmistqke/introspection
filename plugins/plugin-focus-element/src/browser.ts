@@ -33,17 +33,95 @@ interface ElementInfo {
     )
   }
 
+  const IMPLICIT_ROLES: Record<string, string> = {
+    button: 'button',
+    a: 'link',           // only when href is present (handled below)
+    textarea: 'textbox',
+    select: 'combobox',
+    nav: 'navigation',
+    main: 'main',
+    header: 'banner',
+    footer: 'contentinfo',
+    aside: 'complementary',
+  }
+  const INPUT_ROLES: Record<string, string> = {
+    text: 'textbox', search: 'searchbox', email: 'textbox', tel: 'textbox',
+    url: 'textbox', password: 'textbox', number: 'spinbutton',
+    checkbox: 'checkbox', radio: 'radio', range: 'slider',
+    submit: 'button', button: 'button', reset: 'button',
+  }
+
+  function implicitRole(element: Element): string | null {
+    const tag = element.tagName.toLowerCase()
+    if (tag === 'input') {
+      const type = (element.getAttribute('type') ?? 'text').toLowerCase()
+      return INPUT_ROLES[type] ?? 'textbox'
+    }
+    if (tag === 'a') return element.hasAttribute('href') ? 'link' : null
+    return IMPLICIT_ROLES[tag] ?? null
+  }
+
+  function accessibleNameOf(element: Element): string | null {
+    const ariaLabel = element.getAttribute('aria-label')
+    if (ariaLabel) return ariaLabel.trim() || null
+    const labelledBy = element.getAttribute('aria-labelledby')
+    if (labelledBy) {
+      const referenced = labelledBy.split(/\s+/).map((id) => element.ownerDocument.getElementById(id)?.textContent ?? '').join(' ').trim()
+      if (referenced) return referenced
+    }
+    if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') {
+      const id = element.id
+      if (id) {
+        const label = element.ownerDocument.querySelector(`label[for="${CSS.escape(id)}"]`)
+        if (label?.textContent) return label.textContent.trim() || null
+      }
+      const closest = element.closest('label')
+      if (closest?.textContent) return closest.textContent.trim() || null
+    }
+    const text = (element as HTMLElement).innerText?.trim()
+    if (text) return text.length > 120 ? text.slice(0, 117) + '…' : text
+    return null
+  }
+
+  function selectorFor(element: Element): string {
+    const tag = element.tagName.toLowerCase()
+    if (element.id) return `${tag}#${element.id}`
+    const segments: string[] = []
+    let current: Element | null = element
+    let depth = 0
+    while (current && current !== current.ownerDocument.documentElement && depth < 6) {
+      const segmentTag = current.tagName.toLowerCase()
+      if (current.id) {
+        segments.unshift(`${segmentTag}#${current.id}`)
+        break
+      }
+      const parent = current.parentElement
+      if (parent) {
+        const sameTag = Array.from(parent.children).filter((c) => c.tagName === current!.tagName)
+        const index = sameTag.indexOf(current)
+        segments.unshift(sameTag.length > 1 ? `${segmentTag}:nth-of-type(${index + 1})` : segmentTag)
+      } else {
+        segments.unshift(segmentTag)
+      }
+      current = parent
+      depth++
+    }
+    return segments.join(' > ')
+  }
+
   function describe(element: Element | null): ElementInfo | null {
     if (!element) return null
+    const tag = element.tagName.toLowerCase()
+    const text = (element as HTMLElement).innerText?.trim() ?? null
     return {
-      tag: element.tagName.toLowerCase(),
+      tag,
       id: element.id || null,
       classList: Array.from(element.classList),
       testid: element.getAttribute('data-testid'),
-      role: element.getAttribute('role'),
-      accessibleName: element.getAttribute('aria-label'),
-      text: null,
-      selector: element.tagName.toLowerCase() + (element.id ? `#${element.id}` : ''),
+      role: element.getAttribute('role') ?? implicitRole(element),
+      accessibleName: accessibleNameOf(element),
+      text: text ? (text.length > 120 ? text.slice(0, 117) + '…' : text) : null,
+      selector: selectorFor(element),
       shadowPath: null,
       backendNodeId: null,
     }
