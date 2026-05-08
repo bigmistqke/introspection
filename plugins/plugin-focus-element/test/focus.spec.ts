@@ -1,0 +1,46 @@
+import { test, expect } from '@playwright/test'
+import { mkdtemp, rm, readFile, readdir } from 'fs/promises'
+import { join } from 'path'
+import { tmpdir } from 'os'
+import { fileURLToPath } from 'url'
+import { dirname } from 'path'
+import { attach } from '@introspection/playwright'
+import { focusElement } from '../dist/index.js'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+
+let outDir: string
+
+test.beforeEach(async () => {
+  outDir = await mkdtemp(join(tmpdir(), 'introspect-focus-'))
+})
+
+test.afterEach(async () => {
+  await rm(outDir, { recursive: true, force: true })
+})
+
+async function readEvents(outDirectory: string): Promise<Array<Record<string, unknown>>> {
+  const entries = await readdir(outDirectory)
+  const ndjson = await readFile(join(outDirectory, entries[0], 'events.ndjson'), 'utf-8')
+  return ndjson.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
+}
+
+async function gotoFixture(page: import('@playwright/test').Page, name: string) {
+  await page.goto('file://' + join(HERE, 'fixtures', name))
+}
+
+test('emits initial focus snapshot for autofocused element', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [focusElement()] })
+  await gotoFixture(page, 'simple.html')
+  await page.waitForFunction(() => document.activeElement?.id === 'beta')
+  await handle.flush()
+  await handle.detach()
+
+  const events = await readEvents(outDir)
+  const focusEvents = events.filter((e) => e.type === 'focus.changed')
+  expect(focusEvents.length).toBeGreaterThanOrEqual(1)
+  const initial = focusEvents[0] as { metadata: { previous: unknown; target: { id: string }; cause: string } }
+  expect(initial.metadata.previous).toBeNull()
+  expect(initial.metadata.target.id).toBe('beta')
+  expect(initial.metadata.cause).toBe('unknown')
+})
