@@ -73,10 +73,43 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
 
       const BINDING_NAME = '__introspection_plugin_indexeddb'
 
-      type PagePayload = { origin: string; kind: string; [k: string]: unknown }
+      type DatabasePayload = {
+        origin: string
+        kind: 'database'
+        operation: 'open' | 'upgrade' | 'close' | 'delete'
+        name: string
+        oldVersion?: number
+        newVersion?: number
+        outcome?: 'success' | 'error' | 'blocked'
+        error?: string
+      }
 
-      function handlePagePayload(_payload: PagePayload): void {
-        // Filled in by Task 5 onwards.
+      type PagePayload = DatabasePayload
+
+      function handlePagePayload(payload: PagePayload): void {
+        if (!originAllowed(payload.origin)) return
+        if (payload.kind === 'database') {
+          if (databasesFilter && !databasesFilter.includes(payload.name)) return
+          const md: {
+            operation: 'open' | 'upgrade' | 'close' | 'delete'
+            origin: string
+            name: string
+            oldVersion?: number
+            newVersion?: number
+            outcome?: 'success' | 'error' | 'blocked'
+            error?: string
+          } = {
+            operation: payload.operation,
+            origin: payload.origin,
+            name: payload.name,
+          }
+          if (payload.oldVersion !== undefined) md.oldVersion = payload.oldVersion
+          if (payload.newVersion !== undefined) md.newVersion = payload.newVersion
+          if (payload.outcome) md.outcome = payload.outcome
+          if (payload.error) md.error = payload.error
+          void ctx.emit({ type: 'idb.database', metadata: md })
+          return
+        }
       }
 
       await ctx.cdpSession.send('Runtime.addBinding', { name: BINDING_NAME })

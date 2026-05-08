@@ -80,3 +80,46 @@ test('binding round-trips a manually-emitted payload', async ({ page }) => {
 
   await handle.detach()
 })
+
+test('captures database open, upgradeneeded, close, and delete', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDB()] })
+
+  await page.evaluate(() => {
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open('lifecycle-db', 2)
+      req.onupgradeneeded = (ev) => {
+        const db = (ev.target as IDBOpenDBRequest).result
+        db.createObjectStore('store-a', { keyPath: 'id' })
+      }
+      req.onsuccess = () => { req.result.close(); resolve() }
+      req.onerror = () => reject(req.error)
+    })
+  })
+
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const req = indexedDB.deleteDatabase('lifecycle-db')
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+  }))
+
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const lifecycle = events.filter((e: { type: string; metadata: { name?: string } }) =>
+    e.type === 'idb.database' && e.metadata.name === 'lifecycle-db'
+  )
+  const ops = lifecycle.map((e: { metadata: { operation: string } }) => e.metadata.operation)
+  expect(ops).toContain('upgrade')
+  expect(ops).toContain('open')
+  expect(ops).toContain('close')
+  expect(ops).toContain('delete')
+
+  const upgrade = lifecycle.find((e: { metadata: { operation: string } }) => e.metadata.operation === 'upgrade')
+  expect(upgrade.metadata.oldVersion).toBe(0)
+  expect(upgrade.metadata.newVersion).toBe(2)
+
+  const open = lifecycle.find((e: { metadata: { operation: string } }) => e.metadata.operation === 'open')
+  expect(open.metadata.outcome).toBe('success')
+})
