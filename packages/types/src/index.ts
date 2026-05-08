@@ -314,6 +314,43 @@ export interface ReduxDispatchEvent extends BaseEvent {
   }
 }
 
+// ─── Plugin events: web-storage ─────────────────────────────────────────────
+
+export type WebStorageType = 'localStorage' | 'sessionStorage'
+
+export interface WebStorageWriteEvent extends BaseEvent {
+  type: 'webStorage.write'
+  metadata: {
+    storageType: WebStorageType
+    operation: 'set' | 'remove' | 'clear'
+    origin: string
+    key?: string
+    oldValue?: string
+    newValue?: string
+    clearedKeys?: string[]
+  }
+}
+
+export interface WebStorageReadEvent extends BaseEvent {
+  type: 'webStorage.read'
+  metadata: {
+    storageType: WebStorageType
+    origin: string
+    key: string
+    value: string | null
+  }
+}
+
+export interface WebStorageSnapshotEvent extends BaseEvent {
+  type: 'webStorage.snapshot'
+  metadata: {
+    trigger: 'install' | 'manual' | 'js.error' | 'detach'
+    origin: string
+    localStorage?: Record<string, string>
+    sessionStorage?: Record<string, string>
+  }
+}
+
 // ─── Plugin events: cdp ─────────────────────────────────────────────────────
 
 export interface CdpCommandEvent extends BaseEvent {
@@ -418,6 +455,10 @@ export interface TraceEventMap {
   // Redux
   'redux.snapshot': ReduxSnapshotEvent
   'redux.dispatch': ReduxDispatchEvent
+  // Web storage
+  'webStorage.write': WebStorageWriteEvent
+  'webStorage.read': WebStorageReadEvent
+  'webStorage.snapshot': WebStorageSnapshotEvent
   // CDP trace
   'cdp.command': CdpCommandEvent
   'cdp.event': CdpEventEvent
