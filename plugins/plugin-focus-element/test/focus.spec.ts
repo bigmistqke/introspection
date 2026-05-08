@@ -64,3 +64,27 @@ test('tracks user-driven focus moves with previous chain', async ({ page }) => {
   expect(events[2].metadata.previous?.id).toBe('alpha')
   expect(events[2].metadata.target?.id).toBe('go')
 })
+
+test('classifies .focus() calls as programmatic with callSite', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [focusElement()] })
+  await gotoFixture(page, 'simple.html')
+  await page.waitForFunction(() => document.activeElement?.id === 'beta')
+
+  await page.evaluate(() => {
+    function focusAlphaFromHelper() {
+      (document.getElementById('alpha') as HTMLInputElement).focus()
+    }
+    focusAlphaFromHelper()
+  })
+  await handle.flush()
+  await handle.detach()
+
+  const events = (await readEvents(outDir)).filter((e) => e.type === 'focus.changed') as Array<{
+    metadata: { target: { id: string } | null; cause: string; callSite?: string }
+  }>
+  const programmatic = events.find((e) => e.metadata.target?.id === 'alpha')
+  expect(programmatic).toBeDefined()
+  expect(programmatic!.metadata.cause).toBe('programmatic')
+  expect(programmatic!.metadata.callSite).toBeDefined()
+  expect(programmatic!.metadata.callSite).toMatch(/focusAlphaFromHelper/)
+})

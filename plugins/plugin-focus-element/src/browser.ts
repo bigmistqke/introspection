@@ -51,6 +51,26 @@ interface ElementInfo {
 
   let previous: ElementInfo | null = null
 
+  let pendingProgrammatic: { stack: string } | null = null
+
+  const realFocus = HTMLElement.prototype.focus
+  HTMLElement.prototype.focus = function (this: HTMLElement, ...args: unknown[]) {
+    pendingProgrammatic = { stack: cleanStack(new Error().stack ?? '') }
+    try { return realFocus.apply(this, args as []) } finally { pendingProgrammatic = null }
+  }
+
+  const realBlur = HTMLElement.prototype.blur
+  HTMLElement.prototype.blur = function (this: HTMLElement, ...args: unknown[]) {
+    pendingProgrammatic = { stack: cleanStack(new Error().stack ?? '') }
+    try { return realBlur.apply(this, args as []) } finally { pendingProgrammatic = null }
+  }
+
+  function cleanStack(stack: string): string {
+    // Drop the first frame (the patch wrapper itself); keep everything else verbatim.
+    const lines = stack.split('\n')
+    return lines.length > 1 ? [lines[0], ...lines.slice(2)].join('\n') : stack
+  }
+
   function emitChange(target: ElementInfo | null, programmatic: { stack: string } | null): void {
     const metadata: Record<string, unknown> = {
       target,
@@ -63,6 +83,6 @@ interface ElementInfo {
   }
 
   document.addEventListener('focusin', () => {
-    emitChange(describe(document.activeElement), null)
+    emitChange(describe(document.activeElement), pendingProgrammatic)
   }, true)
 })()
