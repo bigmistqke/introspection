@@ -81,22 +81,22 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
     .map((plugin) => plugin.formatEvent)
     .filter((fn): fn is NonNullable<IntrospectionPlugin['formatEvent']> => typeof fn === 'function')
 
-  // Wrap session.emit to stamp pageId onto every event from this page
-  // and populate event.summary. Order: caller-provided summary wins;
-  // then framework formatter for built-in event types; then plugin formatters.
-  function emit(event: EmitInput): Promise<void> {
-    let summary = event.summary
-    if (summary === undefined) summary = formatFrameworkEvent(event) ?? undefined
-    if (summary === undefined) {
-      for (const fn of formatters) {
-        try {
-          const result = fn(event as TraceEvent)
-          if (result != null && result !== '') { summary = result; break }
-        } catch (error) {
-          debug('formatter threw', { type: event.type, error: error instanceof Error ? error.message : error })
-        }
+  function runPluginFormatters(event: EmitInput): string | null {
+    for (const fn of formatters) {
+      try {
+        const result = fn(event as TraceEvent)
+        if (result != null && result !== '') return result
+      } catch (error) {
+        debug('formatter threw', { type: event.type, error: error instanceof Error ? error.message : error })
       }
     }
+    return null
+  }
+
+  // Wrap session.emit to stamp pageId onto every event from this page
+  // and populate event.summary. Order: caller-provided > framework > plugins.
+  function emit(event: EmitInput): Promise<void> {
+    const summary = event.summary ?? formatFrameworkEvent(event) ?? runPluginFormatters(event) ?? undefined
     return session.emit({ pageId, ...event, ...(summary !== undefined ? { summary } : {}) })
   }
 
