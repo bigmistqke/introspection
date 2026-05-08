@@ -43,8 +43,6 @@ export interface PlaywrightScreenshotEvent extends BaseEvent {
   metadata?: never
 }
 
-// ─── Asset reference ────────────────────────────────────────────────────────
-//
 // ─── Payload reference ──────────────────────────────────────────────────────
 //
 // A payload is one named piece of data attached to an event. It is either:
