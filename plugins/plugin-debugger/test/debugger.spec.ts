@@ -5,7 +5,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { attach } from '@introspection/playwright'
 import { debuggerPlugin } from '../dist/index.js'
-import type { IntrospectHandle } from '@introspection/types'
+import type { IntrospectHandle, PayloadAsset } from '@introspection/types'
 
 let outDir: string
 
@@ -49,12 +49,11 @@ test('captures exception pause', async ({ page }) => {
   const captureEvent = events.find((event: { type: string }) => event.type === 'debugger.capture')
 
   expect(captureEvent).toBeDefined()
-  expect(captureEvent.assets).toBeDefined()
-  expect(Array.isArray(captureEvent.assets)).toBe(true)
-  expect(captureEvent.assets.length).toBeGreaterThan(0)
+  const ref = captureEvent.payloads!.value
+  expect(ref).toMatchObject({ kind: 'asset' })
 
   const sessionId = await getSessionId(outDir)
-  const assetPath = captureEvent.assets[0].path
+  const assetPath = (ref as PayloadAsset).path
   const assetContent = await readFile(
     join(outDir, sessionId, assetPath),
     'utf-8'
@@ -87,11 +86,11 @@ test('captures debugger statement pause', async ({ page }) => {
   const captureEvent = events.find((event: { type: string }) => event.type === 'debugger.capture')
 
   expect(captureEvent).toBeDefined()
-  expect(captureEvent.assets).toBeDefined()
-  expect(captureEvent.assets.length).toBeGreaterThan(0)
+  const ref = captureEvent.payloads!.value
+  expect(ref).toMatchObject({ kind: 'asset' })
 
   const sessionId = await getSessionId(outDir)
-  const assetPath = captureEvent.assets[0].path
+  const assetPath = (ref as PayloadAsset).path
   const assetContent = await readFile(
     join(outDir, sessionId, assetPath),
     'utf-8'
@@ -120,11 +119,11 @@ test('captures manual capture via client binding', async ({ page }) => {
   const captureEvent = events.find((event: { type: string }) => event.type === 'debugger.capture')
 
   expect(captureEvent).toBeDefined()
-  expect(captureEvent.assets).toBeDefined()
-  expect(captureEvent.assets.length).toBeGreaterThan(0)
+  const ref = captureEvent.payloads!.value
+  expect(ref).toMatchObject({ kind: 'asset' })
 
   const sessionId = await getSessionId(outDir)
-  const assetPath = captureEvent.assets[0].path
+  const assetPath = (ref as PayloadAsset).path
   const assetContent = await readFile(
     join(outDir, sessionId, assetPath),
     'utf-8'

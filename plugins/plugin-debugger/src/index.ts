@@ -151,7 +151,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
 
           const reason = isCapture ? 'capture' : isDebuggerStatement ? 'debuggerStatement' : params.reason
           const asset = await ctx.writeAsset({
-            kind: 'json',
+            format: 'json',
             content: JSON.stringify({
               reason,
               message,
@@ -164,7 +164,7 @@ export function debuggerPlugin(options?: DebuggerOptions): IntrospectionPlugin {
           })
           ctx.emit({
             type: 'debugger.capture' as const,
-            assets: [asset],
+            payloads: { value: asset },
           })
         })
       })
