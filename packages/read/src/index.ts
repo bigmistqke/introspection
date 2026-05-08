@@ -1,4 +1,4 @@
-import type { TraceEvent, AssetRef, SessionReader, SessionMeta, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
+import type { TraceEvent, AssetRef, SessionReader, SessionMeta, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter, PayloadRef } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 
 export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
@@ -186,7 +186,21 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
         ? (path) => adapter.readBinary!(`${id}/${path}`)
         : undefined,
     },
-  }
+    async resolvePayload(ref: PayloadRef): Promise<unknown> {
+      if (ref.kind === 'inline') return ref.value
+      const bytes = await adapter.readBinary!(`${id}/${ref.path}`)
+      switch (ref.format) {
+        case 'json':
+          return JSON.parse(bytes.toString('utf-8'))
+        case 'html':
+        case 'text':
+          return bytes.toString('utf-8')
+        case 'image':
+        case 'binary':
+          return bytes
+      }
+    },
+  } as SessionReader & { resolvePayload(ref: PayloadRef): Promise<unknown> }
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────

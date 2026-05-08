@@ -175,6 +175,46 @@ describe('events.push + reactive watch', () => {
   })
 })
 
+describe('resolvePayload', () => {
+  it('returns the inline value verbatim', async () => {
+    await writeFixtureSession(dir, { id: 's', startedAt: 0 })
+    const reader = await createSessionReader(dir)
+    const value = await reader.resolvePayload({ kind: 'inline', value: { hello: 'world' } })
+    expect(value).toEqual({ hello: 'world' })
+  })
+
+  it('reads and parses a json asset by format', async () => {
+    await writeFixtureSession(dir, {
+      id: 's',
+      startedAt: 0,
+      assets: [{ path: 'assets/hello.json', content: '{"hello":"world"}' }],
+    })
+    const reader = await createSessionReader(dir)
+    const value = await reader.resolvePayload({
+      kind: 'asset',
+      format: 'json',
+      path: 'assets/hello.json',
+    })
+    expect(value).toEqual({ hello: 'world' })
+  })
+
+  it('returns raw bytes for binary assets', async () => {
+    await writeFixtureSession(dir, {
+      id: 's',
+      startedAt: 0,
+      assets: [{ path: 'assets/blob.bin', content: Buffer.from([1, 2, 3]) }],
+    })
+    const reader = await createSessionReader(dir)
+    const value = await reader.resolvePayload({
+      kind: 'asset',
+      format: 'binary',
+      path: 'assets/blob.bin',
+    })
+    expect(Buffer.isBuffer(value)).toBe(true)
+    expect(Array.from(value as Buffer)).toEqual([1, 2, 3])
+  })
+})
+
 describe('assets API', () => {
   it('ls collects AssetRefs from every event', async () => {
     await writeFixtureSession(dir, {
