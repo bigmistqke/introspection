@@ -1,7 +1,7 @@
 import { writeFile, mkdir, appendFile, readFile, stat } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
-import type { TraceEvent, SessionMeta, PluginMeta, WriteAssetOptions, AssetRef } from '@introspection/types'
+import type { TraceEvent, SessionMeta, PluginMeta, WriteAssetOptions, PayloadAsset } from '@introspection/types'
 
 export interface SessionInitParams {
   id: string
@@ -30,15 +30,15 @@ export async function appendEvent(outDir: string, sessionId: string, event: Trac
   await appendFile(join(outDir, sessionId, 'events.ndjson'), JSON.stringify(event) + '\n')
 }
 
-/** Writes content to assets/<id>.<ext> and returns an AssetRef. Does not emit an event. */
+/** Writes content to assets/<id>.<ext> and returns a PayloadAsset. Does not emit an event. */
 export async function writeAsset(
   options: WriteAssetOptions & {
     directory: string
     name: string
     id?: string
   },
-): Promise<AssetRef> {
-  const { directory, name, kind, content, ext = 'json' } = options
+): Promise<PayloadAsset> {
+  const { directory, name, format, content, ext = 'json' } = options
   const id = options.id ?? randomUUID().replace(/-/g, '').slice(0, 8)
   const filename = `${id}.${ext}`
   const path = `assets/${filename}`
@@ -47,7 +47,7 @@ export async function writeAsset(
     : new Uint8Array(content.buffer, content.byteOffset, content.byteLength)
   await writeFile(join(directory, name, path), data)
   const size = typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength
-  return { path, kind, size }
+  return { kind: 'asset', format, path, size }
 }
 
 export async function finalizeSession(outDir: string, sessionId: string, endedAt: number): Promise<void> {

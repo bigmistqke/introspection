@@ -110,9 +110,10 @@ describe('SessionWriter.emit', () => {
 describe('SessionWriter.writeAsset', () => {
   it('writes content to assets/ and returns an AssetRef with size', async () => {
     const writer = await createSessionWriter({ outDir, id: 's' })
-    const ref = await writer.writeAsset({ kind: 'json', content: '{"hello":"world"}' })
+    const ref = await writer.writeAsset({ format: 'json', content: '{"hello":"world"}' })
 
-    expect(ref.kind).toBe('json')
+    expect(ref.kind).toBe('asset')
+    expect(ref.format).toBe('json')
     expect(ref.path).toMatch(/^assets\/[0-9a-f]{8}\.json$/)
     expect(ref.size).toBe(17)
 
@@ -122,14 +123,14 @@ describe('SessionWriter.writeAsset', () => {
 
   it('respects the ext option', async () => {
     const writer = await createSessionWriter({ outDir, id: 's' })
-    const ref = await writer.writeAsset({ kind: 'html', content: '<h1>x</h1>', ext: 'html' })
+    const ref = await writer.writeAsset({ format: 'html', content: '<h1>x</h1>', ext: 'html' })
     expect(ref.path.endsWith('.html')).toBe(true)
   })
 
   it('writes binary Buffers and reports byte length', async () => {
     const writer = await createSessionWriter({ outDir, id: 's' })
     const buffer = Buffer.from([1, 2, 3, 4, 5])
-    const ref = await writer.writeAsset({ kind: 'binary', content: buffer, ext: 'bin' })
+    const ref = await writer.writeAsset({ format: 'binary', content: buffer, ext: 'bin' })
     expect(ref.size).toBe(5)
 
     const onDisk = await readFile(join(outDir, 's', ref.path))

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, AssetRef } from '@introspection/types'
+import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, PayloadAsset } from '@introspection/types'
 import type { MemoryWriteAdapter } from './memory.js'
 import { initSessionDir, appendEvent, writeAsset, finalizeSession } from './session-writer.js'
 import { createBus } from '@introspection/utils'
@@ -106,7 +106,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
           const path = `${id}/assets/${assetId}.${ext}`
           await adapter.writeAsset(path, options.content)
           const size = typeof options.content === 'string' ? Buffer.byteLength(options.content) : options.content.byteLength
-          return { path, kind: options.kind, size }
+          return { kind: 'asset', format: options.format, path, size } satisfies PayloadAsset
         }
         return writeAsset({
           ...options,
