@@ -97,7 +97,18 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
         multiEntry?: boolean
       }
 
-      type PagePayload = DatabasePayload | SchemaPayload
+      type TransactionPayload = {
+        origin: string
+        kind: 'transaction'
+        operation: 'begin' | 'complete' | 'abort' | 'error'
+        database: string
+        transactionId: string
+        mode: 'readonly' | 'readwrite' | 'versionchange'
+        objectStoreNames: string[]
+        error?: string
+      }
+
+      type PagePayload = DatabasePayload | SchemaPayload | TransactionPayload
 
       function handlePagePayload(payload: PagePayload): void {
         if (!originAllowed(payload.origin)) return
@@ -147,6 +158,28 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
           if (payload.unique !== undefined) md.unique = payload.unique
           if (payload.multiEntry !== undefined) md.multiEntry = payload.multiEntry
           void ctx.emit({ type: 'idb.schema', metadata: md })
+          return
+        }
+        if (payload.kind === 'transaction') {
+          if (databasesFilter && !databasesFilter.includes(payload.database)) return
+          const md: {
+            operation: 'begin' | 'complete' | 'abort' | 'error'
+            origin: string
+            database: string
+            transactionId: string
+            mode: 'readonly' | 'readwrite' | 'versionchange'
+            objectStoreNames: string[]
+            error?: string
+          } = {
+            operation: payload.operation,
+            origin: payload.origin,
+            database: payload.database,
+            transactionId: payload.transactionId,
+            mode: payload.mode,
+            objectStoreNames: payload.objectStoreNames,
+          }
+          if (payload.error) md.error = payload.error
+          void ctx.emit({ type: 'idb.transaction', metadata: md })
           return
         }
       }

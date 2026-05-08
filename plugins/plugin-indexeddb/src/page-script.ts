@@ -142,6 +142,53 @@ export const BROWSER_SCRIPT = `
     return result;
   };
 
+  // ─── IDBDatabase.transaction ────────────────────────────────────────────
+  var origTransaction = IDBDatabase.prototype.transaction;
+  IDBDatabase.prototype.transaction = function(stores, mode) {
+    var tx = origTransaction.apply(this, arguments);
+    var transactionId = nextTxId();
+    try {
+      Object.defineProperty(tx, TX_ID_KEY, { value: transactionId, configurable: true });
+    } catch (_) {
+      tx[TX_ID_KEY] = transactionId;
+    }
+    var names = Array.prototype.slice.call(tx.objectStoreNames || []);
+    var dbName = String(this.name);
+    var actualMode = tx.mode;
+
+    emit({
+      kind: 'transaction',
+      operation: 'begin',
+      database: dbName,
+      transactionId: transactionId,
+      mode: actualMode,
+      objectStoreNames: names
+    });
+
+    tx.addEventListener('complete', function() {
+      emit({
+        kind: 'transaction', operation: 'complete', database: dbName,
+        transactionId: transactionId, mode: actualMode, objectStoreNames: names
+      });
+    });
+    tx.addEventListener('abort', function() {
+      emit({
+        kind: 'transaction', operation: 'abort', database: dbName,
+        transactionId: transactionId, mode: actualMode, objectStoreNames: names,
+        error: tx.error ? String(tx.error.name + ': ' + tx.error.message) : undefined
+      });
+    });
+    tx.addEventListener('error', function() {
+      emit({
+        kind: 'transaction', operation: 'error', database: dbName,
+        transactionId: transactionId, mode: actualMode, objectStoreNames: names,
+        error: tx.error ? String(tx.error.name + ': ' + tx.error.message) : 'unknown'
+      });
+    });
+
+    return tx;
+  };
+
   // ─── Schema (only valid in versionchange transactions) ──────────────────
   function keyPathOf(kp) {
     if (kp == null) return null;

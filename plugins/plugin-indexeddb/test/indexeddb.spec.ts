@@ -165,3 +165,39 @@ test('captures schema events: createObjectStore and createIndex', async ({ page 
   )
   expect(byTag.metadata.multiEntry).toBe(true)
 })
+
+test('captures transaction begin and complete', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDB()] })
+
+  await openDatabase(page, 'tx-db', 1, `db.createObjectStore('items', { keyPath: 'id' })`)
+
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open('tx-db', 1)
+    req.onsuccess = () => {
+      const db = req.result
+      const tx = db.transaction('items', 'readwrite')
+      tx.oncomplete = () => { db.close(); resolve() }
+      tx.onerror = () => { db.close(); reject(tx.error) }
+    }
+    req.onerror = () => reject(req.error)
+  }))
+
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const txEvents = events.filter((e: { type: string }) => e.type === 'idb.transaction')
+
+  const begin = txEvents.find((e: { metadata: { operation: string; mode: string } }) =>
+    e.metadata.operation === 'begin' && e.metadata.mode === 'readwrite'
+  )
+  expect(begin).toBeDefined()
+  expect(begin.metadata.objectStoreNames).toEqual(['items'])
+  expect(begin.metadata.database).toBe('tx-db')
+
+  const complete = txEvents.find((e: { metadata: { operation: string; transactionId: string } }) =>
+    e.metadata.operation === 'complete' && e.metadata.transactionId === begin.metadata.transactionId
+  )
+  expect(complete).toBeDefined()
+})
