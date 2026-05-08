@@ -208,3 +208,23 @@ test('origins option accepts RegExp', async ({ page }) => {
   const events = (await readEvents(outDir)).filter((e) => e.type === 'focus.changed')
   expect(events.length).toBeGreaterThan(0)
 })
+
+test('captures modal open/close focus trap with programmatic causes', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [focusElement()] })
+  await gotoFixture(page, 'modal.html')
+  await page.locator('#open').focus()  // ensure 'open' has focus before clicking
+  await page.locator('#open').click()
+  await page.waitForFunction(() => document.activeElement?.id === 'modal-input')
+  await page.locator('#close').click()
+  await page.waitForFunction(() => document.activeElement?.id === 'open')
+  await handle.flush()
+  await handle.detach()
+
+  const events = (await readEvents(outDir)).filter((e) => e.type === 'focus.changed') as Array<{
+    metadata: { target: { id: string | null } | null; cause: string }
+  }>
+  const intoModal = events.find((e) => e.metadata.target?.id === 'modal-input')
+  const backToOpen = events.slice().reverse().find((e) => e.metadata.target?.id === 'open')
+  expect(intoModal!.metadata.cause).toBe('programmatic')
+  expect(backToOpen!.metadata.cause).toBe('programmatic')
+})

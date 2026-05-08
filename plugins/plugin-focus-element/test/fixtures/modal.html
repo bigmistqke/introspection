@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<body>
+  <button id="open" data-testid="open">Open</button>
+  <div id="modal" hidden>
+    <input id="modal-input" aria-label="In modal" />
+    <button id="close" data-testid="close">Close</button>
+  </div>
+  <script>
+    const open = document.getElementById('open')
+    const modal = document.getElementById('modal')
+    const input = document.getElementById('modal-input')
+    const close = document.getElementById('close')
+    let returnTo = null
+    open.addEventListener('click', () => {
+      returnTo = document.activeElement
+      modal.hidden = false
+      input.focus()
+    })
+    close.addEventListener('click', () => {
+      modal.hidden = true
+      returnTo?.focus()
+    })
+  </script>
+</body>
+</html>
