@@ -3,6 +3,7 @@ import { mkdtemp, rm, readFile, readdir } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { attach } from '../src/attach.js'
+import type { PayloadAsset } from '@introspection/types'
 
 let dir: string
 test.beforeEach(async () => {
@@ -88,14 +89,13 @@ test('proxied page.screenshot() saves asset and emits playwright.screenshot even
   const events = await readEvents(dir)
   const screenshotEvent = events.find((e: { type: string }) => e.type === 'playwright.screenshot')
   expect(screenshotEvent).toBeDefined()
-  expect(screenshotEvent.assets).toBeDefined()
-  expect(screenshotEvent.assets.length).toBeGreaterThanOrEqual(1)
-  expect(screenshotEvent.assets[0].kind).toBe('image')
+  const screenshot = screenshotEvent.payloads!.image
+  expect(screenshot).toMatchObject({ kind: 'asset', format: 'image' })
 
   // Verify the asset file exists
   const entries = (await readdir(dir)).filter(e => !e.startsWith('.'))
   const sessionDir = join(dir, entries[0])
-  const assetPath = join(sessionDir, screenshotEvent.assets[0].path)
+  const assetPath = join(sessionDir, (screenshot as PayloadAsset).path)
   const assetContent = await readFile(assetPath)
   expect(assetContent.length).toBeGreaterThan(0)
 })
