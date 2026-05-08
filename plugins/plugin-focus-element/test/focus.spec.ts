@@ -44,3 +44,23 @@ test('emits initial focus snapshot for autofocused element', async ({ page }) =>
   expect(initial.metadata.target.id).toBe('beta')
   expect(initial.metadata.cause).toBe('unknown')
 })
+
+test('tracks user-driven focus moves with previous chain', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [focusElement()] })
+  await gotoFixture(page, 'simple.html')
+  await page.waitForFunction(() => document.activeElement?.id === 'beta')
+  await page.locator('#alpha').focus()
+  await page.locator('#go').focus()
+  await handle.flush()
+  await handle.detach()
+
+  const events = (await readEvents(outDir)).filter((e) => e.type === 'focus.changed') as Array<{
+    metadata: { target: { id: string } | null; previous: { id: string } | null; cause: string }
+  }>
+  // initial + 2 transitions = 3
+  expect(events.length).toBe(3)
+  expect(events[1].metadata.previous?.id).toBe('beta')
+  expect(events[1].metadata.target?.id).toBe('alpha')
+  expect(events[2].metadata.previous?.id).toBe('alpha')
+  expect(events[2].metadata.target?.id).toBe('go')
+})

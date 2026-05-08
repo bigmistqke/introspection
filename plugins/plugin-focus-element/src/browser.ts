@@ -49,57 +49,20 @@ interface ElementInfo {
     }
   }
 
-  function emitInitial(): void {
-    const target = describe(document.activeElement)
+  let previous: ElementInfo | null = null
+
+  function emitChange(target: ElementInfo | null, programmatic: { stack: string } | null): void {
     const metadata: Record<string, unknown> = {
       target,
-      previous: null,
-      cause: 'unknown',
+      previous,
+      ...(programmatic ? { cause: 'programmatic', callSite: programmatic.stack } : { cause: 'unknown' }),
     }
     if (window.top !== window) metadata.origin = location.origin
     push(metadata)
+    previous = target
   }
 
-  // Emit the initial snapshot once the page is fully settled.
-  // In Chromium, autofocus fires a `focus` event AFTER `pageshow`. We wait for it.
-  // If no focus event fires within a short window (no autofocus), fall back to emitting
-  // the current activeElement (which will be body or null).
-  let initialEmitted = false
-  let fallbackTimer: ReturnType<typeof setTimeout> | null = null
-
-  function onInitialFocus(): void {
-    if (initialEmitted) return
-    if (fallbackTimer !== null) {
-      clearTimeout(fallbackTimer)
-      fallbackTimer = null
-    }
-    initialEmitted = true
-    emitInitial()
-  }
-
-  window.addEventListener('focus', onInitialFocus, { once: true, capture: true })
-
-  window.addEventListener('pageshow', (event) => {
-    if ((event as PageTransitionEvent).persisted) {
-      initialEmitted = false
-      window.addEventListener('focus', onInitialFocus, { once: true, capture: true })
-      // Fallback in case there's no autofocus on the restored page
-      fallbackTimer = setTimeout(() => {
-        fallbackTimer = null
-        if (!initialEmitted) {
-          initialEmitted = true
-          emitInitial()
-        }
-      }, 100)
-      return
-    }
-    // First load: autofocus focus event fires after pageshow; set a fallback
-    fallbackTimer = setTimeout(() => {
-      fallbackTimer = null
-      if (!initialEmitted) {
-        initialEmitted = true
-        emitInitial()
-      }
-    }, 100)
-  })
+  document.addEventListener('focusin', () => {
+    emitChange(describe(document.activeElement), null)
+  }, true)
 })()
