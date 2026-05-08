@@ -45,17 +45,29 @@ export interface PlaywrightScreenshotEvent extends BaseEvent {
 
 // ─── Asset reference ────────────────────────────────────────────────────────
 //
-// An asset is a file written to the session's assets directory.
-// Asset references are attached to events via BaseEvent.assets.
-// `kind` identifies the content format for reading/rendering.
+// ─── Payload reference ──────────────────────────────────────────────────────
+//
+// A payload is one named piece of data attached to an event. It is either:
+//   - inline (the value lives in events.ndjson; implicitly JSON), or
+//   - an asset (the value lives in the session's assets/ directory on disk).
+//
+// `PayloadFormat` describes how the on-disk bytes should be parsed/rendered.
 
-export type AssetKind = 'json' | 'html' | 'text' | 'image' | 'binary'
+export type PayloadFormat = 'json' | 'html' | 'text' | 'image' | 'binary'
 
-export interface AssetRef {
+export interface PayloadInline {
+  kind: 'inline'
+  value: unknown
+}
+
+export interface PayloadAsset {
+  kind: 'asset'
+  format: PayloadFormat
   path: string
-  kind: AssetKind
   size?: number
 }
+
+export type PayloadRef = PayloadInline | PayloadAsset
 
 export interface PageAttachEvent extends BaseEvent {
   type: 'page.attach'
