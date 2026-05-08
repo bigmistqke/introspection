@@ -51,14 +51,6 @@ interface IndexedDBOptions {
   dataSnapshots?: boolean
 
   /**
-   * Max bytes to inline a single value in write/read events. Larger values
-   * are written to assets and referenced via `assets[0]`. Default: 4096.
-   * Will be replaced by the generic payload-threshold helper once it lands
-   * (see docs/superpowers/plans/2026-05-08-event-payload-size-threshold.md).
-   */
-  inlineValueLimit?: number
-
-  /**
    * Restrict capture to specific origins. Default: ['*'] (all origins).
    * When the framework-level `origins` option lands (see
    * docs/superpowers/plans/2026-05-08-origins-option.md), this option
@@ -73,7 +65,7 @@ interface IndexedDBOptions {
 }
 ```
 
-Defaults: writes + schema + transactions + schema-only snapshots; all origins; all databases; reads off; data snapshots off; 4096-byte value inlining.
+Defaults: writes + schema + transactions + schema-only snapshots; all origins; all databases; reads off; data snapshots off. All captured values (write payloads, read results, snapshot records) go to assets — no inline option for v1. The generic inline-vs-asset threshold helper (`docs/superpowers/plans/2026-05-08-event-payload-size-threshold.md`) is when we'll revisit.
 
 ## Event schema
 
@@ -152,8 +144,12 @@ export interface IdbWriteEvent extends BaseEvent {
     transactionId: string
     /** Keys: the explicit key arg, or the inferred keyPath value. Absent for clear. */
     key?: unknown
-    /** The value passed to add/put. Absent for delete/clear. May be inline or asset. */
-    value?: unknown
+    /**
+     * For add/put: the written value is carried in `assets[0]` (JSON asset).
+     * Absent for delete/clear. The asset ref lives on the event's `assets`
+     * field (see BaseEvent), not in metadata, matching how `plugin-redux`
+     * carries its snapshot state.
+     */
     /** Number of records affected (for clear, all of them — captured at op start). */
     affectedCount?: number
     /** Async outcome. */
@@ -184,9 +180,11 @@ export interface IdbReadEvent extends BaseEvent {
     query?: unknown
     /** Number of records returned (for getAll/getAllKeys/count). */
     count?: number
-    /** Result. May be inline or asset (for getAll, getAllKeys). Cursor walks
-     *  emit one event per advance, with `value` being the current cursor value. */
-    result?: unknown
+    /**
+     * Result is carried in `assets[0]` (JSON asset) when present. For
+     * `count`, see `count` above (small numeric — inline). Cursor walks emit
+     * one event per advance, with the cursor's current value as the asset.
+     */
     outcome: 'success' | 'error'
     error?: string
     requestedAt: number
@@ -215,17 +213,20 @@ export interface IdbSnapshotEvent extends BaseEvent {
           unique: boolean
           multiEntry: boolean
         }>
-        /** Records — present only when dataSnapshots: true. */
-        records?: Array<{ key: unknown; value: unknown }>
       }>
     }>
+    /**
+     * When `dataSnapshots: true`, store records are written as a JSON asset
+     * carried on the event's `assets` field. Asset shape:
+     *   Array<{ database: string; objectStore: string; records: Array<{ key, value }> }>
+     */
   }
 }
 ```
 
 Notes:
 - `transactionId` is synthetic. We assign one when `IDBDatabase.transaction()` is called and propagate it to every op observed within that transaction. This lets consumers correlate ops without needing browser-side IDs (which IDB doesn't expose).
-- `value` and `result` are inline if `JSON.stringify(value).length <= inlineValueLimit`, otherwise they're written as a JSON asset and the `assets` field carries the ref. Non-JSON-serializable values (Blob, ArrayBuffer, structured-clone-only objects) are recorded as `{ __nonSerializable: 'Blob' | 'ArrayBuffer' | ... , size?: number }` placeholders inline.
+- Values (writes' payload, reads' result, snapshot records) always go to assets via `ctx.writeAsset` and the standard `assets` field on the event. No inline option in v1. Non-JSON-serializable values (Blob, ArrayBuffer, structured-clone-only objects) are recorded as `{ __nonSerializable: 'Blob' | 'ArrayBuffer' | ... , size?: number }` placeholders within the asset.
 - For `openCursor` we emit one `idb.read` event per cursor advance, not one per cursor open. That matches what consumers actually want to see (the records walked) and avoids modeling "cursor lifecycle" separately.
 
 ## Capture mechanism
@@ -335,10 +336,10 @@ Playwright integration tests against fixtures that:
 - `add` / `put` / `delete` / `clear` on an object store → assert `idb.write` events with correct `key`, `value`, `outcome`, `transactionId` matching the wrapping transaction's begin event
 - Trigger a transaction abort (e.g. constraint error on a unique index) → assert `idb.transaction` (operation: 'error' or 'abort') with `error` populated
 - (with `reads: true`) `get` / `getAll` / `openCursor` walks → assert `idb.read` events including one per cursor advance
-- (with `dataSnapshots: true`) snapshot at install → assert per-store `records` populated
+- (with `dataSnapshots: true`) snapshot at install → assert per-store records populated in the snapshot's asset
 - `js.error` mid-test → assert `idb.snapshot` with `trigger: 'js.error'`
 - Multi-database test → assert `databases: ['only-this-one']` filter excludes the other
-- Large value (>4096 bytes) → assert event has an `assets` ref instead of inline `value`
+- Write of a non-trivial value → assert event has an `assets[0]` JSON ref containing the value (no inline value field)
 
 ## Risks / open questions
 
@@ -352,6 +353,6 @@ Playwright integration tests against fixtures that:
 
 - `docs/superpowers/specs/2026-05-08-plugin-web-storage-design.md` — sibling plugin; this one mirrors its conventions where applicable.
 - `docs/superpowers/plans/2026-05-08-snapshot-bus-trigger-refactor.md` — eventual unification of bus snapshot triggers.
-- `docs/superpowers/plans/2026-05-08-event-payload-size-threshold.md` — generic inline-vs-asset helper; this plugin's `inlineValueLimit` is a precursor.
+- `docs/superpowers/plans/2026-05-08-event-payload-size-threshold.md` — generic inline-vs-asset helper. This plugin always uses assets for now; we'll switch to the helper once it lands so small values can stay inline.
 - `docs/superpowers/plans/2026-05-08-origins-option.md` — eventual framework-level `origins` config; this plugin's `origins` option fits that shape.
 - `docs/prototype-patching-limits.md` — shared note on realm-crossing; linked from the plugin's README.
