@@ -81,30 +81,31 @@ export function webgl(options?: WebGLOptions): WebGLPlugin {
       return plugin?.captureCanvases?.() ?? []
     })
 
-    const assets = []
+    const payloads: Record<string, import('@introspection/types').PayloadRef> = {}
 
-    for (const snapshot of snapshots) {
-      const asset = await ctx.writeAsset({
-        kind: 'json',
-        content: JSON.stringify(snapshot),
+    for (let i = 0; i < snapshots.length; i++) {
+      const key = snapshots.length === 1 ? 'state' : `state${i}`
+      payloads[key] = await ctx.writeAsset({
+        format: 'json',
+        content: JSON.stringify(snapshots[i]),
       })
-      assets.push(asset)
     }
 
-    for (const { contextId, dataUrl } of canvases) {
+    for (let i = 0; i < canvases.length; i++) {
+      const { dataUrl } = canvases[i]
       const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-      const asset = await ctx.writeAsset({
-        kind: 'image',
+      const key = canvases.length === 1 ? 'frame' : `frame${i}`
+      payloads[key] = await ctx.writeAsset({
+        format: 'image',
         content: Buffer.from(base64, 'base64'),
         ext: 'png',
       })
-      assets.push(asset)
     }
 
-    if (assets.length > 0) {
+    if (Object.keys(payloads).length > 0) {
       await ctx.emit({
         type: 'webgl.capture' as const,
-        assets,
+        payloads,
       })
     }
   }
@@ -181,21 +182,24 @@ export function webgl(options?: WebGLOptions): WebGLPlugin {
       } catch (error) {
         canvases = []
       }
-      const captureAssets = []
-      for (const { contextId, dataUrl } of canvases) {
-        if (opts?.contextId !== undefined && contextId !== opts.contextId) continue
+      const filteredCanvases = canvases.filter(
+        ({ contextId }) => opts?.contextId === undefined || contextId === opts.contextId
+      )
+      const capturePayloads: Record<string, import('@introspection/types').PayloadRef> = {}
+      for (let i = 0; i < filteredCanvases.length; i++) {
+        const { dataUrl } = filteredCanvases[i]
         const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-        const asset = await pluginCtx.writeAsset({
-          kind: 'image',
+        const key = filteredCanvases.length === 1 ? 'frame' : `frame${i}`
+        capturePayloads[key] = await pluginCtx.writeAsset({
+          format: 'image',
           content: Buffer.from(base64, 'base64'),
           ext: 'png',
         })
-        captureAssets.push(asset)
       }
-      if (captureAssets.length > 0) {
+      if (Object.keys(capturePayloads).length > 0) {
         await pluginCtx.emit({
           type: 'webgl.capture' as const,
-          assets: captureAssets,
+          payloads: capturePayloads,
         })
       }
     },
