@@ -13,12 +13,12 @@ Auth and session bugs are constant pain points and rarely visible in network log
 In scope:
 - `document.cookie =` writes (and deletions, expressed as set-with-expired-date).
 - `CookieStore.set` / `CookieStore.delete` (Chromium async API).
+- HTTP `Set-Cookie` response headers — surfaced as `cookie.write` events with `source: 'http'`, parsed from CDP `Network.responseReceivedExtraInfo`. Independent of `plugin-network` (which keeps the raw header in its `network.response` payload for consumers that want it). The same set is observable from both plugins.
 - Cookie snapshots at install + bus triggers (`manual`, `js.error`, `detach`).
 
-Out of scope (separate / future):
-- HTTP `Set-Cookie` headers — already in `plugin-network` response events.
+Out of scope (future):
 - Cookie reads — `document.cookie` returns all cookies as one string, low signal-to-noise. `CookieStore.get` is per-key but rarely used in practice. Easy to add later if it turns out to matter.
-- Cookie store sync events (`CookieStore.addEventListener('change')`) — covered by our write capture for cookies the page sets, and by `plugin-network` for Set-Cookie. Browser-internal mutations aren't a real concern in test contexts.
+- Cookie store sync events (`CookieStore.addEventListener('change')`) — covered by our write capture for page writes and by our HTTP capture for Set-Cookie. Browser-internal mutations (cross-tab sync, expiration) are caught by the next snapshot.
 - HTTP-only / Secure / SameSite *enforcement* events — only visible when a request is blocked, which `plugin-network` already exposes via `requestWillBeSentExtraInfo` blocking reasons.
 
 ## Public API
@@ -79,9 +79,19 @@ export interface CookieWriteEvent extends BaseEvent {
   type: 'cookie.write'
   metadata: {
     operation: 'set' | 'delete'
-    source: 'document.cookie' | 'CookieStore'
-    /** Origin of the page realm that made the call. */
+    source: 'document.cookie' | 'CookieStore' | 'http'
+    /**
+     * For 'document.cookie' / 'CookieStore': origin of the page realm that
+     * made the call. For 'http': origin of the response URL that carried the
+     * Set-Cookie header.
+     */
     origin: string
+    /**
+     * Present when source is 'http'. The URL of the response carrying the
+     * Set-Cookie header, so the write can be correlated to a specific request.
+     * Equals plugin-network's network.response.metadata.url for the same response.
+     */
+    url?: string
     name: string
     /** Present for 'set'; absent for 'delete'. */
     value?: string
@@ -191,6 +201,35 @@ if (typeof CookieStore !== 'undefined') {
 
 Both async paths emit on settle so failures don't appear as successful writes.
 
+### HTTP Set-Cookie — server-side via CDP
+
+We subscribe to `Network.responseReceivedExtraInfo` (which carries the response headers, including `Set-Cookie`, even for HttpOnly cookies — unlike `Network.responseReceived`). Each `Set-Cookie` header becomes one `cookie.write` event with `source: 'http'`.
+
+```ts
+await ctx.cdpSession.send('Network.enable')
+ctx.cdpSession.on('Network.responseReceivedExtraInfo', (rawParams) => {
+  const params = rawParams as {
+    requestId: string
+    headers: Record<string, string>
+    blockedCookies?: unknown[]
+    cookiePartitionKey?: string
+  }
+  // headers may have multiple Set-Cookie joined by '\n' (CDP convention).
+  const raw = params.headers['Set-Cookie'] ?? params.headers['set-cookie']
+  if (!raw) return
+  for (const line of raw.split('\n')) {
+    const parsed = parseCookieString(line)
+    if (!parsed) continue
+    const op = isExpired(parsed) ? 'delete' : 'set'
+    // Apply origin / name filters and emit.
+  }
+})
+```
+
+The URL associated with the response is recovered by maintaining a small `requestId → url` map populated from `Network.responseReceived`. The map is bounded (last ~256 entries) and cleared on navigation — see Risks.
+
+`Network.enable` is idempotent, so this works whether or not `plugin-network` is also installed.
+
 ### Snapshots — server-side via CDP
 
 ```
@@ -263,6 +302,7 @@ Playwright integration tests against an HTTP fixture (cookies don't behave well 
 - `document.cookie = 'a=; max-age=0'` → one `cookie.write` (delete).
 - Multi-attribute write `'b=2; path=/sub; secure; samesite=strict'` → metadata reflects every attribute.
 - (when `CookieStore` exists) `cookieStore.set('c', '3')` and `cookieStore.delete('c')` → one event each, source: 'CookieStore'.
+- HTTP response with `Set-Cookie: foo=bar; HttpOnly` → one `cookie.write` event with `source: 'http'`, `httpOnly: true`, and a populated `url` field matching the response URL.
 - `js.error` mid-test → cookie snapshot with `trigger: 'js.error'`.
 - `names: ['session']` filter → only cookies named `session` appear in writes and snapshots.
 - `origins: ['https://other.example']` filter → cookies for the test origin are excluded.
@@ -274,11 +314,13 @@ Playwright integration tests against an HTTP fixture (cookies don't behave well 
 - **Cookie attribute parsing.** We implement a minimal RFC 6265-style parser sufficient for the standard attributes. Edge cases: cookies with embedded `;` in values (rare and non-standard), case sensitivity in attribute names (we lowercase), comma-separated `Set-Cookie` values (not relevant — we're parsing what the page wrote, not server output). If the parser fails for a write, we emit a minimal event with `raw` only.
 - **Origin attribution for writes.** The page-side wrapper records `location.origin` at the time of the write. Cookies set this way actually scope to a *domain*, but the origin tells consumers which page made the call.
 - **CookieStore browser support.** Chromium-only at time of writing. The patch wraps it conditionally — Firefox/Safari users get document.cookie capture only. No fallback needed.
-- **Realm-crossing limit** — the page-script + non-navigating-iframe trick applies as it does to every prototype-patching plugin in this repo: see `docs/prototype-patching-limits.md`.
+- **Realm-crossing limit** — the page-script + non-navigating-iframe trick applies as it does to every prototype-patching plugin in this repo: see `docs/prototype-patching-limits.md`. Note that the HTTP capture path (CDP-based) is unaffected by this limit.
+- **`requestId → url` correlation map for HTTP capture.** `Network.responseReceivedExtraInfo` doesn't carry the URL directly. We maintain a small bounded map populated from `Network.responseReceived`. Map size capped at 256 entries; older entries evicted FIFO. Navigations don't clear the map (cookies set by a prior response are still relevant for a fresh page). If a response arrives without our seeing the `responseReceived` first (e.g. CDP message reordering, very rare), the resulting `cookie.write` event has `url` undefined — not fatal.
+- **Co-installation with `plugin-network`.** Both plugins call `Network.enable` independently. CDP treats this as idempotent, so no conflict. The same Set-Cookie header is observable in both `cookie.write` (parsed, queryable) and `network.response.metadata.headers` (raw); consumers pick whichever shape fits.
 
 ## Related work
 
-- `plugins/plugin-network` — captures `Set-Cookie` headers via `Network.responseReceivedExtraInfo`. Consumers wanting full cookie observability join `network.response` events with `cookie.snapshot`.
+- `plugins/plugin-network` — captures `Set-Cookie` headers in raw form on `network.response` events. This plugin observes the same CDP source independently and surfaces parsed `cookie.write` events. Run both for full visibility; the duplication is intentional.
 - `docs/superpowers/specs/2026-05-08-plugin-web-storage-design.md` — sibling pattern.
 - `docs/superpowers/specs/2026-05-08-plugin-indexeddb-design.md` — sibling pattern.
 - `docs/superpowers/plans/2026-05-08-snapshot-bus-trigger-refactor.md` — eventual unification of bus snapshot triggers.
