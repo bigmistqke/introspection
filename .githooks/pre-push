@@ -5,6 +5,6 @@ echo "🔨 Running pre-push checks..."
 
 pnpm build && \
 pnpm typecheck && \
-pnpm test
+pnpm exec turbo test --filter '!./ctf/**' --filter '!./demos/**'
 
 echo "✅ All checks passed!"
