@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { jsError } from '@introspection/plugin-js-error'
 import { mkdtemp, rm, readFile, readdir } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
@@ -328,4 +329,74 @@ test('does not capture reads by default', async ({ page }) => {
   const events = await readEvents(dir)
   const reads = events.filter((e: { type: string }) => e.type === 'idb.read')
   expect(reads).toHaveLength(0)
+})
+
+test('emits a snapshot on handle.snapshot()', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDBPlugin()] })
+
+  await openDatabase(page, 'snap-db', 1, `db.createObjectStore('items', { keyPath: 'id' })`)
+  await handle.snapshot()
+  await new Promise(r => setTimeout(r, 150))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const snapshots = events.filter((e: { type: string }) => e.type === 'idb.snapshot')
+
+  const manual = snapshots.find((e: { metadata: { trigger: string } }) => e.metadata.trigger === 'manual')
+  expect(manual).toBeDefined()
+  expect(manual.metadata.databases.some((d: { name: string }) => d.name === 'snap-db')).toBe(true)
+
+  const detach = snapshots.find((e: { metadata: { trigger: string } }) => e.metadata.trigger === 'detach')
+  expect(detach).toBeDefined()
+})
+
+test('emits a snapshot on js.error', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDBPlugin(), jsError()] })
+
+  await page.evaluate(() => { setTimeout(() => { throw new Error('boom') }, 0) })
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const snapshots = events.filter((e: { type: string }) => e.type === 'idb.snapshot')
+  const onError = snapshots.find((e: { metadata: { trigger: string } }) => e.metadata.trigger === 'js.error')
+  expect(onError).toBeDefined()
+})
+
+test('dataSnapshots: true includes store records on the snapshot asset', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDBPlugin({ dataSnapshots: true })] })
+
+  await openDatabase(page, 'data-snap-db', 1, `db.createObjectStore('items', { keyPath: 'id' })`)
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open('data-snap-db', 1)
+    req.onsuccess = () => {
+      const db = req.result
+      const tx = db.transaction('items', 'readwrite')
+      tx.objectStore('items').put({ id: 'a', val: 1 })
+      tx.objectStore('items').put({ id: 'b', val: 2 })
+      tx.oncomplete = () => { db.close(); resolve() }
+      tx.onerror = () => reject(tx.error)
+    }
+    req.onerror = () => reject(req.error)
+  }))
+
+  await handle.snapshot()
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const manual = events.find((e: { type: string; metadata: { trigger: string } }) =>
+    e.type === 'idb.snapshot' && e.metadata.trigger === 'manual'
+  )
+  expect(manual).toBeDefined()
+  expect(manual.assets).toHaveLength(1)
+
+  const data = await readAsset(dir, manual.assets[0].path)
+  const dataDb = data.find((d: { database: string }) => d.database === 'data-snap-db')
+  expect(dataDb).toBeDefined()
+  const items = dataDb.records
+  expect(items.map((r: { key: string }) => r.key).sort()).toEqual(['a', 'b'])
 })

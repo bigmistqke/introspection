@@ -376,7 +376,8 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
             names = r.databaseNames
           } catch (err) {
             debug('requestDatabaseNames failed', origin, (err as Error).message)
-            continue
+            // Continue and emit a minimal snapshot so consumers see the trigger
+            // even when CDP is unavailable (e.g. during detach teardown).
           }
 
           if (databasesFilter) names = names.filter(n => databasesFilter.includes(n))
@@ -390,6 +391,12 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
               autoIncrement: boolean
               indexes: Array<{ name: string; keyPath: string | string[]; unique: boolean; multiEntry: boolean }>
             }>
+          }> = []
+
+          const dataPayload: Array<{
+            database: string
+            objectStore: string
+            records: Array<{ key: unknown; value: unknown }>
           }> = []
 
           for (const name of names) {
@@ -413,19 +420,106 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
                   })),
                 })),
               })
+
+              if (dataSnapshots) {
+                debug('dataSnapshots loop for db', name, 'stores', db.objectStores.map(s => s.name))
+                // Page-evaluated dump: walks every store via the page's own
+                // IndexedDB API. More robust than CDP IndexedDB.requestData,
+                // which is finicky about origins (notably file://) and indexes.
+                try {
+                  const dumpScript = `
+                    (function() {
+                      return new Promise(function(resolve) {
+                        var dbName = ${JSON.stringify(name)};
+                        var storeNames = ${JSON.stringify(db.objectStores.map(s => s.name))};
+                        var openReq = indexedDB.open(dbName);
+                        openReq.onsuccess = function() {
+                          var db = openReq.result;
+                          var tx = db.transaction(storeNames, 'readonly');
+                          var out = [];
+                          var done = 0;
+                          storeNames.forEach(function(storeName) {
+                            var store = tx.objectStore(storeName);
+                            var records = [];
+                            var cursorReq = store.openCursor();
+                            cursorReq.onsuccess = function(ev) {
+                              var cursor = ev.target.result;
+                              if (cursor) {
+                                records.push({ key: cursor.primaryKey, value: cursor.value });
+                                cursor.continue();
+                              } else {
+                                out.push({ database: dbName, objectStore: storeName, records: records });
+                                done += 1;
+                                if (done === storeNames.length) {
+                                  db.close();
+                                  resolve(JSON.stringify(out));
+                                }
+                              }
+                            };
+                            cursorReq.onerror = function() {
+                              out.push({ database: dbName, objectStore: storeName, records: [], error: cursorReq.error && cursorReq.error.message });
+                              done += 1;
+                              if (done === storeNames.length) {
+                                db.close();
+                                resolve(JSON.stringify(out));
+                              }
+                            };
+                          });
+                          if (storeNames.length === 0) { db.close(); resolve('[]'); }
+                        };
+                        openReq.onerror = function() { resolve('[]'); };
+                      });
+                    })()
+                  `
+                  const r2 = await ctx.cdpSession.send('Runtime.evaluate', {
+                    expression: dumpScript,
+                    awaitPromise: true,
+                    returnByValue: true,
+                  }) as { result?: { value?: string } }
+                  const json = r2.result?.value ?? '[]'
+                  const dumped = JSON.parse(json) as Array<{ database: string; objectStore: string; records: Array<{ key: unknown; value: unknown }> }>
+                  for (const entry of dumped) {
+                    dataPayload.push(entry)
+                  }
+                } catch (err) {
+                  debug('page-evaluated data dump failed', name, (err as Error).message)
+                }
+              }
             } catch (err) {
-              debug('requestDatabase failed', origin, name, (err as Error).message)
+              debug('requestDatabase/data failed', origin, name, (err as Error).message)
             }
           }
 
-          await ctx.emit({
+          const event: { type: 'idb.snapshot'; metadata: { trigger: SnapshotTrigger; origin: string; databases: typeof databases }; assets?: import('@introspection/types').AssetRef[] } = {
             type: 'idb.snapshot',
             metadata: { trigger, origin, databases },
-          })
+          }
+          if (dataSnapshots) {
+            const ref = await ctx.writeAsset({
+              kind: 'json',
+              content: JSON.stringify(dataPayload),
+              ext: 'json',
+            })
+            event.assets = [ref]
+          }
+          await ctx.emit(event)
         }
       }
 
       await snapshotOnce('install')
+
+      ctx.bus.on('manual', async () => {
+        debug('snapshot triggered: manual')
+        await snapshotOnce('manual')
+      })
+      ctx.bus.on('js.error', async () => {
+        debug('snapshot triggered: js.error')
+        await snapshotOnce('js.error')
+      })
+      ctx.bus.on('detach', async () => {
+        debug('snapshot triggered: detach')
+        await snapshotOnce('detach')
+      })
     },
   }
 }
