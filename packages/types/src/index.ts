@@ -147,6 +147,34 @@ export interface DebuggerCaptureEvent extends BaseEvent {
   metadata?: never
 }
 
+// ─── Plugin events: focus ───────────────────────────────────────────────────
+
+export interface ElementInfo {
+  tag: string
+  id: string | null
+  classList: string[]
+  testid: string | null
+  role: string | null
+  accessibleName: string | null
+  text: string | null
+  selector: string
+  shadowPath: string[] | null
+  backendNodeId: number | null
+}
+
+export type FocusCause =
+  | { cause: 'programmatic'; callSite: string }
+  | { cause: 'unknown' }
+
+export type FocusChangedEvent = BaseEvent & {
+  type: 'focus.changed'
+  metadata: {
+    target: ElementInfo | null
+    previous: ElementInfo | null
+    origin?: string
+  } & FocusCause
+}
+
 // ─── Plugin events: performance ─────────────────────────────────────────────
 
 export interface PerfCwvEvent extends BaseEvent {
@@ -429,6 +457,8 @@ export interface TraceEventMap {
   'console': ConsoleEvent
   // Debugger
   'debugger.capture': DebuggerCaptureEvent
+  // Focus
+  'focus.changed': FocusChangedEvent
   // Performance
   'perf.cwv': PerfCwvEvent
   'perf.resource': PerfResourceEvent
