@@ -151,6 +151,11 @@ program
   .option('--before <ms>', 'Keep events before this timestamp (ms)', (v) => parseFloat(v))
   .option('--since <label>', 'Keep events after the named mark event')
   .option('--last <n>', 'Keep only the last N events', (v) => parseInt(v, 10))
+  .option(
+    '--payload <names>',
+    'Comma-separated list of payload names to include (repeatable). Note: combining with --filter that references a dropped payload will silently zero-match.',
+    (v: string, prev: string[] = []) => prev.concat(v.split(',').map(s => s.trim()).filter(Boolean)),
+  )
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (opts) => {
     let session
@@ -162,7 +167,7 @@ program
     }
     try {
       const events = await session.events.ls()
-      const out = formatEvents(events, opts)
+      const out = await formatEvents(events, opts, session)
       if (out) console.log(out)
     } catch (error) {
       console.error(`Error: ${(error as Error).message}`)
