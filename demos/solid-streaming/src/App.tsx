@@ -1,6 +1,6 @@
 import { createFetchAdapter } from "@introspection/demo-shared/fetch-adapter";
 import { createSessionReader } from "@introspection/read";
-import type { AssetRef, SessionReader, TraceEvent } from "@introspection/types";
+import type { PayloadRef, SessionReader, TraceEvent } from "@introspection/types";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { useAssetContent } from "./hooks/useAssetContent.js";
 import { useEventSource } from "./hooks/useEventSource.js";
@@ -119,10 +119,14 @@ function SessionView(props: { session?: SessionReader }) {
                     {event.type}
                   </span>
                   <span class="summary"> {formatEvent(event)}</span>
-                  <Show when={event.assets && event.assets.length > 0}>
+                  <Show when={event.payloads && Object.keys(event.payloads).length > 0}>
                     <span class="event-assets">
-                      <For each={event.assets}>
-                        {(asset) => <span class="event-asset-chip">{asset.kind}</span>}
+                      <For each={Object.entries(event.payloads ?? {})}>
+                        {([name, ref]) => (
+                          <span class="event-asset-chip">
+                            {name}: {ref.kind === 'asset' ? ref.path : 'inline'}
+                          </span>
+                        )}
                       </For>
                     </span>
                   </Show>
@@ -160,9 +164,9 @@ function SessionView(props: { session?: SessionReader }) {
                     <pre>{JSON.stringify(event().metadata, null, 2)}</pre>
                   </div>
                 </Show>
-                <Show when={event().assets && event().assets!.length > 0}>
-                  <For each={event().assets}>
-                    {(asset) => <AssetPreview session={props.session} asset={asset} />}
+                <Show when={event().payloads && Object.keys(event().payloads!).length > 0}>
+                  <For each={Object.entries(event().payloads ?? {})}>
+                    {([name, ref]) => <AssetPreview session={props.session} name={name} ref={ref} />}
                   </For>
                 </Show>
               </>
@@ -174,23 +178,29 @@ function SessionView(props: { session?: SessionReader }) {
   );
 }
 
-function AssetPreview(props: { session?: SessionReader; asset: AssetRef }) {
-  const assetUrl = () => `/__introspect/${props.session?.id}/${props.asset.path}`
+function AssetPreview(props: { session?: SessionReader; name: string; ref: PayloadRef }) {
+  const assetUrl = () =>
+    props.ref.kind === 'asset'
+      ? `/__introspect/${props.session?.id}/${props.ref.path}`
+      : null
+
+  const isImage = () => props.ref.kind === 'asset' && props.ref.format === 'image'
 
   const [content] = createResource(
-    () => props.asset.path,
-    (path) => {
+    () => props.ref,
+    (ref) => {
       if (!props.session) return null
-      if (props.asset.kind === 'image') return null
-      return props.session.assets.readText(path)
+      if (ref.kind === 'inline') return String(ref.value)
+      if (ref.format === 'image') return null
+      return props.session.resolvePayload(ref) as Promise<string>
     },
   )
 
   return (
     <div class="field">
-      <div class="label">{props.asset.kind} ({props.asset.kind})</div>
-      <Show when={props.asset.kind === 'image'}>
-        <img src={assetUrl()} class="asset-image" />
+      <div class="label">{props.name} ({props.ref.kind === 'asset' ? props.ref.format : 'inline'})</div>
+      <Show when={isImage() && assetUrl()}>
+        <img src={assetUrl()!} class="asset-image" />
       </Show>
       <Show when={content.loading}>
         <span class="asset-loading">Loading asset...</span>

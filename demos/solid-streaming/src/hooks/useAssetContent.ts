@@ -1,9 +1,9 @@
 import { createSignal, createEffect, type Accessor } from 'solid-js'
-import type { SessionReader, AssetRef } from '@introspection/types'
+import type { SessionReader, PayloadAsset } from '@introspection/types'
 import { useWatchedQuery } from './useWatchedQuery.js'
 
 export interface AssetWithContent {
-  asset: AssetRef
+  asset: PayloadAsset
   content: string | null
   loading: boolean
 }
@@ -23,11 +23,12 @@ export function useAssetContent(
     const session = getSession()
     if (!session) return
 
-    const newAssets: AssetRef[] = []
+    const newAssets: PayloadAsset[] = []
     for (const event of events) {
-      if (!event.assets) continue
-      for (const asset of event.assets) {
-        if (!fetchedPaths.has(asset.path)) newAssets.push(asset)
+      if (!event.payloads) continue
+      for (const ref of Object.values(event.payloads)) {
+        if (ref.kind !== 'asset') continue
+        if (!fetchedPaths.has(ref.path)) newAssets.push(ref)
       }
     }
 
@@ -39,16 +40,16 @@ export function useAssetContent(
       const entry: AssetWithContent = {
         asset,
         content: null,
-        loading: asset.kind !== 'image',
+        loading: asset.format !== 'image',
       }
 
       setAssets(previous => [entry, ...previous])
 
-      if (asset.kind === 'image') continue
+      if (asset.format === 'image') continue
 
-      session.assets.readText(asset.path).then(content => {
+      session.resolvePayload(asset).then(content => {
         setAssets(previous => previous.map(item =>
-          item.asset.path === asset.path ? { ...item, content, loading: false } : item
+          item.asset.path === asset.path ? { ...item, content: content as string, loading: false } : item
         ))
       }).catch(() => {
         setAssets(previous => previous.map(item =>
