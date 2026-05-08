@@ -183,4 +183,14 @@ interface ElementInfo {
   document.addEventListener('focusin', () => {
     emitChange(describeDeep(), pendingProgrammatic)
   }, true)
+
+  document.addEventListener('focusout', (event) => {
+    if ((event as FocusEvent).relatedTarget !== null) return
+    queueMicrotask(() => {
+      const active = document.activeElement
+      if (!active || active === document.body) {
+        emitChange(null, pendingProgrammatic)
+      }
+    })
+  }, true)
 })()

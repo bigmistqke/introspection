@@ -137,3 +137,22 @@ test('walks shadow DOM and reports shadowPath on target', async ({ page }) => {
   expect(inner!.metadata.target!.tag).toBe('input')
   expect(inner!.metadata.target!.shadowPath).toEqual(['my-card#card'])
 })
+
+test('emits target=null when focus leaves the document', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [focusElement()] })
+  await gotoFixture(page, 'simple.html')
+  await page.waitForFunction(() => document.activeElement?.id === 'beta')
+
+  await page.evaluate(() => {
+    (document.activeElement as HTMLElement).blur()
+  })
+  await handle.flush()
+  await handle.detach()
+
+  const events = (await readEvents(outDir)).filter((e) => e.type === 'focus.changed') as Array<{
+    metadata: { target: unknown; previous: { id: string } | null }
+  }>
+  const blurred = events.find((e) => e.metadata.target === null)
+  expect(blurred).toBeDefined()
+  expect(blurred!.metadata.previous?.id).toBe('beta')
+})
