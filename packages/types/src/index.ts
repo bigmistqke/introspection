@@ -901,6 +901,7 @@ export interface SessionReader {
   meta: SessionMeta
   events: EventsAPI
   assets: AssetsAPI
+  resolvePayload(ref: PayloadRef): Promise<unknown>
 }
 
 // ─── IntrospectHandle (returned by attach()) ──────────────────────────────────

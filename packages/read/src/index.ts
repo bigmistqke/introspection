@@ -1,4 +1,4 @@
-import type { TraceEvent, AssetRef, SessionReader, SessionMeta, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter, PayloadRef } from '@introspection/types'
+import type { TraceEvent, SessionReader, SessionMeta, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter, PayloadRef } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 
 export type { SessionReader, EventsFilter, EventsAPI, AssetsAPI, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
@@ -188,19 +188,22 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
     },
     async resolvePayload(ref: PayloadRef): Promise<unknown> {
       if (ref.kind === 'inline') return ref.value
-      const bytes = await adapter.readBinary!(`${id}/${ref.path}`)
+      const fullPath = `${id}/${ref.path}`
       switch (ref.format) {
         case 'json':
-          return JSON.parse(bytes.toString('utf-8'))
+          return adapter.readJSON(fullPath)
         case 'html':
         case 'text':
-          return bytes.toString('utf-8')
+          return adapter.readText(fullPath)
         case 'image':
-        case 'binary':
-          return bytes
+        case 'binary': {
+          if (!adapter.readBinary) throw new Error('adapter does not support binary reads')
+          const bytes = await adapter.readBinary(fullPath)
+          return Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes)
+        }
       }
     },
-  } as SessionReader & { resolvePayload(ref: PayloadRef): Promise<unknown> }
+  }
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
