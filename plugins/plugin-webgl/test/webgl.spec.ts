@@ -206,11 +206,8 @@ test('captureCanvas() writes a mark event with image asset', async ({ page }) =>
   const captureEvent = events.find((e: { type: string }) =>
     e.type === 'webgl.capture')
   expect(captureEvent).toBeDefined()
-  expect(captureEvent.payloads).toBeDefined()
-  const payloadValues = Object.values(captureEvent.payloads)
-  expect(payloadValues.length).toBeGreaterThanOrEqual(1)
-  const frame = captureEvent.payloads.frame ?? captureEvent.payloads.frame0
-  expect(frame).toMatchObject({ kind: 'asset', format: 'image' })
+  expect(typeof captureEvent.metadata.contextId).toBe('string')
+  expect(captureEvent.payloads.frame).toMatchObject({ kind: 'asset', format: 'image' })
 })
 
 test('captureCanvas({ contextId }) captures only the matching canvas', async ({ page }) => {
@@ -246,11 +243,10 @@ test('captureCanvas({ contextId }) captures only the matching canvas', async ({ 
   const events2 = raw2.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
   const captures = events2.filter((e: { type: string }) =>
     e.type === 'webgl.capture')
-  expect(captures.length).toBeGreaterThanOrEqual(2)  // once from captureCanvas(), once from captureCanvas({ contextId })
-
-  // Verify at least one capture has image payloads
-  const capturesWithPayloads = captures.filter((e: { payloads?: Record<string, unknown> }) => e.payloads && Object.keys(e.payloads).length > 0)
-  expect(capturesWithPayloads.length).toBeGreaterThanOrEqual(1)
+  // captureCanvas() emits one event per canvas (≥ 2 here). captureCanvas({ contextId }) emits one more — for that single context.
+  expect(captures.length).toBeGreaterThanOrEqual(3)
+  const targetCaptures = captures.filter((e: { metadata: { contextId: string } }) => e.metadata.contextId === targetId)
+  expect(targetCaptures.length).toBeGreaterThanOrEqual(2)
 })
 
 test('snapshot() triggers capture and emits webgl.capture event with json and image assets', async ({ page }) => {
@@ -263,12 +259,11 @@ test('snapshot() triggers capture and emits webgl.capture event with json and im
   const captureEvent = events.find((e: { type: string }) =>
     e.type === 'webgl.capture')
   expect(captureEvent).toBeDefined()
-  expect(captureEvent.payloads).toBeDefined()
-  const payloadEntries = Object.entries(captureEvent.payloads) as [string, { kind: string; format: string }][]
-  expect(payloadEntries.length).toBeGreaterThanOrEqual(1)
-
-  // Should have json payloads (webgl state snapshots) and/or image payloads (canvas captures)
-  const hasJsonPayload = payloadEntries.some(([, p]) => p.format === 'json')
-  const hasImagePayload = payloadEntries.some(([, p]) => p.format === 'image')
-  expect(hasJsonPayload || hasImagePayload).toBe(true)
+  expect(typeof captureEvent.metadata.contextId).toBe('string')
+  // The capture event carries state (json) and/or frame (image) payloads under canonical names.
+  const state = captureEvent.payloads.state as { format: string } | undefined
+  const frame = captureEvent.payloads.frame as { format: string } | undefined
+  expect(state || frame).toBeDefined()
+  if (state) expect(state.format).toBe('json')
+  if (frame) expect(frame.format).toBe('image')
 })

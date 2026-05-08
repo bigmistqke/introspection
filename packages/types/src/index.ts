@@ -281,7 +281,7 @@ export interface WebGLTextureBindEvent extends BaseEvent {
 
 export interface WebGLCaptureEvent extends BaseEvent {
   type: 'webgl.capture'
-  metadata?: never
+  metadata: { contextId: string }
 }
 
 // ─── Plugin events: solid-devtools ──────────────────────────────────────────
