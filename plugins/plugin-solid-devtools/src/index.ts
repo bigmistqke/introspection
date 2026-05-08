@@ -1,5 +1,5 @@
 // Loaded as raw text by esbuild (tsup.node.config.ts sets loader['.iife.js'] = 'text').
-import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
+import type { IntrospectionPlugin, PayloadRef, PluginContext } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
 import { SolidDevtoolsOptions, SolidState } from './types.js'
@@ -15,36 +15,36 @@ async function captureState(context: PluginContext): Promise<void> {
 
   if (!state) return
 
-  const assets = []
+  const payloads: Record<string, PayloadRef> = {}
 
   if (state.structure !== null) {
-    assets.push(await context.writeAsset({
-      kind: 'json',
+    payloads.structure = await context.writeAsset({
+      format: 'json',
       content: JSON.stringify(state.structure),
       ext: 'json',
-    }))
+    })
   }
 
   if (state.dgraph !== null) {
-    assets.push(await context.writeAsset({
-      kind: 'json',
+    payloads.dgraph = await context.writeAsset({
+      format: 'json',
       content: JSON.stringify(state.dgraph),
       ext: 'json',
-    }))
+    })
   }
 
   if (state.updates !== null) {
-    assets.push(await context.writeAsset({
-      kind: 'json',
+    payloads.updates = await context.writeAsset({
+      format: 'json',
       content: JSON.stringify(state.updates),
       ext: 'json',
-    }))
+    })
   }
 
-  if (assets.length > 0) {
+  if (Object.keys(payloads).length > 0) {
     await context.emit({
       type: 'solid-devtools.capture' as const,
-      assets,
+      payloads,
     })
   }
 }

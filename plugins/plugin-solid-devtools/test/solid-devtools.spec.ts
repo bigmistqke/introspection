@@ -97,8 +97,8 @@ test.describe('solid devtools plugin', () => {
 
     const events = await endSession(handle, outDir)
     // Look for solid.capture events with assets
-    const solidCaptures = events.filter((event: { type: string; assets?: unknown[] }) =>
-      event.type === 'solid-devtools.capture' && event.assets && event.assets.length > 0)
+    const solidCaptures = events.filter((event: { type: string; payloads?: Record<string, unknown> }) =>
+      event.type === 'solid-devtools.capture' && event.payloads && Object.keys(event.payloads).length > 0)
     expect(solidCaptures.length).toBeGreaterThanOrEqual(1)
   })
 
