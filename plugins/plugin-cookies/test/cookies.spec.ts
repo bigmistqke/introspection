@@ -196,3 +196,54 @@ test('emits a snapshot on js.error', async ({ page }) => {
   const onError = snapshots.find((e: { metadata: { trigger: string } }) => e.metadata.trigger === 'js.error')
   expect(onError).toBeDefined()
 })
+
+test('names option filters writes and snapshot entries', async ({ page, context }) => {
+  const url = new URL(fixture.url)
+  await context.addCookies([
+    { name: 'session', value: 'abc', domain: url.hostname, path: '/' },
+    { name: 'tracker', value: 'xyz', domain: url.hostname, path: '/' },
+  ])
+
+  await page.goto(fixture.url)
+  const handle = await attach(page, { outDir: dir, plugins: [cookies({ names: ['session'] })] })
+
+  await page.evaluate(() => {
+    document.cookie = 'session=fresh'
+    document.cookie = 'tracker=t2'
+  })
+  await new Promise(r => setTimeout(r, 150))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+
+  const writes = events.filter((e: { type: string }) => e.type === 'cookie.write')
+  expect(writes).toHaveLength(1)
+  expect(writes[0].metadata.name).toBe('session')
+
+  const installSnapshot = events.find((e: { type: string; metadata: { trigger: string } }) =>
+    e.type === 'cookie.snapshot' && e.metadata.trigger === 'install'
+  )
+  expect(installSnapshot.metadata.cookies.map((c: { name: string }) => c.name)).toEqual(['session'])
+})
+
+test('origins option filters cookies whose domain does not match', async ({ page, context }) => {
+  const url = new URL(fixture.url)
+  await context.addCookies([
+    { name: 'mine', value: 'v', domain: url.hostname, path: '/' },
+  ])
+
+  await page.goto(fixture.url)
+  const handle = await attach(page, {
+    outDir: dir,
+    plugins: [cookies({ origins: ['https://other.example'] })],
+  })
+
+  await new Promise(r => setTimeout(r, 100))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const installSnapshot = events.find((e: { type: string; metadata: { trigger: string } }) =>
+    e.type === 'cookie.snapshot' && e.metadata.trigger === 'install'
+  )
+  expect(installSnapshot.metadata.cookies).toEqual([])
+})
