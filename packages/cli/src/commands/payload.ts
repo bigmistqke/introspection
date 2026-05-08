@@ -17,7 +17,7 @@ export async function runPayloadCommand(opts: PayloadCommandOpts, reader: Reader
   const event = events.find(e => e.id === opts.eventId)
   if (!event) throw new Error(`no event with id '${opts.eventId}'`)
 
-  const payloads = event.payloads ?? {}
+  const payloads = (event.payloads ?? {}) as Record<string, PayloadRef>
   const ref = payloads[opts.name]
   if (!ref) {
     const available = Object.keys(payloads).join(', ') || '(none)'
