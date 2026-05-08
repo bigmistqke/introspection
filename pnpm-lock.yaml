@@ -767,6 +767,28 @@ importers:
         specifier: ^2.11.0
         version: 2.11.12(solid-js@1.9.12)(vite@6.4.2(@types/node@22.19.17)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3))
 
+  plugins/plugin-web-storage:
+    dependencies:
+      '@introspection/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@introspection/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
+    devDependencies:
+      '@introspection/playwright':
+        specifier: workspace:*
+        version: link:../../packages/playwright
+      '@playwright/test':
+        specifier: ^1.40.0
+        version: 1.59.1
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.8)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   plugins/plugin-webgl:
     dependencies:
       '@introspection/plugin-js-error':
