@@ -62,8 +62,8 @@ focusElement({
 ## Querying
 
 ```bash
-introspect events --type focus.changed
-introspect events --type focus.changed --filter '$.metadata.cause == "programmatic"'
+introspect events --type focus.changed --format json
+introspect events --type focus.changed --filter 'event.metadata.cause === "programmatic"' --format json
 ```
 
 ## Caveats

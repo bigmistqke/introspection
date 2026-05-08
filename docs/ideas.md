@@ -258,6 +258,7 @@ Shared primitive worth considering: `maxAssetSize` / `maxEventBytes` in `CreateS
 - **Invalid `--filter` syntax is silent.** `packages/cli/src/commands/events.ts` runs the filter in a sandbox and treats thrown errors as "false." Typo → zero matches with no indication why.
 - **`getLatestSessionId` race.** Session-resolution reads all session metas to pick the newest. A currently-writing session can produce a partial `meta.json`; worst case: CLI/reader picks a *different* session than the test thinks it's in.
 - **NDJSON line-split on `\n`.** Windows traces with `\r\n` produce empty lines (currently filtered, but fragile).
+- **Default `events` text output is too sparse for richly-typed events.** `introspect events --type focus.changed` prints `[time] focus.changed` with no target/cause/previous visible — you must add `--format json` to see anything useful. Plugins emit per-event `metadata` shapes that the CLI could pretty-print with a small per-type formatter, or at least show 1-2 key fields by default (e.g. `[time] focus.changed → button#go (programmatic)`). Surfaced while dogfooding `plugin-focus-element` (2026-05-08).
 
 ---
 
