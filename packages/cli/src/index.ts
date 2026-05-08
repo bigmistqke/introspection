@@ -5,6 +5,7 @@ import { formatNetworkTable } from './commands/network.js'
 import { formatEvents } from './commands/events.js'
 import { formatPlugins } from './commands/plugins.js'
 import { runDebug } from './commands/debug.js'
+import { runPayloadCommand } from './commands/payload.js'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
@@ -169,6 +170,28 @@ program
       const events = await session.events.ls()
       const out = await formatEvents(events, opts, session)
       if (out) console.log(out)
+    } catch (error) {
+      console.error(`Error: ${(error as Error).message}`)
+      process.exit(1)
+    }
+  })
+
+program.command('payload')
+  .description('Print one named payload of one event to stdout')
+  .argument('<event-id>')
+  .argument('<name>')
+  .option('--session-id <id>')
+  .option('--verbose', 'Enable verbose debug logging')
+  .action(async (eventId: string, name: string, opts) => {
+    let session
+    try {
+      session = await loadSession(opts)
+    } catch (error) {
+      console.error(String(error))
+      process.exit(1)
+    }
+    try {
+      await runPayloadCommand({ eventId, name }, session, process.stdout)
     } catch (error) {
       console.error(`Error: ${(error as Error).message}`)
       process.exit(1)
