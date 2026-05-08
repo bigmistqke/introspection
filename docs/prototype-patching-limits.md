@@ -34,7 +34,8 @@ If a future use case actually needs to close the gap, the natural mitigation is 
 
 - `@introspection/plugin-redux` — patches the Redux DevTools extension globals.
 - `@introspection/plugin-web-storage` — patches `Storage.prototype`.
-- `@introspection/plugin-indexeddb` (planned) — will patch `IDBObjectStore.prototype` and friends.
+- `@introspection/plugin-indexeddb` — patches `IDBFactory.prototype` and friends.
+- `@introspection/plugin-cookies` — patches `Document.prototype.cookie` setter and `CookieStore.prototype`.
 - Any future plugin that wraps page globals.
 
 Each plugin README should include a one-line caveat linking here.
