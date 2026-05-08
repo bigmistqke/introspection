@@ -117,3 +117,23 @@ test('captures role, accessibleName, testid, selector, text on target', async ({
   expect(inputEvent!.metadata.target!.role).toBe('textbox')
   expect(inputEvent!.metadata.target!.accessibleName).toBe('Beta')  // from aria-label
 })
+
+test('walks shadow DOM and reports shadowPath on target', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [focusElement()] })
+  await gotoFixture(page, 'shadow.html')
+  await page.locator('#trigger').click()
+  await page.waitForFunction(() => {
+    const host = document.getElementById('card') as HTMLElement & { shadowRoot: ShadowRoot }
+    return host.shadowRoot?.activeElement?.id === 'inner-input'
+  })
+  await handle.flush()
+  await handle.detach()
+
+  const events = (await readEvents(outDir)).filter((e) => e.type === 'focus.changed') as Array<{
+    metadata: { target: { id: string | null; tag: string; shadowPath: string[] | null } | null }
+  }>
+  const inner = events.find((e) => e.metadata.target?.id === 'inner-input')
+  expect(inner).toBeDefined()
+  expect(inner!.metadata.target!.tag).toBe('input')
+  expect(inner!.metadata.target!.shadowPath).toEqual(['my-card#card'])
+})

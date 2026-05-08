@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<body>
+  <my-card id="card"></my-card>
+  <button id="trigger">trigger</button>
+  <script>
+    customElements.define('my-card', class extends HTMLElement {
+      constructor() {
+        super()
+        const shadow = this.attachShadow({ mode: 'open' })
+        shadow.innerHTML = '<input id="inner-input" data-testid="inner" aria-label="Inner" />'
+      }
+    })
+    document.getElementById('trigger').addEventListener('click', () => {
+      document.getElementById('card').shadowRoot.getElementById('inner-input').focus()
+    })
+  </script>
+</body>
+</html>

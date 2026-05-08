@@ -160,7 +160,27 @@ interface ElementInfo {
     previous = target
   }
 
+  function deepActiveElement(): { element: Element | null; shadowPath: string[] } {
+    const path: string[] = []
+    let current: Element | null = document.activeElement
+    while (current && (current as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot) {
+      const shadow = (current as Element & { shadowRoot: ShadowRoot }).shadowRoot
+      const next = shadow.activeElement
+      if (!next) break
+      path.push(selectorFor(current))
+      current = next
+    }
+    return { element: current, shadowPath: path }
+  }
+
+  function describeDeep(): ElementInfo | null {
+    const { element, shadowPath } = deepActiveElement()
+    const info = describe(element)
+    if (info && shadowPath.length > 0) info.shadowPath = shadowPath
+    return info
+  }
+
   document.addEventListener('focusin', () => {
-    emitChange(describe(document.activeElement), pendingProgrammatic)
+    emitChange(describeDeep(), pendingProgrammatic)
   }, true)
 })()
