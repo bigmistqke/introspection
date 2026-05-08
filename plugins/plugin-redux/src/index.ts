@@ -161,10 +161,10 @@ export function redux(options?: ReduxPluginOptions): IntrospectionPlugin {
           try {
             const { type, state } = JSON.parse(payload)
             if (type === 'redux.snapshot' && state !== undefined) {
-              const ref = await ctx.writeAsset({ kind: 'json', content: JSON.stringify(state) })
+              const ref = await ctx.writeAsset({ format: 'json', content: JSON.stringify(state) })
               await ctx.emit({
                 type: 'redux.snapshot',
-                assets: [ref],
+                payloads: { state: ref },
               })
             }
           } catch (err) {

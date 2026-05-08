@@ -4,6 +4,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { attach } from '@introspection/playwright'
 import { redux } from '../dist/index.js'
+import type { PayloadAsset } from '@introspection/types'
 
 let outDir: string
 
@@ -123,12 +124,12 @@ test('zustand + react: emits redux.snapshot on store creation via devtools middl
 
   expect(snapshots.length).toBeGreaterThanOrEqual(1)
   const snapshot = snapshots[0]
-  expect(snapshot.assets).toHaveLength(1)
-  expect(snapshot.assets[0].kind).toBe('json')
+  const ref = snapshot.payloads!.state
+  expect(ref).toMatchObject({ kind: 'asset', format: 'json' })
 
   const entries = await readdir(outDir)
   const sessionDir = join(outDir, entries[0])
-  const state = JSON.parse(await readFile(join(sessionDir, snapshot.assets[0].path), 'utf-8'))
+  const state = JSON.parse(await readFile(join(sessionDir, (ref as PayloadAsset).path), 'utf-8'))
   expect(state).toHaveProperty('count')
   expect(state).toHaveProperty('items')
 })
@@ -146,12 +147,12 @@ test('valtio + react: emits redux.snapshot on store creation via devtools', asyn
 
   expect(snapshots.length).toBeGreaterThanOrEqual(1)
   const snapshot = snapshots[0]
-  expect(snapshot.assets).toHaveLength(1)
-  expect(snapshot.assets[0].kind).toBe('json')
+  const ref = snapshot.payloads!.state
+  expect(ref).toMatchObject({ kind: 'asset', format: 'json' })
 
   const entries = await readdir(outDir)
   const sessionDir = join(outDir, entries[0])
-  const state = JSON.parse(await readFile(join(sessionDir, snapshot.assets[0].path), 'utf-8'))
+  const state = JSON.parse(await readFile(join(sessionDir, (ref as PayloadAsset).path), 'utf-8'))
   expect(state).toHaveProperty('count')
   expect(state).toHaveProperty('items')
 })
@@ -172,10 +173,9 @@ test('snapshots store state and dispatches compute diffs', async ({ page }) => {
 
   const snapshotEvent = events.find((e: any) => e.type === 'redux.snapshot')
   expect(snapshotEvent).toBeDefined()
-  expect(snapshotEvent.assets).toHaveLength(1)
-  const snapshotRef = snapshotEvent.assets[0]
-  expect(snapshotRef.kind).toBe('json')
-  const initialState = JSON.parse(await readFile(join(sessionDir, snapshotRef.path), 'utf-8'))
+  const ref = snapshotEvent.payloads!.state
+  expect(ref).toMatchObject({ kind: 'asset', format: 'json' })
+  const initialState = JSON.parse(await readFile(join(sessionDir, (ref as PayloadAsset).path), 'utf-8'))
   expect(initialState.count).toBe(0)
 
   const incrementEvent = events.find(

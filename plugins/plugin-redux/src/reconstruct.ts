@@ -1,5 +1,5 @@
 import jsonpatch from 'fast-json-patch'
-import type { TraceEvent, AssetsAPI, ReduxDispatchEvent } from '@introspection/types'
+import type { TraceEvent, SessionReader, ReduxDispatchEvent } from '@introspection/types'
 
 export class ReduxError extends Error {
   constructor(message: string) {
@@ -10,10 +10,10 @@ export class ReduxError extends Error {
 
 export async function reconstruct(opts: {
   events: TraceEvent[]
-  assets: AssetsAPI
+  reader: SessionReader
   eventId: string
 }): Promise<{ beforeState: unknown; afterState: unknown }> {
-  const { events, assets, eventId } = opts
+  const { events, reader, eventId } = opts
 
   const targetEvent = events.find(e => e.id === eventId)
   if (!targetEvent) {
@@ -37,7 +37,8 @@ export async function reconstruct(opts: {
   }
 
   const snapshot = events[snapshotIndex] as Extract<TraceEvent, { type: 'redux.snapshot' }>
-  const snapshotState = await assets.readJSON(snapshot.assets[0].path)
+  const ref = snapshot.payloads!.state
+  const snapshotState = await reader.resolvePayload(ref)
 
   let state = snapshotState
 

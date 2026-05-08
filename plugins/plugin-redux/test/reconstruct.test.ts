@@ -1,28 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { reconstruct, ReduxError } from '../src/reconstruct.js'
-import type { TraceEvent, AssetsAPI } from '@introspection/types'
+import type { TraceEvent, SessionReader, PayloadRef } from '@introspection/types'
 
 describe('reconstruct', () => {
-  let assets: AssetsAPI
+  let reader: SessionReader
   let events: TraceEvent[]
 
   beforeEach(() => {
     events = []
-    assets = {
-      async readJSON<T>(path: string): Promise<T> {
-        if (path === 'snapshot-0.json') {
-          return { count: 0, items: [] } as T
+    reader = {
+      async resolvePayload(ref: PayloadRef): Promise<unknown> {
+        if ('path' in ref && ref.path === 'snapshot-0.json') {
+          return { count: 0, items: [] }
         }
-        throw new Error(`Unknown path: ${path}`)
+        throw new Error(`Unknown ref: ${JSON.stringify(ref)}`)
       },
-      async readText() { return '' },
-      async ls() { return [] },
-      async metadata() { return undefined },
-    }
+    } as unknown as SessionReader
   })
 
   it('throws ReduxError for non-existent event', async () => {
-    await expect(reconstruct({ events, assets, eventId: 'unknown' }))
+    await expect(reconstruct({ events, reader, eventId: 'unknown' }))
       .rejects.toThrow(ReduxError)
   })
 
@@ -34,7 +31,7 @@ describe('reconstruct', () => {
       metadata: { action: 'INCREMENT', diff: [{ op: 'replace', path: '/count', value: 1 }] },
     } as TraceEvent)
 
-    await expect(reconstruct({ events, assets, eventId: 'dispatch-0' }))
+    await expect(reconstruct({ events, reader, eventId: 'dispatch-0' }))
       .rejects.toThrow(ReduxError)
   })
 
@@ -43,7 +40,7 @@ describe('reconstruct', () => {
       id: 'snapshot-0',
       timestamp: 0,
       type: 'redux.snapshot',
-      assets: [{ path: 'snapshot-0.json', kind: 'json' }],
+      payloads: { state: { kind: 'asset', format: 'json', path: 'snapshot-0.json' } },
     } as TraceEvent)
 
     events.push({
@@ -53,7 +50,7 @@ describe('reconstruct', () => {
       metadata: { level: 'log', args: ['test'] },
     } as TraceEvent)
 
-    const result = await reconstruct({ events, assets, eventId: 'console-0' })
+    const result = await reconstruct({ events, reader, eventId: 'console-0' })
     expect(result.beforeState).toEqual({ count: 0, items: [] })
     expect(result.afterState).toEqual({ count: 0, items: [] })
   })
@@ -63,7 +60,7 @@ describe('reconstruct', () => {
       id: 'snapshot-0',
       timestamp: 0,
       type: 'redux.snapshot',
-      assets: [{ path: 'snapshot-0.json', kind: 'json' }],
+      payloads: { state: { kind: 'asset', format: 'json', path: 'snapshot-0.json' } },
     } as TraceEvent)
 
     events.push({
@@ -76,7 +73,7 @@ describe('reconstruct', () => {
       },
     } as TraceEvent)
 
-    const result = await reconstruct({ events, assets, eventId: 'dispatch-0' })
+    const result = await reconstruct({ events, reader, eventId: 'dispatch-0' })
     expect(result.beforeState).toEqual({ count: 0, items: [] })
     expect(result.afterState).toEqual({ count: 1, items: [] })
   })
@@ -86,7 +83,7 @@ describe('reconstruct', () => {
       id: 'snapshot-0',
       timestamp: 0,
       type: 'redux.snapshot',
-      assets: [{ path: 'snapshot-0.json', kind: 'json' }],
+      payloads: { state: { kind: 'asset', format: 'json', path: 'snapshot-0.json' } },
     } as TraceEvent)
 
     events.push({
@@ -103,7 +100,7 @@ describe('reconstruct', () => {
       metadata: { action: 'ADD_ITEM', diff: [{ op: 'add', path: '/items/0', value: 'item' }] },
     } as TraceEvent)
 
-    const result = await reconstruct({ events, assets, eventId: 'dispatch-1' })
+    const result = await reconstruct({ events, reader, eventId: 'dispatch-1' })
     expect(result.beforeState).toEqual({ count: 1, items: [] })
     expect(result.afterState).toEqual({ count: 1, items: ['item'] })
   })
@@ -113,7 +110,7 @@ describe('reconstruct', () => {
       id: 'snapshot-0',
       timestamp: 0,
       type: 'redux.snapshot',
-      assets: [{ path: 'snapshot-0.json', kind: 'json' }],
+      payloads: { state: { kind: 'asset', format: 'json', path: 'snapshot-0.json' } },
     } as TraceEvent)
 
     events.push({
@@ -123,7 +120,7 @@ describe('reconstruct', () => {
       metadata: { action: 'NOOP', diff: [] },
     } as TraceEvent)
 
-    const result = await reconstruct({ events, assets, eventId: 'dispatch-0' })
+    const result = await reconstruct({ events, reader, eventId: 'dispatch-0' })
     expect(result.beforeState).toEqual({ count: 0, items: [] })
     expect(result.afterState).toEqual({ count: 0, items: [] })
   })
