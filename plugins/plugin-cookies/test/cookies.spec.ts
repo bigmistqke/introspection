@@ -52,3 +52,13 @@ test('emits an install snapshot containing pre-existing cookies', async ({ page,
   expect(theme).toBeDefined()
   expect(theme.value).toBe('dark')
 })
+
+test('binding bootstrap exposes the emit helper', async ({ page }) => {
+  await page.goto(fixture.url)
+  const handle = await attach(page, { outDir: dir, plugins: [cookies()] })
+
+  const ok = await page.evaluate(() => typeof (window as unknown as { __introspection_plugin_cookies_emit?: unknown }).__introspection_plugin_cookies_emit === 'function')
+  expect(ok).toBe(true)
+
+  await handle.detach()
+})

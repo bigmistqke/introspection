@@ -89,6 +89,39 @@ export function cookies(options?: CookiesOptions): IntrospectionPlugin {
         })()
       })
 
+      const BINDING_NAME = '__introspection_plugin_cookies'
+
+      type PagePayload = { origin: string; kind: string; [k: string]: unknown }
+
+      function handlePagePayload(_payload: PagePayload): void {
+        // Filled in by Task 5 onwards.
+      }
+
+      await ctx.cdpSession.send('Runtime.addBinding', { name: BINDING_NAME })
+      ctx.cdpSession.on('Runtime.bindingCalled', (rawParams) => {
+        const params = rawParams as { name: string; payload: string }
+        if (params.name !== BINDING_NAME) return
+        try {
+          const payload = JSON.parse(params.payload) as PagePayload
+          handlePagePayload(payload)
+        } catch (err) {
+          debug('binding parse error', (err as Error).message)
+        }
+      })
+
+      await ctx.cdpSession.send('Page.addScriptToEvaluateOnNewDocument', {
+        source: BROWSER_SCRIPT,
+      })
+
+      try {
+        await ctx.cdpSession.send('Runtime.evaluate', {
+          expression: BROWSER_SCRIPT,
+          awaitPromise: false,
+        })
+      } catch (err) {
+        debug('current-realm patch failed', (err as Error).message)
+      }
+
       async function snapshotOnce(trigger: SnapshotTrigger): Promise<void> {
         let raw: CdpCookie[] = []
         try {
