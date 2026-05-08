@@ -179,3 +179,32 @@ test('emits target=null when focus leaves the document', async ({ page }) => {
   expect(blurred).toBeDefined()
   expect(blurred!.metadata.previous?.id).toBe('beta')
 })
+
+test('origins option gates injection per frame', async ({ page }) => {
+  const handle = await attach(page, {
+    outDir,
+    plugins: [focusElement({ origins: ['https://nope.example'] })],
+  })
+  await gotoFixture(page, 'simple.html')
+  await page.waitForFunction(() => document.activeElement?.id === 'beta')
+  await page.locator('#alpha').focus()
+  await handle.flush()
+  await handle.detach()
+
+  const events = (await readEvents(outDir)).filter((e) => e.type === 'focus.changed')
+  expect(events.length).toBe(0)
+})
+
+test('origins option accepts RegExp', async ({ page }) => {
+  const handle = await attach(page, {
+    outDir,
+    plugins: [focusElement({ origins: [/^file:\/\//] })],
+  })
+  await gotoFixture(page, 'simple.html')
+  await page.waitForFunction(() => document.activeElement?.id === 'beta')
+  await handle.flush()
+  await handle.detach()
+
+  const events = (await readEvents(outDir)).filter((e) => e.type === 'focus.changed')
+  expect(events.length).toBeGreaterThan(0)
+})
