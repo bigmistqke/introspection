@@ -4,6 +4,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { fileURLToPath } from 'url'
 import { attach } from '@introspection/playwright'
+import { jsError } from '@introspection/plugin-js-error'
 import { webStorage } from '../src/index.js'
 
 const FIXTURE = 'file://' + fileURLToPath(new URL('./fixtures/index.html', import.meta.url))
@@ -129,4 +130,38 @@ test('does not capture reads by default', async ({ page }) => {
   const events = await readEvents(dir)
   const reads = events.filter((e: { type: string }) => e.type === 'webStorage.read')
   expect(reads).toHaveLength(0)
+})
+
+test('emits a snapshot on handle.snapshot()', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [webStorage()] })
+
+  await page.evaluate(() => localStorage.setItem('after', 'attach'))
+  await handle.snapshot()
+  await new Promise(r => setTimeout(r, 100))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const snapshots = events.filter((e: { type: string }) => e.type === 'webStorage.snapshot')
+
+  const manual = snapshots.find((e: { metadata: { trigger: string } }) => e.metadata.trigger === 'manual')
+  expect(manual).toBeDefined()
+  expect(manual.metadata.localStorage).toMatchObject({ 'preexisting-local': 'l-1', 'after': 'attach' })
+
+  const detach = snapshots.find((e: { metadata: { trigger: string } }) => e.metadata.trigger === 'detach')
+  expect(detach).toBeDefined()
+})
+
+test('emits a snapshot on js.error', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [webStorage(), jsError()] })
+
+  await page.evaluate(() => { setTimeout(() => { throw new Error('boom') }, 0) })
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const snapshots = events.filter((e: { type: string }) => e.type === 'webStorage.snapshot')
+  const onError = snapshots.find((e: { metadata: { trigger: string } }) => e.metadata.trigger === 'js.error')
+  expect(onError).toBeDefined()
 })

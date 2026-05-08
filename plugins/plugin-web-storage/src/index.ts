@@ -252,6 +252,19 @@ export function webStorage(options?: WebStorageOptions): IntrospectionPlugin {
 
       await ctx.cdpSession.send('DOMStorage.enable')
       await snapshotOnce('install')
+
+      ctx.bus.on('manual', async () => {
+        debug('snapshot triggered: manual')
+        await snapshotOnce('manual')
+      })
+      ctx.bus.on('js.error', async () => {
+        debug('snapshot triggered: js.error')
+        await snapshotOnce('js.error')
+      })
+      ctx.bus.on('detach', async () => {
+        debug('snapshot triggered: detach')
+        await snapshotOnce('detach')
+      })
     },
   }
 }

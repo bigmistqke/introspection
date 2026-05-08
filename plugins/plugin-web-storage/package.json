@@ -20,6 +20,7 @@
   "devDependencies": {
     "@playwright/test": "^1.40.0",
     "@introspection/playwright": "workspace:*",
+    "@introspection/plugin-js-error": "workspace:*",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"
   }
