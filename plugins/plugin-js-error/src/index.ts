@@ -24,5 +24,10 @@ export function jsError(options?: JsErrorOptions): IntrospectionPlugin {
         ctx.emit(normaliseCdpJsError({ exceptionDetails: parameters.exceptionDetails } as Record<string, unknown>))
       })
     },
+
+    formatEvent(event) {
+      if (event.type !== 'js.error') return null
+      return event.metadata.message
+    },
   }
 }

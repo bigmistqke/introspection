@@ -112,5 +112,14 @@ export function network(options?: NetworkOptions): IntrospectionPlugin {
         })
       })
     },
+
+    formatEvent(event) {
+      switch (event.type) {
+        case 'network.request': return `${event.metadata.method} ${event.metadata.url}`
+        case 'network.response': return `${event.metadata.status} ${event.metadata.url}`
+        case 'network.error': return `${event.metadata.errorText}${event.metadata.url ? ` (${event.metadata.url})` : ''}`
+        default: return null
+      }
+    },
   }
 }

@@ -20,6 +20,17 @@ export function focusElement(options?: FocusElementOptions): IntrospectionPlugin
     async install(_context: PluginContext): Promise<void> {
       debug('installing', { origins: options?.origins ?? null })
     },
+
+    formatEvent(event) {
+      if (event.type !== 'focus.changed') return null
+      const md = event.metadata
+      if (md.target === null) {
+        return `← left document (was ${md.previous?.selector ?? 'nothing'})`
+      }
+      const name = md.target.accessibleName ? ` (${md.target.accessibleName})` : ''
+      const cause = md.cause === 'programmatic' ? ' [programmatic]' : ''
+      return `→ ${md.target.selector}${name}${cause}`
+    },
   }
 }
 

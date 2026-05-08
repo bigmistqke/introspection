@@ -109,5 +109,11 @@ export function consolePlugin(options?: ConsoleOptions): IntrospectionPlugin {
         })
       })
     },
+
+    formatEvent(event) {
+      if (event.type !== 'console') return null
+      const argsStr = event.metadata.args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
+      return `[${event.metadata.level}] ${argsStr}`
+    },
   }
 }
