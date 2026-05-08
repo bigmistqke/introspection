@@ -342,6 +342,113 @@ export interface ReduxDispatchEvent extends BaseEvent {
   }
 }
 
+// ─── Plugin events: indexeddb ───────────────────────────────────────────────
+
+export type IdbTransactionMode = 'readonly' | 'readwrite' | 'versionchange'
+
+export interface IdbDatabaseEvent extends BaseEvent {
+  type: 'idb.database'
+  metadata: {
+    operation: 'open' | 'upgrade' | 'close' | 'delete'
+    origin: string
+    name: string
+    oldVersion?: number
+    newVersion?: number
+    outcome?: 'success' | 'error' | 'blocked'
+    error?: string
+  }
+}
+
+export interface IdbSchemaEvent extends BaseEvent {
+  type: 'idb.schema'
+  metadata: {
+    operation:
+      | 'createObjectStore' | 'deleteObjectStore'
+      | 'createIndex' | 'deleteIndex'
+    origin: string
+    database: string
+    objectStore: string
+    index?: string
+    keyPath?: string | string[] | null
+    autoIncrement?: boolean
+    unique?: boolean
+    multiEntry?: boolean
+  }
+}
+
+export interface IdbTransactionEvent extends BaseEvent {
+  type: 'idb.transaction'
+  metadata: {
+    operation: 'begin' | 'complete' | 'abort' | 'error'
+    origin: string
+    database: string
+    transactionId: string
+    mode: IdbTransactionMode
+    objectStoreNames: string[]
+    error?: string
+  }
+}
+
+export interface IdbWriteEvent extends BaseEvent {
+  type: 'idb.write'
+  metadata: {
+    operation: 'add' | 'put' | 'delete' | 'clear'
+    origin: string
+    database: string
+    objectStore: string
+    transactionId: string
+    key?: unknown
+    affectedCount?: number
+    outcome: 'success' | 'error'
+    error?: string
+    requestedAt: number
+    completedAt: number
+  }
+}
+
+export interface IdbReadEvent extends BaseEvent {
+  type: 'idb.read'
+  metadata: {
+    operation:
+      | 'get' | 'getAll' | 'getKey' | 'getAllKeys'
+      | 'count' | 'openCursor' | 'openKeyCursor'
+    origin: string
+    database: string
+    objectStore: string
+    index?: string
+    transactionId: string
+    query?: unknown
+    count?: number
+    outcome: 'success' | 'error'
+    error?: string
+    requestedAt: number
+    completedAt: number
+  }
+}
+
+export interface IdbSnapshotEvent extends BaseEvent {
+  type: 'idb.snapshot'
+  metadata: {
+    trigger: 'install' | 'manual' | 'js.error' | 'detach'
+    origin: string
+    databases: Array<{
+      name: string
+      version: number
+      objectStores: Array<{
+        name: string
+        keyPath: string | string[] | null
+        autoIncrement: boolean
+        indexes: Array<{
+          name: string
+          keyPath: string | string[]
+          unique: boolean
+          multiEntry: boolean
+        }>
+      }>
+    }>
+  }
+}
+
 // ─── Plugin events: web-storage ─────────────────────────────────────────────
 
 export type WebStorageType = 'localStorage' | 'sessionStorage'
@@ -485,6 +592,13 @@ export interface TraceEventMap {
   // Redux
   'redux.snapshot': ReduxSnapshotEvent
   'redux.dispatch': ReduxDispatchEvent
+  // IndexedDB
+  'idb.database': IdbDatabaseEvent
+  'idb.schema': IdbSchemaEvent
+  'idb.transaction': IdbTransactionEvent
+  'idb.write': IdbWriteEvent
+  'idb.read': IdbReadEvent
+  'idb.snapshot': IdbSnapshotEvent
   // Web storage
   'webStorage.write': WebStorageWriteEvent
   'webStorage.read': WebStorageReadEvent
