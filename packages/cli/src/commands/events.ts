@@ -43,8 +43,14 @@ export function formatTimeline(events: TraceEvent[]): string {
   return events.map(event => {
     const timestampStr = String(event.timestamp).padStart(6) + 'ms'
     let detail = event.summary ? `${event.type} ${event.summary}` : event.type
-    if (event.assets && event.assets.length > 0) {
-      detail += ` [${event.assets.map(asset => `${asset.kind}:${asset.path}`).join(', ')}]`
+    if (event.payloads) {
+      const entries = Object.entries(event.payloads)
+      if (entries.length > 0) {
+        detail += ` [${entries.map(([name, ref]) => {
+          if (ref.kind === 'inline') return `${name}:inline`
+          return `${name}:${ref.format}:${ref.path}`
+        }).join(', ')}]`
+      }
     }
     return `[${timestampStr}] ${detail}`
   }).join('\n')

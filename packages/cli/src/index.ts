@@ -60,35 +60,6 @@ program.command('network')
     console.log(formatNetworkTable(events, opts))
   })
 
-program.command('assets')
-  .description('List and display assets')
-  .option('--session-id <id>')
-  .option('--verbose', 'Enable verbose debug logging')
-  .argument('[path]', 'Asset path to display')
-  .action(async (path, opts) => {
-    const baseDir = program.opts().dir as string
-    const session = await createSessionReader(baseDir, opts)
-
-    if (path) {
-      const asset = await session.assets.metadata(path)
-
-      if (asset?.kind === 'image') {
-        console.log(`image: ${path}${asset.size ? ` (${(asset.size / 1024).toFixed(1)}KB)` : ''}`)
-      } else {
-        const content = await session.assets.readText(path)
-        console.log(content)
-      }
-    } else {
-      const assets = await session.assets.ls()
-      if (assets.length === 0) {
-        console.log('(no assets found)')
-        return
-      }
-      for (const asset of assets) {
-        console.log(`${asset.kind.padEnd(8)} ${asset.path}`)
-      }
-    }
-  })
 
 program.command('list')
   .description('List available sessions')

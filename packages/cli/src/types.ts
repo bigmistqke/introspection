@@ -1,1 +1,1 @@
-export type { TraceEvent, AssetRef, SessionMeta } from '@introspection/types'
+export type { TraceEvent, SessionMeta } from '@introspection/types'
