@@ -344,5 +344,173 @@ export const BROWSER_SCRIPT = `
     });
     return req;
   };
+
+  // ─── Reads (opt-in) ────────────────────────────────────────────────────
+  function wrapReadRequest(req, base) {
+    var requestedAt = performance.now();
+    base.requestedAt = requestedAt;
+    req.addEventListener('success', function() {
+      base.completedAt = performance.now();
+      base.outcome = 'success';
+      var result = req.result;
+      if (base.operation === 'count') {
+        base.count = typeof result === 'number' ? result : undefined;
+      } else if (base.operation === 'getAll' || base.operation === 'getAllKeys') {
+        base.count = Array.isArray(result) ? result.length : undefined;
+        base.value = safeJSON(result);
+      } else if (base.operation === 'openCursor' || base.operation === 'openKeyCursor') {
+        if (result == null) {
+          base.value = null;
+          emit(base);
+          return;
+        }
+        var advanceCount = 0;
+        var snapshot = Object.assign({}, base);
+        snapshot.completedAt = performance.now();
+        snapshot.value = safeJSON({ key: result.key, primaryKey: result.primaryKey, value: result.value });
+        snapshot.count = ++advanceCount;
+        emit(snapshot);
+        return;
+      } else {
+        base.value = safeJSON(result);
+      }
+      emit(base);
+    });
+    req.addEventListener('error', function() {
+      base.completedAt = performance.now();
+      base.outcome = 'error';
+      base.error = req.error ? String(req.error.name + ': ' + req.error.message) : 'unknown';
+      emit(base);
+    });
+  }
+
+  function readPatchFor(proto, isIndex) {
+    var origGet = proto.get;
+    proto.get = function(key) {
+      if (!settings.reads) return origGet.apply(this, arguments);
+      var ctx = txContext(isIndex ? this.objectStore : this);
+      var req = origGet.apply(this, arguments);
+      wrapReadRequest(req, {
+        kind: 'read', operation: 'get',
+        database: ctx.database,
+        objectStore: String(isIndex ? this.objectStore.name : this.name),
+        index: isIndex ? String(this.name) : undefined,
+        transactionId: ctx.transactionId,
+        query: safeJSON(key),
+      });
+      return req;
+    };
+
+    var origGetAll = proto.getAll;
+    if (origGetAll) {
+      proto.getAll = function() {
+        if (!settings.reads) return origGetAll.apply(this, arguments);
+        var ctx = txContext(isIndex ? this.objectStore : this);
+        var req = origGetAll.apply(this, arguments);
+        wrapReadRequest(req, {
+          kind: 'read', operation: 'getAll',
+          database: ctx.database,
+          objectStore: String(isIndex ? this.objectStore.name : this.name),
+          index: isIndex ? String(this.name) : undefined,
+          transactionId: ctx.transactionId,
+          query: safeJSON(arguments[0]),
+        });
+        return req;
+      };
+    }
+
+    var origGetKey = proto.getKey;
+    if (origGetKey) {
+      proto.getKey = function(key) {
+        if (!settings.reads) return origGetKey.apply(this, arguments);
+        var ctx = txContext(isIndex ? this.objectStore : this);
+        var req = origGetKey.apply(this, arguments);
+        wrapReadRequest(req, {
+          kind: 'read', operation: 'getKey',
+          database: ctx.database,
+          objectStore: String(isIndex ? this.objectStore.name : this.name),
+          index: isIndex ? String(this.name) : undefined,
+          transactionId: ctx.transactionId,
+          query: safeJSON(key),
+        });
+        return req;
+      };
+    }
+
+    var origGetAllKeys = proto.getAllKeys;
+    if (origGetAllKeys) {
+      proto.getAllKeys = function() {
+        if (!settings.reads) return origGetAllKeys.apply(this, arguments);
+        var ctx = txContext(isIndex ? this.objectStore : this);
+        var req = origGetAllKeys.apply(this, arguments);
+        wrapReadRequest(req, {
+          kind: 'read', operation: 'getAllKeys',
+          database: ctx.database,
+          objectStore: String(isIndex ? this.objectStore.name : this.name),
+          index: isIndex ? String(this.name) : undefined,
+          transactionId: ctx.transactionId,
+          query: safeJSON(arguments[0]),
+        });
+        return req;
+      };
+    }
+
+    var origCount = proto.count;
+    if (origCount) {
+      proto.count = function() {
+        if (!settings.reads) return origCount.apply(this, arguments);
+        var ctx = txContext(isIndex ? this.objectStore : this);
+        var req = origCount.apply(this, arguments);
+        wrapReadRequest(req, {
+          kind: 'read', operation: 'count',
+          database: ctx.database,
+          objectStore: String(isIndex ? this.objectStore.name : this.name),
+          index: isIndex ? String(this.name) : undefined,
+          transactionId: ctx.transactionId,
+          query: safeJSON(arguments[0]),
+        });
+        return req;
+      };
+    }
+
+    var origOpenCursor = proto.openCursor;
+    if (origOpenCursor) {
+      proto.openCursor = function() {
+        if (!settings.reads) return origOpenCursor.apply(this, arguments);
+        var ctx = txContext(isIndex ? this.objectStore : this);
+        var req = origOpenCursor.apply(this, arguments);
+        wrapReadRequest(req, {
+          kind: 'read', operation: 'openCursor',
+          database: ctx.database,
+          objectStore: String(isIndex ? this.objectStore.name : this.name),
+          index: isIndex ? String(this.name) : undefined,
+          transactionId: ctx.transactionId,
+          query: safeJSON(arguments[0]),
+        });
+        return req;
+      };
+    }
+
+    var origOpenKeyCursor = proto.openKeyCursor;
+    if (origOpenKeyCursor) {
+      proto.openKeyCursor = function() {
+        if (!settings.reads) return origOpenKeyCursor.apply(this, arguments);
+        var ctx = txContext(isIndex ? this.objectStore : this);
+        var req = origOpenKeyCursor.apply(this, arguments);
+        wrapReadRequest(req, {
+          kind: 'read', operation: 'openKeyCursor',
+          database: ctx.database,
+          objectStore: String(isIndex ? this.objectStore.name : this.name),
+          index: isIndex ? String(this.name) : undefined,
+          transactionId: ctx.transactionId,
+          query: safeJSON(arguments[0]),
+        });
+        return req;
+      };
+    }
+  }
+
+  readPatchFor(IDBObjectStore.prototype, false);
+  readPatchFor(IDBIndex.prototype, true);
 })();
 `

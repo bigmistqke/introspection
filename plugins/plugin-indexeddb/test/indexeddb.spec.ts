@@ -257,3 +257,75 @@ test('captures add/put/delete/clear with values written to assets', async ({ pag
   const clr = writes[3]
   expect(clr.assets ?? []).toHaveLength(0)
 })
+
+test('captures get and getAll when reads option is enabled', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDBPlugin({ reads: true })] })
+
+  await openDatabase(page, 'reads-db', 1, `db.createObjectStore('items', { keyPath: 'id' })`)
+
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open('reads-db', 1)
+    req.onsuccess = () => {
+      const db = req.result
+      const writeTx = db.transaction('items', 'readwrite')
+      writeTx.objectStore('items').put({ id: 1, name: 'one' })
+      writeTx.objectStore('items').put({ id: 2, name: 'two' })
+      writeTx.oncomplete = () => {
+        const readTx = db.transaction('items', 'readonly')
+        const store = readTx.objectStore('items')
+        store.get(1)
+        store.getAll()
+        readTx.oncomplete = () => { db.close(); resolve() }
+        readTx.onerror = () => { db.close(); reject(readTx.error) }
+      }
+      writeTx.onerror = () => { db.close(); reject(writeTx.error) }
+    }
+    req.onerror = () => reject(req.error)
+  }))
+
+  await new Promise(r => setTimeout(r, 250))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const reads = events.filter((e: { type: string }) => e.type === 'idb.read')
+  expect(reads.length).toBeGreaterThanOrEqual(2)
+
+  const get = reads.find((e: { metadata: { operation: string } }) => e.metadata.operation === 'get')
+  expect(get).toBeDefined()
+  expect(get.assets).toHaveLength(1)
+  const getResult = await readAsset(dir, get.assets[0].path)
+  expect(getResult).toEqual({ id: 1, name: 'one' })
+
+  const getAll = reads.find((e: { metadata: { operation: string } }) => e.metadata.operation === 'getAll')
+  expect(getAll).toBeDefined()
+  expect(getAll.metadata.count).toBe(2)
+  expect(getAll.assets).toHaveLength(1)
+  const getAllResult = await readAsset(dir, getAll.assets[0].path)
+  expect(getAllResult).toHaveLength(2)
+})
+
+test('does not capture reads by default', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDBPlugin()] })
+
+  await openDatabase(page, 'no-reads-db', 1, `db.createObjectStore('items', { keyPath: 'id' })`)
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open('no-reads-db', 1)
+    req.onsuccess = () => {
+      const db = req.result
+      const tx = db.transaction('items', 'readonly')
+      tx.objectStore('items').get(1)
+      tx.oncomplete = () => { db.close(); resolve() }
+      tx.onerror = () => { db.close(); reject(tx.error) }
+    }
+    req.onerror = () => reject(req.error)
+  }))
+
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const reads = events.filter((e: { type: string }) => e.type === 'idb.read')
+  expect(reads).toHaveLength(0)
+})

@@ -123,11 +123,29 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
         completedAt: number
       }
 
+      type ReadPayload = {
+        origin: string
+        kind: 'read'
+        operation: 'get' | 'getAll' | 'getKey' | 'getAllKeys' | 'count' | 'openCursor' | 'openKeyCursor'
+        database: string
+        objectStore: string
+        index?: string
+        transactionId: string
+        query?: unknown
+        value?: unknown
+        count?: number
+        outcome: 'success' | 'error'
+        error?: string
+        requestedAt: number
+        completedAt: number
+      }
+
       type PagePayload =
         | DatabasePayload
         | SchemaPayload
         | TransactionPayload
         | WritePayload
+        | ReadPayload
 
       async function handlePagePayload(payload: PagePayload): Promise<void> {
         if (!originAllowed(payload.origin)) return
@@ -237,6 +255,49 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
             assets.push(ref)
           }
           await ctx.emit({ type: 'idb.write', metadata: md, ...(assets.length && { assets }) })
+          return
+        }
+        if (payload.kind === 'read') {
+          if (!captureReads) return
+          if (databasesFilter && !databasesFilter.includes(payload.database)) return
+          const md: {
+            operation: ReadPayload['operation']
+            origin: string
+            database: string
+            objectStore: string
+            index?: string
+            transactionId: string
+            query?: unknown
+            count?: number
+            outcome: 'success' | 'error'
+            error?: string
+            requestedAt: number
+            completedAt: number
+          } = {
+            operation: payload.operation,
+            origin: payload.origin,
+            database: payload.database,
+            objectStore: payload.objectStore,
+            transactionId: payload.transactionId,
+            outcome: payload.outcome,
+            requestedAt: payload.requestedAt,
+            completedAt: payload.completedAt,
+          }
+          if (payload.index !== undefined) md.index = payload.index
+          if (payload.query !== undefined) md.query = payload.query
+          if (payload.count !== undefined) md.count = payload.count
+          if (payload.error) md.error = payload.error
+
+          const assets = []
+          if (payload.value !== undefined) {
+            const ref = await ctx.writeAsset({
+              kind: 'json',
+              content: JSON.stringify(payload.value),
+              ext: 'json',
+            })
+            assets.push(ref)
+          }
+          await ctx.emit({ type: 'idb.read', metadata: md, ...(assets.length && { assets }) })
           return
         }
       }
