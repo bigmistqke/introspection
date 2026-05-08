@@ -50,7 +50,7 @@ describe('reconstruct', () => {
       id: 'console-0',
       timestamp: 100,
       type: 'console',
-      metadata: { level: 'log', message: 'test' },
+      metadata: { level: 'log', args: ['test'] },
     } as TraceEvent)
 
     const result = await reconstruct({ events, assets, eventId: 'console-0' })
