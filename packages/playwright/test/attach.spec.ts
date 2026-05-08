@@ -148,19 +148,19 @@ test('push event from browser appears in events.ndjson', async ({ page }) => {
   expect(pushed.metadata.value).toBe(1.5)
 })
 
-test('ctx.writeAsset writes file and returns AssetRef', async ({ page }) => {
+test('ctx.writeAsset writes file and returns PayloadRef asset variant', async ({ page }) => {
   let savedCtx: PluginContext
   const plugin: IntrospectionPlugin = {
     name: 'test', script: '',
     async install(ctx) { savedCtx = ctx },
   }
   const handle = await attach(page, { outDir: dir, plugins: [plugin] })
-  const asset = await savedCtx!.writeAsset({ kind: 'json', content: '{"ok":true}' })
+  const asset = await savedCtx!.writeAsset({ format: 'json', content: '{"ok":true}' })
   await handle.detach()
 
-  expect(asset.kind).toBe('json')
-  expect(asset.size).toBeGreaterThan(0)
-  expect(asset.path).toMatch(/^assets\/.*\.json$/)
+  expect(asset.kind).toBe('asset')
+  expect(asset.format).toBe('json')
+  expect(asset.path).toMatch(/\.json$/)
 })
 
 test('custom session ID is used as directory name', async ({ page }) => {
@@ -190,7 +190,7 @@ test('bus "detach" handler is called and can write assets', async ({ page }) => 
       ctx.bus.on('detach', async () => {
         detachCalled = true
         await ctx.writeAsset({
-          kind: 'json',
+          format: 'json',
           content: '{"detached":true}',
         })
       })
