@@ -11,10 +11,9 @@ Auth and session bugs are constant pain points and rarely visible in network log
 ## Scope
 
 In scope:
-- `document.cookie =` writes (and deletions, expressed as set-with-expired-date).
-- `CookieStore.set` / `CookieStore.delete` (Chromium async API).
-- HTTP `Set-Cookie` response headers — surfaced as `cookie.write` events with `source: 'http'`, parsed from CDP `Network.responseReceivedExtraInfo`. Independent of `plugin-network` (which keeps the raw header in its `network.response` payload for consumers that want it). The same set is observable from both plugins.
-- Cookie snapshots at install + bus triggers (`manual`, `js.error`, `detach`).
+- Programmatic mutations from the page (`document.cookie =` writes and `CookieStore.set` / `delete`) — surfaced as **`cookie.write`** events.
+- HTTP `Set-Cookie` response headers — surfaced as **`cookie.http`** events, parsed from CDP `Network.responseReceivedExtraInfo`. Independent of `plugin-network` (which keeps the raw header in its `network.response` payload for consumers that want it).
+- Cookie snapshots at install + bus triggers (`manual`, `js.error`, `detach`) — surfaced as `cookie.snapshot`.
 
 Out of scope (future):
 - Cookie reads — `document.cookie` returns all cookies as one string, low signal-to-noise. `CookieStore.get` is per-key but rarely used in practice. Easy to add later if it turns out to matter.
@@ -57,7 +56,7 @@ Defaults: writes + snapshots; all origins; all cookie names.
 
 ## Event schema
 
-Two event types added to `@introspection/types`.
+Three event types added to `@introspection/types`. The split between `cookie.write` (programmatic) and `cookie.http` (server-set via response header) is intentional: the data is genuinely different — programmatic writes have a calling realm, HTTP responses have a request URL. Squishing both into one event with optional fields would be implicit; separating them makes the trace queryable by intent (`--type cookie.write` vs `--type cookie.http`).
 
 ```ts
 // Shared subtype used by snapshots.
@@ -75,23 +74,14 @@ export interface CookieEntry {
   partitionKey?: string
 }
 
+// Programmatic page-side writes: document.cookie =, cookieStore.set/delete.
 export interface CookieWriteEvent extends BaseEvent {
   type: 'cookie.write'
   metadata: {
     operation: 'set' | 'delete'
-    source: 'document.cookie' | 'CookieStore' | 'http'
-    /**
-     * For 'document.cookie' / 'CookieStore': origin of the page realm that
-     * made the call. For 'http': origin of the response URL that carried the
-     * Set-Cookie header.
-     */
+    source: 'document.cookie' | 'CookieStore'
+    /** Origin of the page realm that made the call. */
     origin: string
-    /**
-     * Present when source is 'http'. The URL of the response carrying the
-     * Set-Cookie header, so the write can be correlated to a specific request.
-     * Equals plugin-network's network.response.metadata.url for the same response.
-     */
-    url?: string
     name: string
     /** Present for 'set'; absent for 'delete'. */
     value?: string
@@ -99,7 +89,6 @@ export interface CookieWriteEvent extends BaseEvent {
     domain?: string
     path?: string
     expires?: number
-    httpOnly?: boolean
     secure?: boolean
     sameSite?: 'Strict' | 'Lax' | 'None'
     /**
@@ -107,6 +96,32 @@ export interface CookieWriteEvent extends BaseEvent {
      * parser surprises). Absent for CookieStore writes.
      */
     raw?: string
+  }
+}
+
+// Cookies set by a server via HTTP Set-Cookie response header.
+export interface CookieHttpEvent extends BaseEvent {
+  type: 'cookie.http'
+  metadata: {
+    operation: 'set' | 'delete'
+    /** URL of the response that carried the Set-Cookie header. */
+    url: string
+    /**
+     * CDP requestId, joinable to plugin-network's `network.response`
+     * (network.response.metadata.cdpRequestId).
+     */
+    requestId: string
+    name: string
+    /** Present for 'set'; absent for 'delete'. */
+    value?: string
+    domain?: string
+    path?: string
+    expires?: number
+    httpOnly?: boolean
+    secure?: boolean
+    sameSite?: 'Strict' | 'Lax' | 'None'
+    /** Raw header value as received from the server. */
+    raw: string
   }
 }
 
@@ -203,7 +218,7 @@ Both async paths emit on settle so failures don't appear as successful writes.
 
 ### HTTP Set-Cookie — server-side via CDP
 
-We subscribe to `Network.responseReceivedExtraInfo` (which carries the response headers, including `Set-Cookie`, even for HttpOnly cookies — unlike `Network.responseReceived`). Each `Set-Cookie` header becomes one `cookie.write` event with `source: 'http'`.
+We subscribe to `Network.responseReceivedExtraInfo` (which carries response headers, including `Set-Cookie`, even for HttpOnly cookies — unlike `Network.responseReceived`). Each `Set-Cookie` header becomes one `cookie.http` event.
 
 ```ts
 await ctx.cdpSession.send('Network.enable')
@@ -302,7 +317,7 @@ Playwright integration tests against an HTTP fixture (cookies don't behave well 
 - `document.cookie = 'a=; max-age=0'` → one `cookie.write` (delete).
 - Multi-attribute write `'b=2; path=/sub; secure; samesite=strict'` → metadata reflects every attribute.
 - (when `CookieStore` exists) `cookieStore.set('c', '3')` and `cookieStore.delete('c')` → one event each, source: 'CookieStore'.
-- HTTP response with `Set-Cookie: foo=bar; HttpOnly` → one `cookie.write` event with `source: 'http'`, `httpOnly: true`, and a populated `url` field matching the response URL.
+- HTTP response with `Set-Cookie: foo=bar; HttpOnly` → one `cookie.http` event with `httpOnly: true`, populated `url` and `requestId` fields. No `cookie.write` event.
 - `js.error` mid-test → cookie snapshot with `trigger: 'js.error'`.
 - `names: ['session']` filter → only cookies named `session` appear in writes and snapshots.
 - `origins: ['https://other.example']` filter → cookies for the test origin are excluded.
