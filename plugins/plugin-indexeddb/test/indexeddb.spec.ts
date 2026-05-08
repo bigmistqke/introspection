@@ -400,3 +400,32 @@ test('dataSnapshots: true includes store records on the snapshot asset', async (
   const items = dataDb.records
   expect(items.map((r: { key: string }) => r.key).sort()).toEqual(['a', 'b'])
 })
+
+test('databases option restricts capture to the listed db', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, {
+    outDir: dir,
+    plugins: [indexedDBPlugin({ databases: ['only-this-db'] })],
+  })
+
+  await openDatabase(page, 'only-this-db', 1, `db.createObjectStore('a', { keyPath: 'id' })`)
+  await openDatabase(page, 'ignore-me', 1, `db.createObjectStore('b', { keyPath: 'id' })`)
+
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const dbEvents = events.filter((e: { type: string }) => e.type === 'idb.database')
+  for (const e of dbEvents) {
+    expect(e.metadata.name).toBe('only-this-db')
+  }
+
+  // Detach snapshot should also only include the filtered db (when CDP available).
+  const detach = events.find((e: { type: string; metadata: { trigger: string } }) =>
+    e.type === 'idb.snapshot' && e.metadata.trigger === 'detach'
+  )
+  expect(detach).toBeDefined()
+  for (const d of detach.metadata.databases) {
+    expect(d.name).toBe('only-this-db')
+  }
+})
