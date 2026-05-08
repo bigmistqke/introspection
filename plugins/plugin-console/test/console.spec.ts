@@ -34,7 +34,7 @@ test('captures console.log', async ({ page }) => {
   const consoleEvent = events.find((e: { type: string }) => e.type === 'console')
   expect(consoleEvent).toBeDefined()
   expect(consoleEvent.metadata.level).toBe('log')
-  expect(consoleEvent.metadata.message).toBe('hello world')
+  expect(consoleEvent.metadata.args).toEqual(['hello world'])
 })
 
 test('captures console.warn and console.error', async ({ page }) => {
@@ -54,9 +54,9 @@ test('captures console.warn and console.error', async ({ page }) => {
   const consoleEvents = events.filter((e: { type: string }) => e.type === 'console')
   expect(consoleEvents.length).toBe(2)
   expect(consoleEvents[0].metadata.level).toBe('warn')
-  expect(consoleEvents[0].metadata.message).toBe('careful')
+  expect(consoleEvents[0].metadata.args).toEqual(['careful'])
   expect(consoleEvents[1].metadata.level).toBe('error')
-  expect(consoleEvents[1].metadata.message).toBe('oops')
+  expect(consoleEvents[1].metadata.args).toEqual(['oops'])
 })
 
 test('filters levels when levels option is set', async ({ page }) => {
@@ -77,6 +77,6 @@ test('filters levels when levels option is set', async ({ page }) => {
   const consoleEvents = events.filter((e: { type: string }) => e.type === 'console')
   expect(consoleEvents.length).toBe(1)
   expect(consoleEvents[0].metadata.level).toBe('error')
-  expect(consoleEvents[0].metadata.message).toBe('capture me')
+  expect(consoleEvents[0].metadata.args).toEqual(['capture me'])
 })
 

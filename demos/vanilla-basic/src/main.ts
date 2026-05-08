@@ -29,7 +29,7 @@ function formatEvent(event: TraceEvent): string {
     case 'js.error':
       return event.metadata.message
     case 'console':
-      return `[${event.metadata.level}] ${event.metadata.message}`
+      return `[${event.metadata.level}] ${event.metadata.args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')}`
     case 'playwright.result':
       return `${event.metadata.status ?? 'unknown'} (${event.metadata.duration}ms)`
     case 'browser.navigate':

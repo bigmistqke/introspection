@@ -21,7 +21,7 @@ function summarizeEvent(event: TraceEvent): string {
     case 'js.error':
       return event.metadata.message.slice(0, 25)
     case 'console':
-      return `[${event.metadata.level}] ${event.metadata.message}`.slice(0, 25)
+      return `[${event.metadata.level}] ${event.metadata.args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')}`.slice(0, 25)
     case 'playwright.result':
       return `${event.metadata.status ?? 'unknown'}`
     case 'browser.navigate':
