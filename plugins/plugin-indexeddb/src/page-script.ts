@@ -141,5 +141,69 @@ export const BROWSER_SCRIPT = `
     emit({ kind: 'database', operation: 'close', name: String(name), oldVersion: version });
     return result;
   };
+
+  // ─── Schema (only valid in versionchange transactions) ──────────────────
+  function keyPathOf(kp) {
+    if (kp == null) return null;
+    if (Array.isArray(kp)) return kp.slice();
+    return String(kp);
+  }
+
+  var origCreateStore = IDBDatabase.prototype.createObjectStore;
+  IDBDatabase.prototype.createObjectStore = function(name, options) {
+    var store = origCreateStore.apply(this, arguments);
+    emit({
+      kind: 'schema',
+      operation: 'createObjectStore',
+      database: String(this.name),
+      objectStore: String(name),
+      keyPath: keyPathOf(store.keyPath),
+      autoIncrement: !!store.autoIncrement
+    });
+    return store;
+  };
+
+  var origDeleteStore = IDBDatabase.prototype.deleteObjectStore;
+  IDBDatabase.prototype.deleteObjectStore = function(name) {
+    var result = origDeleteStore.apply(this, arguments);
+    emit({
+      kind: 'schema',
+      operation: 'deleteObjectStore',
+      database: String(this.name),
+      objectStore: String(name)
+    });
+    return result;
+  };
+
+  var origCreateIndex = IDBObjectStore.prototype.createIndex;
+  IDBObjectStore.prototype.createIndex = function(name, keyPath, options) {
+    var index = origCreateIndex.apply(this, arguments);
+    var dbName = (this.transaction && this.transaction.db) ? this.transaction.db.name : '';
+    emit({
+      kind: 'schema',
+      operation: 'createIndex',
+      database: String(dbName),
+      objectStore: String(this.name),
+      index: String(name),
+      keyPath: keyPathOf(keyPath),
+      unique: !!index.unique,
+      multiEntry: !!index.multiEntry
+    });
+    return index;
+  };
+
+  var origDeleteIndex = IDBObjectStore.prototype.deleteIndex;
+  IDBObjectStore.prototype.deleteIndex = function(name) {
+    var result = origDeleteIndex.apply(this, arguments);
+    var dbName = (this.transaction && this.transaction.db) ? this.transaction.db.name : '';
+    emit({
+      kind: 'schema',
+      operation: 'deleteIndex',
+      database: String(dbName),
+      objectStore: String(this.name),
+      index: String(name)
+    });
+    return result;
+  };
 })();
 `

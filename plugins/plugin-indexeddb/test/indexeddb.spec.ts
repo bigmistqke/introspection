@@ -123,3 +123,45 @@ test('captures database open, upgradeneeded, close, and delete', async ({ page }
   const open = lifecycle.find((e: { metadata: { operation: string } }) => e.metadata.operation === 'open')
   expect(open.metadata.outcome).toBe('success')
 })
+
+test('captures schema events: createObjectStore and createIndex', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDB()] })
+
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open('schema-db', 1)
+    req.onupgradeneeded = (ev) => {
+      const db = (ev.target as IDBOpenDBRequest).result
+      const store = db.createObjectStore('items', { keyPath: 'id', autoIncrement: true })
+      store.createIndex('by-name', 'name', { unique: false })
+      store.createIndex('by-tag', 'tags', { multiEntry: true })
+    }
+    req.onsuccess = () => { req.result.close(); resolve() }
+    req.onerror = () => reject(req.error)
+  }))
+
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const schema = events.filter((e: { type: string }) => e.type === 'idb.schema')
+
+  const createStore = schema.find((e: { metadata: { operation: string; objectStore: string } }) =>
+    e.metadata.operation === 'createObjectStore' && e.metadata.objectStore === 'items'
+  )
+  expect(createStore).toBeDefined()
+  expect(createStore.metadata.keyPath).toBe('id')
+  expect(createStore.metadata.autoIncrement).toBe(true)
+
+  const byName = schema.find((e: { metadata: { operation: string; index?: string } }) =>
+    e.metadata.operation === 'createIndex' && e.metadata.index === 'by-name'
+  )
+  expect(byName).toBeDefined()
+  expect(byName.metadata.unique).toBe(false)
+  expect(byName.metadata.objectStore).toBe('items')
+
+  const byTag = schema.find((e: { metadata: { operation: string; index?: string } }) =>
+    e.metadata.operation === 'createIndex' && e.metadata.index === 'by-tag'
+  )
+  expect(byTag.metadata.multiEntry).toBe(true)
+})

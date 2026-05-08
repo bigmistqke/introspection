@@ -84,7 +84,20 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
         error?: string
       }
 
-      type PagePayload = DatabasePayload
+      type SchemaPayload = {
+        origin: string
+        kind: 'schema'
+        operation: 'createObjectStore' | 'deleteObjectStore' | 'createIndex' | 'deleteIndex'
+        database: string
+        objectStore: string
+        index?: string
+        keyPath?: string | string[] | null
+        autoIncrement?: boolean
+        unique?: boolean
+        multiEntry?: boolean
+      }
+
+      type PagePayload = DatabasePayload | SchemaPayload
 
       function handlePagePayload(payload: PagePayload): void {
         if (!originAllowed(payload.origin)) return
@@ -108,6 +121,32 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
           if (payload.outcome) md.outcome = payload.outcome
           if (payload.error) md.error = payload.error
           void ctx.emit({ type: 'idb.database', metadata: md })
+          return
+        }
+        if (payload.kind === 'schema') {
+          if (databasesFilter && !databasesFilter.includes(payload.database)) return
+          const md: {
+            operation: 'createObjectStore' | 'deleteObjectStore' | 'createIndex' | 'deleteIndex'
+            origin: string
+            database: string
+            objectStore: string
+            index?: string
+            keyPath?: string | string[] | null
+            autoIncrement?: boolean
+            unique?: boolean
+            multiEntry?: boolean
+          } = {
+            operation: payload.operation,
+            origin: payload.origin,
+            database: payload.database,
+            objectStore: payload.objectStore,
+          }
+          if (payload.index !== undefined) md.index = payload.index
+          if (payload.keyPath !== undefined) md.keyPath = payload.keyPath
+          if (payload.autoIncrement !== undefined) md.autoIncrement = payload.autoIncrement
+          if (payload.unique !== undefined) md.unique = payload.unique
+          if (payload.multiEntry !== undefined) md.multiEntry = payload.multiEntry
+          void ctx.emit({ type: 'idb.schema', metadata: md })
           return
         }
       }
