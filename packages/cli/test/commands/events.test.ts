@@ -117,24 +117,23 @@ describe('formatEvents — text output (default)', () => {
     expect(out).not.toContain('network.request')
   })
 
-  it('renders console events with level and args', () => {
-    const withConsole: TraceEvent[] = [
-      { id: 'c1', type: 'console', timestamp: 120, metadata: { level: 'log', args: ['[APP] rendering'] } },
-      { id: 'c2', type: 'console', timestamp: 130, metadata: { level: 'error', args: ['boom'] } },
-      { id: 'c3', type: 'console', timestamp: 140, metadata: { level: 'log', args: ['tick', { sceneChildren: 3 }] } },
+  it('renders event.summary when present', () => {
+    const withSummary: TraceEvent[] = [
+      { id: 'c1', type: 'console', timestamp: 120, summary: '[log] [APP] rendering', metadata: { level: 'log', args: ['[APP] rendering'] } },
+      { id: 'n1', type: 'browser.navigate', timestamp: 10, summary: 'about:blank → http://localhost/', metadata: { from: 'about:blank', to: 'http://localhost/' } },
     ]
-    const out = formatEvents(withConsole, {})
+    const out = formatEvents(withSummary, {})
     expect(out).toContain('console [log] [APP] rendering')
-    expect(out).toContain('console [error] boom')
-    expect(out).toContain('console [log] tick {"sceneChildren":3}')
+    expect(out).toContain('browser.navigate about:blank → http://localhost/')
   })
 
-  it('renders browser.navigate with from → to', () => {
-    const withNav: TraceEvent[] = [
-      { id: 'n1', type: 'browser.navigate', timestamp: 10, metadata: { from: 'about:blank', to: 'http://localhost/' } },
+  it('falls back to bare event type when summary is missing', () => {
+    const withoutSummary: TraceEvent[] = [
+      { id: 'x1', type: 'console', timestamp: 5, metadata: { level: 'log', args: ['no summary here'] } },
     ]
-    const out = formatEvents(withNav, {})
-    expect(out).toContain('browser.navigate about:blank → http://localhost/')
+    const out = formatEvents(withoutSummary, {})
+    expect(out).toContain('console')
+    expect(out).not.toContain('no summary here')
   })
 
   it('returns empty string when no events match', () => {

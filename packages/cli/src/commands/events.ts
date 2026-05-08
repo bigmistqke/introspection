@@ -42,20 +42,7 @@ export function applyEventFilters(events: TraceEvent[], opts: EventFilterOpts): 
 export function formatTimeline(events: TraceEvent[]): string {
   return events.map(event => {
     const timestampStr = String(event.timestamp).padStart(6) + 'ms'
-    let detail = event.type
-    if (event.type === 'network.request') detail += ` ${(event.metadata as { method: string }).method} ${(event.metadata as { url: string }).url}`
-    else if (event.type === 'network.response') detail += ` ${(event.metadata as { status: number }).status} ${(event.metadata as { url: string }).url}`
-    else if (event.type === 'js.error') detail += ` ${(event.metadata as { message: string }).message}`
-    else if (event.type === 'mark') detail += ` "${(event.metadata as { label: string }).label}"`
-    else if (event.type === 'playwright.action') detail += ` ${(event.metadata as { method: string }).method}(${(event.metadata as { args: unknown[] }).args[0] ?? ''})`
-    else if (event.type === 'console') {
-      const md = event.metadata as { level: string; args: unknown[] }
-      const summary = md.args
-        .map(a => (typeof a === 'string' ? a : JSON.stringify(a)))
-        .join(' ')
-      detail += ` [${md.level}] ${summary}`
-    }
-    else if (event.type === 'browser.navigate') detail += ` ${(event.metadata as { from: string }).from} → ${(event.metadata as { to: string }).to}`
+    let detail = event.summary ? `${event.type} ${event.summary}` : event.type
     if (event.assets && event.assets.length > 0) {
       detail += ` [${event.assets.map(asset => `${asset.kind}:${asset.path}`).join(', ')}]`
     }
