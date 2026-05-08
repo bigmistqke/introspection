@@ -93,5 +93,46 @@ export const BROWSER_SCRIPT = `
       },
     });
   }
+
+  // ─── CookieStore (Chromium async API) ───────────────────────────────────
+  if (typeof CookieStore !== 'undefined') {
+    var origCsSet = CookieStore.prototype.set;
+    CookieStore.prototype.set = function(nameOrOpts, value) {
+      var p = origCsSet.apply(this, arguments);
+      var fields = (typeof nameOrOpts === 'object' && nameOrOpts !== null)
+        ? nameOrOpts
+        : { name: nameOrOpts, value: value };
+      Promise.resolve(p).then(function() {
+        var payload = {
+          kind: 'write',
+          source: 'CookieStore',
+          operation: 'set',
+          name: String(fields.name),
+        };
+        if (fields.value !== undefined) payload.value = String(fields.value);
+        if (fields.domain !== undefined) payload.domain = fields.domain;
+        if (fields.path !== undefined) payload.path = fields.path;
+        if (fields.expires !== undefined) payload.expires = Math.floor(Number(fields.expires) / 1000);
+        if (fields.sameSite !== undefined) {
+          var ss = String(fields.sameSite).toLowerCase();
+          if (ss === 'strict') payload.sameSite = 'Strict';
+          else if (ss === 'lax') payload.sameSite = 'Lax';
+          else if (ss === 'none') payload.sameSite = 'None';
+        }
+        emit(payload);
+      }).catch(function() { /* page handles its own errors */ });
+      return p;
+    };
+
+    var origCsDel = CookieStore.prototype.delete;
+    CookieStore.prototype.delete = function(nameOrOpts) {
+      var p = origCsDel.apply(this, arguments);
+      var name = (typeof nameOrOpts === 'object' && nameOrOpts !== null) ? nameOrOpts.name : nameOrOpts;
+      Promise.resolve(p).then(function() {
+        emit({ kind: 'write', source: 'CookieStore', operation: 'delete', name: String(name) });
+      }).catch(function() {});
+      return p;
+    };
+  }
 })();
 `

@@ -102,3 +102,26 @@ test('captures document.cookie writes (set, multi-attribute, delete)', async ({ 
     name: 'a',
   })
 })
+
+test('captures CookieStore.set and delete (Chromium)', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'CookieStore is Chromium-only')
+  await page.goto(fixture.url)
+  const handle = await attach(page, { outDir: dir, plugins: [cookies()] })
+
+  await page.evaluate(async () => {
+    // @ts-expect-error CookieStore is Chromium-only
+    await window.cookieStore.set('cs-name', 'cs-val')
+    // @ts-expect-error CookieStore is Chromium-only
+    await window.cookieStore.delete('cs-name')
+  })
+  await new Promise(r => setTimeout(r, 150))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const writes = events.filter((e: { type: string; metadata: { source?: string } }) =>
+    e.type === 'cookie.write' && e.metadata.source === 'CookieStore'
+  )
+  expect(writes).toHaveLength(2)
+  expect(writes[0].metadata).toMatchObject({ operation: 'set', name: 'cs-name', value: 'cs-val' })
+  expect(writes[1].metadata).toMatchObject({ operation: 'delete', name: 'cs-name' })
+})
