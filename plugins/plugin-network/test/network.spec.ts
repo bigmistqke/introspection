@@ -95,7 +95,7 @@ test('captures GET request', async ({ page }) => {
   expect(responseEvent.metadata.status).toBe(200)
 
   expect(bodyEvent).toBeDefined()
-  expect(bodyEvent.assets[0].kind).toBe('json')
+  expect(bodyEvent.payloads?.body).toMatchObject({ kind: 'asset', format: 'json' })
 })
 
 test('captures POST request with body', async ({ page }) => {
@@ -137,10 +137,7 @@ test('response body asset kind is detected correctly', async ({ page }) => {
 
   expect(responseEvent).toBeDefined()
   expect(bodyEvent).toBeDefined()
-  expect(bodyEvent.assets).toBeDefined()
-  expect(Array.isArray(bodyEvent.assets)).toBe(true)
-  expect(bodyEvent.assets.length).toBeGreaterThan(0)
-  expect(bodyEvent.assets[0].kind).toBe('json')
+  expect(bodyEvent.payloads?.body).toMatchObject({ kind: 'asset', format: 'json' })
 })
 
 test('streaming response does not hang flush', async ({ page }) => {

@@ -125,7 +125,7 @@ export interface NetworkErrorEvent extends BaseEvent {
 export interface NetworkResponseBodyEvent extends BaseEvent {
   type: 'network.response.body'
   metadata: { cdpRequestId: string }
-  // body is in assets[0]; initiator points to the network.response event id
+  // body is in payloads.body; initiator points to the network.response event id
 }
 
 // ─── Plugin events: js-error ────────────────────────────────────────────────

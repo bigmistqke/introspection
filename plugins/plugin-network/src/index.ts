@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import type { IntrospectionPlugin, PluginContext, AssetKind } from '@introspection/types'
+import type { IntrospectionPlugin, PluginContext, PayloadFormat } from '@introspection/types'
 import { normaliseCdpNetworkRequest, normaliseCdpNetworkResponse, createDebug } from '@introspection/utils'
 
 export type {
@@ -13,7 +13,7 @@ export interface NetworkOptions {
   verbose?: boolean
 }
 
-function detectKind(contentTypeHeader: string): AssetKind {
+function detectKind(contentTypeHeader: string): PayloadFormat {
   const ct = contentTypeHeader.toLowerCase()
   if (ct.includes('json')) return 'json'
   if (ct.includes('html')) return 'html'
@@ -82,12 +82,12 @@ export function network(options?: NetworkOptions): IntrospectionPlugin {
               : responseBody.body
             const assetKind = detectKind(state.contentType)
             debug('body captured', requestId, 'kind:', assetKind, 'bytes:', body.length)
-            const asset = await ctx.writeAsset({ kind: assetKind, content: body })
+            const asset = await ctx.writeAsset({ format: assetKind, content: body })
             ctx.emit({
               type: 'network.response.body',
               initiator: state.responseId,
               metadata: { cdpRequestId: requestId },
-              assets: [asset],
+              payloads: { body: asset },
             })
           } catch (error) {
             debug('getResponseBody failed', requestId, (error as Error).message)
