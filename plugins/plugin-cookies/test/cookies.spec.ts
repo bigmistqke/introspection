@@ -110,9 +110,7 @@ test('captures CookieStore.set and delete (Chromium)', async ({ page, browserNam
   const handle = await attach(page, { outDir: dir, plugins: [cookies()] })
 
   await page.evaluate(async () => {
-    // @ts-expect-error CookieStore is Chromium-only
     await window.cookieStore.set('cs-name', 'cs-val')
-    // @ts-expect-error CookieStore is Chromium-only
     await window.cookieStore.delete('cs-name')
   })
   await new Promise(r => setTimeout(r, 150))
