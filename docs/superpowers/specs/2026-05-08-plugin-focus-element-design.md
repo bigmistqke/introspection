@@ -28,11 +28,13 @@ export interface FocusChangedEvent extends BaseEvent {
   metadata: {
     target: ElementInfo | null      // null when focus leaves the document
     previous: ElementInfo | null
-    cause: 'programmatic' | 'unknown'
-    callSite?: string               // raw stack; only set when cause === 'programmatic'
-    frameUrl: string                // location.href of the emitting frame
-  }
+    origin?: string                 // location.origin of the emitting frame; omitted in main frame
+  } & FocusCause
 }
+
+export type FocusCause =
+  | { cause: 'programmatic'; callSite: string }   // raw stack of the .focus() / .blur() call site
+  | { cause: 'unknown' }                          // user input, autofocus, tabindex on removal, etc.
 
 export interface ElementInfo {
   tag: string                       // lowercase
@@ -78,7 +80,7 @@ The plugin is **browser-side only** — no CDP subscriptions. The injected scrip
    - `shadowPath` — built during the `activeElement` walk in step 2.
    - `backendNodeId` — `null` for v1 (would require a CDP roundtrip per event; not worth the cost).
 
-5. **Per-frame, frame-correct.** Each injected instance handles only its own frame: walks its own `activeElement` chain (shadow DOM only, not iframe contents), tags every event with `frameUrl: location.href`. If the framework injects the plugin into multiple frames, each emits independently.
+5. **Per-frame, frame-correct.** Each injected instance handles only its own frame: walks its own `activeElement` chain (shadow DOM only, not iframe contents). Sets `origin: location.origin` on emitted events when running in a sub-frame; omitted for the main frame so single-frame traces stay clean. If the framework injects the plugin into multiple frames, each emits independently.
 
 ## Options
 
@@ -124,7 +126,7 @@ Playwright suite (`test/focus.spec.ts`) covering:
 2. **Programmatic `.focus()`** — button click handler calls `inputRef.focus()`; trace shows event with `cause: 'programmatic'` and `callSite` containing the handler's file/line.
 3. **`autofocus` on load** — initial-focus event fires with `previous: null` and `cause: 'unknown'`.
 4. **Focus inside shadow DOM** — focusing an input inside a shadow-root component yields `target.shadowPath: ['my-component']` and the inner element's tag/role.
-5. **Focus moves into same-origin iframe** — main frame emits `focus.changed` with `target.tag: 'iframe'`; iframe's own injected instance emits its own `focus.changed` with `frameUrl` pointing at the child.
+5. **Focus moves into same-origin iframe** — main frame emits `focus.changed` with `target.tag: 'iframe'`; iframe's own injected instance emits its own `focus.changed` with `origin` set to the child frame's origin.
 6. **Modal focus trap** — opening a modal moves focus, closing returns it; trace shows the round-trip with `cause: 'programmatic'` on both transitions.
 7. **`origins` option gates injection** — when `origins: [/^http:\/\/localhost:3000/]` is set and the test page is served from a different port, no events are emitted.
 
