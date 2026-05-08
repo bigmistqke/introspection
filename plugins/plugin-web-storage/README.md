@@ -39,7 +39,7 @@ const handle = await attach(page, {
 |---|---|---|---|
 | `stores` | `('localStorage' \| 'sessionStorage')[]` | `['localStorage', 'sessionStorage']` | Which storage areas to capture. |
 | `reads` | `boolean` | `false` | Capture every `getItem` call. Off by default — reads are high-volume on hot paths. |
-| `origins` | `string[]` | top-frame only | Restrict capture to these origins. Default is the top-frame origin. |
+| `origins` | `string[]` | `['*']` (all origins) | Restrict capture to specific origins. The literal `'*'` matches everything. |
 | `verbose` | `boolean` | `false` | Verbose debug logs. |
 
 ## Events emitted

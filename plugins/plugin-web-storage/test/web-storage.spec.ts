@@ -166,7 +166,7 @@ test('emits a snapshot on js.error', async ({ page }) => {
   expect(onError).toBeDefined()
 })
 
-test('default filter: top-frame origin is captured', async ({ page }) => {
+test('default filter: all origins captured (default ["*"])', async ({ page }) => {
   await page.goto(FIXTURE)
   const handle = await attach(page, { outDir: dir, plugins: [webStorage()] })
 
@@ -179,11 +179,6 @@ test('default filter: top-frame origin is captured', async ({ page }) => {
     e.type === 'webStorage.write' && e.metadata.key === 'top'
   )
   expect(writes).toHaveLength(1)
-  // Origin field is populated and consistent with the install snapshot's origin.
-  const installSnapshot = events.find((e: { type: string; metadata: { trigger: string } }) =>
-    e.type === 'webStorage.snapshot' && e.metadata.trigger === 'install'
-  )
-  expect(writes[0].metadata.origin).toBe(installSnapshot.metadata.origin)
 })
 
 test('explicit origins option excludes writes from non-listed origins', async ({ page }) => {

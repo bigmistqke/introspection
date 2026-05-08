@@ -106,7 +106,7 @@ export function webStorage(options?: WebStorageOptions): IntrospectionPlugin {
   const debug = createDebug('plugin-web-storage', options?.verbose ?? false)
   const stores = options?.stores ?? ['localStorage', 'sessionStorage']
   const captureReads = options?.reads ?? false
-  const explicitOrigins = options?.origins
+  const origins = options?.origins ?? ['*']
 
   return {
     name: 'web-storage',
@@ -117,13 +117,13 @@ export function webStorage(options?: WebStorageOptions): IntrospectionPlugin {
       'webStorage.snapshot': 'Full storage dump at install and on bus triggers',
     },
     async install(ctx: PluginContext): Promise<void> {
-      debug('installing', { stores, captureReads, explicitOrigins })
+      debug('installing', { stores, captureReads, origins })
 
       let topOrigin: string | undefined
 
       function originAllowed(origin: string): boolean {
-        if (explicitOrigins) return explicitOrigins.includes(origin)
-        return origin === topOrigin
+        if (origins.includes('*')) return true
+        return origins.includes(origin)
       }
 
       try {
@@ -223,7 +223,9 @@ export function webStorage(options?: WebStorageOptions): IntrospectionPlugin {
       }
 
       async function snapshotOnce(trigger: SnapshotTrigger): Promise<void> {
-        const targetOrigins = explicitOrigins ?? (topOrigin ? [topOrigin] : [])
+        const targetOrigins = origins.includes('*')
+          ? (topOrigin ? [topOrigin] : [])
+          : origins
         for (const origin of targetOrigins) {
           if (!originAllowed(origin)) continue
           const metadata: {
