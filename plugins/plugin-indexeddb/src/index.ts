@@ -245,16 +245,16 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
           if (payload.key !== undefined) md.key = payload.key
           if (payload.error) md.error = payload.error
 
-          const assets = []
+          const payloads: Record<string, import('@introspection/types').PayloadRef> = {}
           if (payload.value !== undefined && (payload.operation === 'add' || payload.operation === 'put')) {
             const ref = await ctx.writeAsset({
-              kind: 'json',
+              format: 'json',
               content: JSON.stringify(payload.value),
               ext: 'json',
             })
-            assets.push(ref)
+            payloads.value = ref
           }
-          await ctx.emit({ type: 'idb.write', metadata: md, ...(assets.length && { assets }) })
+          await ctx.emit({ type: 'idb.write', metadata: md, ...(Object.keys(payloads).length && { payloads }) })
           return
         }
         if (payload.kind === 'read') {
@@ -288,16 +288,16 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
           if (payload.count !== undefined) md.count = payload.count
           if (payload.error) md.error = payload.error
 
-          const assets = []
+          const payloads: Record<string, import('@introspection/types').PayloadRef> = {}
           if (payload.value !== undefined) {
             const ref = await ctx.writeAsset({
-              kind: 'json',
+              format: 'json',
               content: JSON.stringify(payload.value),
               ext: 'json',
             })
-            assets.push(ref)
+            payloads.value = ref
           }
-          await ctx.emit({ type: 'idb.read', metadata: md, ...(assets.length && { assets }) })
+          await ctx.emit({ type: 'idb.read', metadata: md, ...(Object.keys(payloads).length && { payloads }) })
           return
         }
       }
@@ -490,19 +490,20 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
             }
           }
 
-          const event: { type: 'idb.snapshot'; metadata: { trigger: SnapshotTrigger; origin: string; databases: typeof databases }; assets?: import('@introspection/types').AssetRef[] } = {
-            type: 'idb.snapshot',
-            metadata: { trigger, origin, databases },
-          }
+          const snapshotPayloads: Record<string, import('@introspection/types').PayloadRef> = {}
           if (dataSnapshots) {
             const ref = await ctx.writeAsset({
-              kind: 'json',
+              format: 'json',
               content: JSON.stringify(dataPayload),
               ext: 'json',
             })
-            event.assets = [ref]
+            snapshotPayloads.records = ref
           }
-          await ctx.emit(event)
+          await ctx.emit({
+            type: 'idb.snapshot',
+            metadata: { trigger, origin, databases },
+            ...(Object.keys(snapshotPayloads).length && { payloads: snapshotPayloads }),
+          })
         }
       }
 

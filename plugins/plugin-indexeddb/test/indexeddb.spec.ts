@@ -6,6 +6,7 @@ import { tmpdir } from 'os'
 import { fileURLToPath } from 'url'
 import { attach } from '@introspection/playwright'
 import { indexedDB as indexedDBPlugin } from '../src/index.js'
+import type { PayloadAsset } from '@introspection/types'
 
 const FIXTURE = 'file://' + fileURLToPath(new URL('./fixtures/index.html', import.meta.url))
 
@@ -244,19 +245,20 @@ test('captures add/put/delete/clear with values written to assets', async ({ pag
   }
 
   const add = writes[0]
-  expect(add.assets).toHaveLength(1)
-  const addValue = await readAsset(dir, add.assets[0].path)
+  const addRef = add.payloads?.value
+  expect(addRef).toMatchObject({ kind: 'asset' })
+  const addValue = await readAsset(dir, (addRef as PayloadAsset).path)
   expect(addValue).toEqual({ id: 1, name: 'first' })
 
   const put = writes[1]
-  expect(put.assets).toHaveLength(1)
+  expect(put.payloads?.value).toMatchObject({ kind: 'asset' })
 
   const del = writes[2]
-  expect(del.assets ?? []).toHaveLength(0)
+  expect(del.payloads?.value).toBeUndefined()
   expect(del.metadata.key).toBe(1)
 
   const clr = writes[3]
-  expect(clr.assets ?? []).toHaveLength(0)
+  expect(clr.payloads?.value).toBeUndefined()
 })
 
 test('captures get and getAll when reads option is enabled', async ({ page }) => {
@@ -294,15 +296,17 @@ test('captures get and getAll when reads option is enabled', async ({ page }) =>
 
   const get = reads.find((e: { metadata: { operation: string } }) => e.metadata.operation === 'get')
   expect(get).toBeDefined()
-  expect(get.assets).toHaveLength(1)
-  const getResult = await readAsset(dir, get.assets[0].path)
+  const getRef = get.payloads?.value
+  expect(getRef).toMatchObject({ kind: 'asset' })
+  const getResult = await readAsset(dir, (getRef as PayloadAsset).path)
   expect(getResult).toEqual({ id: 1, name: 'one' })
 
   const getAll = reads.find((e: { metadata: { operation: string } }) => e.metadata.operation === 'getAll')
   expect(getAll).toBeDefined()
   expect(getAll.metadata.count).toBe(2)
-  expect(getAll.assets).toHaveLength(1)
-  const getAllResult = await readAsset(dir, getAll.assets[0].path)
+  const getAllRef = getAll.payloads?.value
+  expect(getAllRef).toMatchObject({ kind: 'asset' })
+  const getAllResult = await readAsset(dir, (getAllRef as PayloadAsset).path)
   expect(getAllResult).toHaveLength(2)
 })
 
@@ -392,9 +396,10 @@ test('dataSnapshots: true includes store records on the snapshot asset', async (
     e.type === 'idb.snapshot' && e.metadata.trigger === 'manual'
   )
   expect(manual).toBeDefined()
-  expect(manual.assets).toHaveLength(1)
+  const recordsRef = manual.payloads?.records
+  expect(recordsRef).toMatchObject({ kind: 'asset' })
 
-  const data = await readAsset(dir, manual.assets[0].path)
+  const data = await readAsset(dir, (recordsRef as PayloadAsset).path)
   const dataDb = data.find((d: { database: string }) => d.database === 'data-snap-db')
   expect(dataDb).toBeDefined()
   const items = dataDb.records
