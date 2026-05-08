@@ -7,7 +7,8 @@ export interface BaseEvent {
   timestamp: number   // ms since test start
   initiator?: string  // id of event that caused this one (best-effort)
   pageId?: string     // identifies which page emitted this event
-  assets?: AssetRef[] // files written to the assets directory by this event
+  /** Named payloads attached to this event. Each is either inline or an asset reference. */
+  payloads?: Record<string, PayloadRef>
   summary?: string    // single-line human-readable rendering for terminal output
 }
 
@@ -339,7 +340,7 @@ export interface JsonPatchOperation {
 
 export interface ReduxSnapshotEvent extends BaseEvent {
   type: 'redux.snapshot'
-  assets: [AssetRef]
+  payloads: { state: PayloadRef }
   metadata?: never
 }
 
