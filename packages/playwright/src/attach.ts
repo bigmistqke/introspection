@@ -45,9 +45,25 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
 
   debug('attach', { sessionId: session.id, pageId, testTitle: options.testTitle })
 
+  const formatters = plugins
+    .map((plugin) => plugin.formatEvent)
+    .filter((fn): fn is NonNullable<IntrospectionPlugin['formatEvent']> => typeof fn === 'function')
+
   // Wrap session.emit to stamp pageId onto every event from this page
+  // and run plugin formatters to populate event.summary.
   function emit(event: EmitInput): Promise<void> {
-    return session.emit({ pageId, ...event })
+    let summary = event.summary
+    if (summary === undefined) {
+      for (const fn of formatters) {
+        try {
+          const result = fn(event as TraceEvent)
+          if (result != null && result !== '') { summary = result; break }
+        } catch (error) {
+          debug('formatter threw', { type: event.type, error: error instanceof Error ? error.message : error })
+        }
+      }
+    }
+    return session.emit({ pageId, ...event, ...(summary !== undefined ? { summary } : {}) })
   }
 
   const { bus, timestamp } = session
