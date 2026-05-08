@@ -95,3 +95,38 @@ test('captures setItem, removeItem, and clear with old/new values', async ({ pag
   })
   expect(new Set(writes[4].metadata.clearedKeys)).toEqual(new Set(['preexisting-session', 's']))
 })
+
+test('captures getItem when reads option is enabled', async ({ page }) => {
+  await page.goto(FIXTURE)
+
+  const handle = await attach(page, { outDir: dir, plugins: [webStorage({ reads: true })] })
+
+  const result = await page.evaluate(() => ({
+    hit:  localStorage.getItem('preexisting-local'),
+    miss: localStorage.getItem('does-not-exist'),
+  }))
+  await new Promise(r => setTimeout(r, 100))
+  await handle.detach()
+
+  expect(result).toEqual({ hit: 'l-1', miss: null })
+
+  const events = await readEvents(dir)
+  const reads = events.filter((e: { type: string }) => e.type === 'webStorage.read')
+
+  expect(reads).toHaveLength(2)
+  expect(reads[0].metadata).toMatchObject({ storageType: 'localStorage', key: 'preexisting-local', value: 'l-1' })
+  expect(reads[1].metadata).toMatchObject({ storageType: 'localStorage', key: 'does-not-exist', value: null })
+})
+
+test('does not capture reads by default', async ({ page }) => {
+  await page.goto(FIXTURE)
+
+  const handle = await attach(page, { outDir: dir, plugins: [webStorage()] })
+  await page.evaluate(() => localStorage.getItem('preexisting-local'))
+  await new Promise(r => setTimeout(r, 100))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const reads = events.filter((e: { type: string }) => e.type === 'webStorage.read')
+  expect(reads).toHaveLength(0)
+})
