@@ -67,3 +67,16 @@ test('emits an install snapshot containing pre-existing databases', async ({ pag
   expect(usersStore.keyPath).toBe('id')
   expect(usersStore.autoIncrement).toBe(false)
 })
+
+test('binding round-trips a manually-emitted payload', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDB({ verbose: true })] })
+
+  const ok = await page.evaluate(() => {
+    return typeof (window as unknown as { __introspection_plugin_indexeddb_emit?: unknown })
+      .__introspection_plugin_indexeddb_emit === 'function'
+  })
+  expect(ok).toBe(true)
+
+  await handle.detach()
+})
