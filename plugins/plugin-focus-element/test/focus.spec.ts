@@ -138,6 +138,29 @@ test('walks shadow DOM and reports shadowPath on target', async ({ page }) => {
   expect(inner!.metadata.target!.shadowPath).toEqual(['my-card#card'])
 })
 
+test('child frame emits its own events tagged with origin', async ({ page }) => {
+  const handle = await attach(page, { outDir, plugins: [focusElement()] })
+  await gotoFixture(page, 'iframe-parent.html')
+
+  // Focus the parent-frame input first so we get at least one main-frame event
+  await page.locator('#parent-input').focus()
+  const childFrame = page.frameLocator('#frame')
+  await childFrame.locator('#child-input').focus()
+  await handle.flush()
+  await handle.detach()
+
+  const events = (await readEvents(outDir)).filter((e) => e.type === 'focus.changed') as Array<{
+    metadata: { target: { id: string | null } | null; origin?: string }
+  }>
+  const childEvent = events.find((e) => e.metadata.target?.id === 'child-input')
+  expect(childEvent).toBeDefined()
+  expect(childEvent!.metadata.origin).toBeDefined()
+  expect(childEvent!.metadata.origin).toMatch(/^file:\/\//)  // file URLs use 'file://' as origin
+
+  const mainEvents = events.filter((e) => e.metadata.origin === undefined)
+  expect(mainEvents.length).toBeGreaterThan(0)  // main-frame events have no origin field
+})
+
 test('emits target=null when focus leaves the document', async ({ page }) => {
   const handle = await attach(page, { outDir, plugins: [focusElement()] })
   await gotoFixture(page, 'simple.html')
