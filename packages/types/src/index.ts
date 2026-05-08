@@ -8,6 +8,7 @@ export interface BaseEvent {
   initiator?: string  // id of event that caused this one (best-effort)
   pageId?: string     // identifies which page emitted this event
   assets?: AssetRef[] // files written to the assets directory by this event
+  summary?: string    // single-line human-readable rendering for terminal output
 }
 
 // ─── Core events (emitted by the framework, not plugins) ────────────────────
@@ -683,6 +684,13 @@ export interface IntrospectionPlugin {
   /** Browser-side IIFE script. Optional — not all plugins have browser-side code. */
   script?: string
   install(ctx: PluginContext): Promise<void>
+  /**
+   * Optional. Returns a short single-line rendering of an event this plugin owns.
+   * Called by `attach()` at emit time; the result is persisted into `event.summary`.
+   * Return `null` (or `undefined`) for event types this plugin doesn't recognise.
+   * Should be cheap — runs once per emit.
+   */
+  formatEvent?(event: TraceEvent): string | null | undefined
 }
 
 /**
