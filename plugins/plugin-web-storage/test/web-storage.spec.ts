@@ -165,3 +165,39 @@ test('emits a snapshot on js.error', async ({ page }) => {
   const onError = snapshots.find((e: { metadata: { trigger: string } }) => e.metadata.trigger === 'js.error')
   expect(onError).toBeDefined()
 })
+
+test('default filter: top-frame origin is captured', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [webStorage()] })
+
+  await page.evaluate(() => localStorage.setItem('top', '1'))
+  await new Promise(r => setTimeout(r, 100))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const writes = events.filter((e: { type: string; metadata: { key?: string } }) =>
+    e.type === 'webStorage.write' && e.metadata.key === 'top'
+  )
+  expect(writes).toHaveLength(1)
+  // Origin field is populated and consistent with the install snapshot's origin.
+  const installSnapshot = events.find((e: { type: string; metadata: { trigger: string } }) =>
+    e.type === 'webStorage.snapshot' && e.metadata.trigger === 'install'
+  )
+  expect(writes[0].metadata.origin).toBe(installSnapshot.metadata.origin)
+})
+
+test('explicit origins option excludes writes from non-listed origins', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, {
+    outDir: dir,
+    plugins: [webStorage({ origins: ['https://nowhere.example'] })],
+  })
+
+  await page.evaluate(() => localStorage.setItem('blocked', '1'))
+  await new Promise(r => setTimeout(r, 100))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const writes = events.filter((e: { type: string }) => e.type === 'webStorage.write')
+  expect(writes).toHaveLength(0)
+})
