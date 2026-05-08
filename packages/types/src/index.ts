@@ -721,7 +721,7 @@ export interface WatchHandle {
 }
 
 export interface AssetWriter {
-  writeAsset(opts: WriteAssetOptions): Promise<AssetRef>
+  writeAsset(opts: WriteAssetOptions): Promise<PayloadAsset>
 }
 
 export interface SessionBus {
@@ -841,7 +841,7 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 export type EmitInput = DistributiveOmit<TraceEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }
 
 export interface WriteAssetOptions {
-  kind: AssetKind
+  format: PayloadFormat
   content: string | ArrayBufferView
   ext?: string
 }
@@ -889,8 +889,8 @@ export interface EventsAPI {
 }
 
 export interface AssetsAPI {
-  ls(): Promise<AssetRef[]>
-  metadata(path: string): Promise<AssetRef | undefined>
+  ls(): Promise<PayloadAsset[]>
+  metadata(path: string): Promise<PayloadAsset | undefined>
   readText(path: string): Promise<string>
   readJSON<T>(path: string): Promise<T>
   readBinary?(path: string): Promise<Uint8Array>
