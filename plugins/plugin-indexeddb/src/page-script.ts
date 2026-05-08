@@ -252,5 +252,97 @@ export const BROWSER_SCRIPT = `
     });
     return result;
   };
+
+  // ─── Object store writes ────────────────────────────────────────────────
+  function txContext(store) {
+    var tx = store.transaction;
+    var transactionId = (tx && tx[TX_ID_KEY]) || 'unknown';
+    var dbName = (tx && tx.db) ? String(tx.db.name) : '';
+    return { transactionId: transactionId, database: dbName };
+  }
+
+  function wrapWriteRequest(req, base) {
+    var requestedAt = performance.now();
+    base.requestedAt = requestedAt;
+    req.addEventListener('success', function() {
+      base.completedAt = performance.now();
+      base.outcome = 'success';
+      emit(base);
+    });
+    req.addEventListener('error', function() {
+      base.completedAt = performance.now();
+      base.outcome = 'error';
+      base.error = req.error ? String(req.error.name + ': ' + req.error.message) : 'unknown';
+      emit(base);
+    });
+  }
+
+  function inferKey(store, value, explicitKey) {
+    if (explicitKey !== undefined) return explicitKey;
+    if (store.keyPath != null) {
+      try {
+        if (Array.isArray(store.keyPath)) {
+          return store.keyPath.map(function(p) { return value && value[p]; });
+        }
+        return value && value[store.keyPath];
+      } catch (_) { return undefined; }
+    }
+    return undefined;
+  }
+
+  var origAdd = IDBObjectStore.prototype.add;
+  IDBObjectStore.prototype.add = function(value, key) {
+    var ctx = txContext(this);
+    var req = origAdd.apply(this, arguments);
+    var inferred = inferKey(this, value, key);
+    wrapWriteRequest(req, {
+      kind: 'write', operation: 'add',
+      database: ctx.database, objectStore: String(this.name),
+      transactionId: ctx.transactionId,
+      key: safeJSON(inferred),
+      value: safeJSON(value),
+    });
+    return req;
+  };
+
+  var origPut = IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put = function(value, key) {
+    var ctx = txContext(this);
+    var req = origPut.apply(this, arguments);
+    var inferred = inferKey(this, value, key);
+    wrapWriteRequest(req, {
+      kind: 'write', operation: 'put',
+      database: ctx.database, objectStore: String(this.name),
+      transactionId: ctx.transactionId,
+      key: safeJSON(inferred),
+      value: safeJSON(value),
+    });
+    return req;
+  };
+
+  var origDeleteRecord = IDBObjectStore.prototype.delete;
+  IDBObjectStore.prototype.delete = function(key) {
+    var ctx = txContext(this);
+    var req = origDeleteRecord.apply(this, arguments);
+    wrapWriteRequest(req, {
+      kind: 'write', operation: 'delete',
+      database: ctx.database, objectStore: String(this.name),
+      transactionId: ctx.transactionId,
+      key: safeJSON(key),
+    });
+    return req;
+  };
+
+  var origClearStore = IDBObjectStore.prototype.clear;
+  IDBObjectStore.prototype.clear = function() {
+    var ctx = txContext(this);
+    var req = origClearStore.apply(this, arguments);
+    wrapWriteRequest(req, {
+      kind: 'write', operation: 'clear',
+      database: ctx.database, objectStore: String(this.name),
+      transactionId: ctx.transactionId,
+    });
+    return req;
+  };
 })();
 `

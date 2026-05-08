@@ -4,7 +4,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { fileURLToPath } from 'url'
 import { attach } from '@introspection/playwright'
-import { indexedDB } from '../src/index.js'
+import { indexedDB as indexedDBPlugin } from '../src/index.js'
 
 const FIXTURE = 'file://' + fileURLToPath(new URL('./fixtures/index.html', import.meta.url))
 
@@ -49,7 +49,7 @@ test('emits an install snapshot containing pre-existing databases', async ({ pag
     db.createObjectStore('posts', { autoIncrement: true })
   `)
 
-  const handle = await attach(page, { outDir: dir, plugins: [indexedDB()] })
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDBPlugin()] })
   await new Promise(r => setTimeout(r, 150))
   await handle.detach()
 
@@ -70,7 +70,7 @@ test('emits an install snapshot containing pre-existing databases', async ({ pag
 
 test('binding round-trips a manually-emitted payload', async ({ page }) => {
   await page.goto(FIXTURE)
-  const handle = await attach(page, { outDir: dir, plugins: [indexedDB({ verbose: true })] })
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDBPlugin({ verbose: true })] })
 
   const ok = await page.evaluate(() => {
     return typeof (window as unknown as { __introspection_plugin_indexeddb_emit?: unknown })
@@ -83,7 +83,7 @@ test('binding round-trips a manually-emitted payload', async ({ page }) => {
 
 test('captures database open, upgradeneeded, close, and delete', async ({ page }) => {
   await page.goto(FIXTURE)
-  const handle = await attach(page, { outDir: dir, plugins: [indexedDB()] })
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDBPlugin()] })
 
   await page.evaluate(() => {
     return new Promise<void>((resolve, reject) => {
@@ -126,7 +126,7 @@ test('captures database open, upgradeneeded, close, and delete', async ({ page }
 
 test('captures schema events: createObjectStore and createIndex', async ({ page }) => {
   await page.goto(FIXTURE)
-  const handle = await attach(page, { outDir: dir, plugins: [indexedDB()] })
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDBPlugin()] })
 
   await page.evaluate(() => new Promise<void>((resolve, reject) => {
     const req = indexedDB.open('schema-db', 1)
@@ -168,7 +168,7 @@ test('captures schema events: createObjectStore and createIndex', async ({ page 
 
 test('captures transaction begin and complete', async ({ page }) => {
   await page.goto(FIXTURE)
-  const handle = await attach(page, { outDir: dir, plugins: [indexedDB()] })
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDBPlugin()] })
 
   await openDatabase(page, 'tx-db', 1, `db.createObjectStore('items', { keyPath: 'id' })`)
 
@@ -200,4 +200,60 @@ test('captures transaction begin and complete', async ({ page }) => {
     e.metadata.operation === 'complete' && e.metadata.transactionId === begin.metadata.transactionId
   )
   expect(complete).toBeDefined()
+})
+
+test('captures add/put/delete/clear with values written to assets', async ({ page }) => {
+  await page.goto(FIXTURE)
+  const handle = await attach(page, { outDir: dir, plugins: [indexedDBPlugin()] })
+
+  await openDatabase(page, 'writes-db', 1, `db.createObjectStore('items', { keyPath: 'id' })`)
+
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open('writes-db', 1)
+    req.onsuccess = () => {
+      const db = req.result
+      const tx = db.transaction('items', 'readwrite')
+      const store = tx.objectStore('items')
+      store.add({ id: 1, name: 'first' })
+      store.put({ id: 2, name: 'second' })
+      store.delete(1)
+      store.clear()
+      tx.oncomplete = () => { db.close(); resolve() }
+      tx.onerror = () => { db.close(); reject(tx.error) }
+    }
+    req.onerror = () => reject(req.error)
+  }))
+
+  await new Promise(r => setTimeout(r, 250))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const writes = events.filter((e: { type: string; metadata: { database?: string } }) =>
+    e.type === 'idb.write' && e.metadata.database === 'writes-db'
+  )
+  expect(writes).toHaveLength(4)
+
+  const ops = writes.map((e: { metadata: { operation: string } }) => e.metadata.operation)
+  expect(ops).toEqual(['add', 'put', 'delete', 'clear'])
+
+  for (const w of writes) {
+    expect(w.metadata.outcome).toBe('success')
+    expect(typeof w.metadata.transactionId).toBe('string')
+    expect(w.metadata.transactionId.length).toBeGreaterThan(0)
+  }
+
+  const add = writes[0]
+  expect(add.assets).toHaveLength(1)
+  const addValue = await readAsset(dir, add.assets[0].path)
+  expect(addValue).toEqual({ id: 1, name: 'first' })
+
+  const put = writes[1]
+  expect(put.assets).toHaveLength(1)
+
+  const del = writes[2]
+  expect(del.assets ?? []).toHaveLength(0)
+  expect(del.metadata.key).toBe(1)
+
+  const clr = writes[3]
+  expect(clr.assets ?? []).toHaveLength(0)
 })

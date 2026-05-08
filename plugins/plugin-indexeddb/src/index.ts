@@ -108,9 +108,28 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
         error?: string
       }
 
-      type PagePayload = DatabasePayload | SchemaPayload | TransactionPayload
+      type WritePayload = {
+        origin: string
+        kind: 'write'
+        operation: 'add' | 'put' | 'delete' | 'clear'
+        database: string
+        objectStore: string
+        transactionId: string
+        key?: unknown
+        value?: unknown
+        outcome: 'success' | 'error'
+        error?: string
+        requestedAt: number
+        completedAt: number
+      }
 
-      function handlePagePayload(payload: PagePayload): void {
+      type PagePayload =
+        | DatabasePayload
+        | SchemaPayload
+        | TransactionPayload
+        | WritePayload
+
+      async function handlePagePayload(payload: PagePayload): Promise<void> {
         if (!originAllowed(payload.origin)) return
         if (payload.kind === 'database') {
           if (databasesFilter && !databasesFilter.includes(payload.name)) return
@@ -131,7 +150,7 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
           if (payload.newVersion !== undefined) md.newVersion = payload.newVersion
           if (payload.outcome) md.outcome = payload.outcome
           if (payload.error) md.error = payload.error
-          void ctx.emit({ type: 'idb.database', metadata: md })
+          await ctx.emit({ type: 'idb.database', metadata: md })
           return
         }
         if (payload.kind === 'schema') {
@@ -157,7 +176,7 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
           if (payload.autoIncrement !== undefined) md.autoIncrement = payload.autoIncrement
           if (payload.unique !== undefined) md.unique = payload.unique
           if (payload.multiEntry !== undefined) md.multiEntry = payload.multiEntry
-          void ctx.emit({ type: 'idb.schema', metadata: md })
+          await ctx.emit({ type: 'idb.schema', metadata: md })
           return
         }
         if (payload.kind === 'transaction') {
@@ -179,21 +198,66 @@ export function indexedDB(options?: IndexedDBOptions): IntrospectionPlugin {
             objectStoreNames: payload.objectStoreNames,
           }
           if (payload.error) md.error = payload.error
-          void ctx.emit({ type: 'idb.transaction', metadata: md })
+          await ctx.emit({ type: 'idb.transaction', metadata: md })
+          return
+        }
+        if (payload.kind === 'write') {
+          if (databasesFilter && !databasesFilter.includes(payload.database)) return
+          const md: {
+            operation: 'add' | 'put' | 'delete' | 'clear'
+            origin: string
+            database: string
+            objectStore: string
+            transactionId: string
+            key?: unknown
+            outcome: 'success' | 'error'
+            error?: string
+            requestedAt: number
+            completedAt: number
+          } = {
+            operation: payload.operation,
+            origin: payload.origin,
+            database: payload.database,
+            objectStore: payload.objectStore,
+            transactionId: payload.transactionId,
+            outcome: payload.outcome,
+            requestedAt: payload.requestedAt,
+            completedAt: payload.completedAt,
+          }
+          if (payload.key !== undefined) md.key = payload.key
+          if (payload.error) md.error = payload.error
+
+          const assets = []
+          if (payload.value !== undefined && (payload.operation === 'add' || payload.operation === 'put')) {
+            const ref = await ctx.writeAsset({
+              kind: 'json',
+              content: JSON.stringify(payload.value),
+              ext: 'json',
+            })
+            assets.push(ref)
+          }
+          await ctx.emit({ type: 'idb.write', metadata: md, ...(assets.length && { assets }) })
           return
         }
       }
 
       await ctx.cdpSession.send('Runtime.addBinding', { name: BINDING_NAME })
+      // Serialize binding handling so events emit in arrival order — without
+      // this, fast-path emits (no asset write) overtake slow-path emits (with
+      // asset write) and the trace ordering diverges from the call order.
+      let queue: Promise<void> = Promise.resolve()
       ctx.cdpSession.on('Runtime.bindingCalled', (rawParams) => {
         const params = rawParams as { name: string; payload: string }
         if (params.name !== BINDING_NAME) return
-        try {
-          const payload = JSON.parse(params.payload) as PagePayload
-          handlePagePayload(payload)
-        } catch (err) {
-          debug('binding parse error', (err as Error).message)
-        }
+        queue = queue.then(async () => {
+          try {
+            const payload = JSON.parse(params.payload) as PagePayload
+            await handlePagePayload(payload)
+          } catch (err) {
+            debug('binding parse/handle error', (err as Error).message)
+          }
+        })
+        ctx.track(() => queue)
       })
 
       const settingsToggle =
