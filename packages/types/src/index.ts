@@ -343,6 +343,67 @@ export interface ReduxDispatchEvent extends BaseEvent {
   }
 }
 
+// ─── Plugin events: cookies ─────────────────────────────────────────────────
+
+export interface CookieEntry {
+  name: string
+  value: string
+  domain: string
+  path: string
+  /** Unix seconds. Absent for session cookies. */
+  expires?: number
+  httpOnly: boolean
+  secure: boolean
+  sameSite?: 'Strict' | 'Lax' | 'None'
+  partitionKey?: string
+}
+
+export interface CookieWriteEvent extends BaseEvent {
+  type: 'cookie.write'
+  metadata: {
+    operation: 'set' | 'delete'
+    source: 'document.cookie' | 'CookieStore'
+    origin: string
+    name: string
+    value?: string
+    domain?: string
+    path?: string
+    expires?: number
+    secure?: boolean
+    sameSite?: 'Strict' | 'Lax' | 'None'
+    raw?: string
+  }
+}
+
+export interface CookieHttpEvent extends BaseEvent {
+  type: 'cookie.http'
+  metadata: {
+    operation: 'set' | 'delete'
+    /** URL of the response that carried the Set-Cookie header. */
+    url: string
+    /** CDP requestId, joinable to network.response.metadata.cdpRequestId. */
+    requestId: string
+    name: string
+    value?: string
+    domain?: string
+    path?: string
+    expires?: number
+    httpOnly?: boolean
+    secure?: boolean
+    sameSite?: 'Strict' | 'Lax' | 'None'
+    raw: string
+  }
+}
+
+export interface CookieSnapshotEvent extends BaseEvent {
+  type: 'cookie.snapshot'
+  metadata: {
+    trigger: 'install' | 'manual' | 'js.error' | 'detach'
+    origin: string
+    cookies: CookieEntry[]
+  }
+}
+
 // ─── Plugin events: indexeddb ───────────────────────────────────────────────
 
 export type IdbTransactionMode = 'readonly' | 'readwrite' | 'versionchange'
@@ -593,6 +654,10 @@ export interface TraceEventMap {
   // Redux
   'redux.snapshot': ReduxSnapshotEvent
   'redux.dispatch': ReduxDispatchEvent
+  // Cookies
+  'cookie.write': CookieWriteEvent
+  'cookie.http': CookieHttpEvent
+  'cookie.snapshot': CookieSnapshotEvent
   // IndexedDB
   'idb.database': IdbDatabaseEvent
   'idb.schema': IdbSchemaEvent
