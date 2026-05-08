@@ -36,6 +36,60 @@ function cookieDomainMatchesOrigin(cookieDomain: string, originHost: string): bo
   return originHost === d || originHost.endsWith('.' + d)
 }
 
+interface ParsedCookie {
+  name: string
+  value: string
+  domain?: string
+  path?: string
+  expires?: number
+  httpOnly?: boolean
+  secure?: boolean
+  sameSite?: 'Strict' | 'Lax' | 'None'
+}
+
+function parseSetCookieHeader(raw: string): ParsedCookie | null {
+  const parts = raw.split(';')
+  const first = parts.shift() ?? ''
+  const eq = first.indexOf('=')
+  if (eq < 0) return null
+  const name = first.slice(0, eq).trim()
+  const value = first.slice(eq + 1).trim()
+  if (!name) return null
+  const out: ParsedCookie = { name, value }
+  for (const segRaw of parts) {
+    const seg = segRaw.trim()
+    if (!seg) continue
+    const aeq = seg.indexOf('=')
+    const key = (aeq < 0 ? seg : seg.slice(0, aeq)).trim().toLowerCase()
+    const val = aeq < 0 ? '' : seg.slice(aeq + 1).trim()
+    if (key === 'expires') {
+      const t = Date.parse(val)
+      if (!isNaN(t)) out.expires = Math.floor(t / 1000)
+    } else if (key === 'max-age') {
+      const n = Number(val)
+      if (!isNaN(n)) out.expires = Math.floor(Date.now() / 1000) + n
+    } else if (key === 'domain') {
+      out.domain = val
+    } else if (key === 'path') {
+      out.path = val
+    } else if (key === 'secure') {
+      out.secure = true
+    } else if (key === 'httponly') {
+      out.httpOnly = true
+    } else if (key === 'samesite') {
+      const v = val.toLowerCase()
+      if (v === 'strict') out.sameSite = 'Strict'
+      else if (v === 'lax') out.sameSite = 'Lax'
+      else if (v === 'none') out.sameSite = 'None'
+    }
+  }
+  return out
+}
+
+function isExpired(p: ParsedCookie): boolean {
+  return typeof p.expires === 'number' && p.expires <= Math.floor(Date.now() / 1000)
+}
+
 export function cookies(options?: CookiesOptions): IntrospectionPlugin {
   const debug = createDebug('plugin-cookies', options?.verbose ?? false)
   const origins = options?.origins ?? ['*']
@@ -173,6 +227,72 @@ export function cookies(options?: CookiesOptions): IntrospectionPlugin {
       } catch (err) {
         debug('current-realm patch failed', (err as Error).message)
       }
+
+      // ─── HTTP Set-Cookie capture ─────────────────────────────────────────
+      const requestUrls = new Map<string, string>()
+      const REQ_URL_CAP = 256
+
+      await ctx.cdpSession.send('Network.enable')
+
+      ctx.cdpSession.on('Network.requestWillBeSent', (rawParams) => {
+        const params = rawParams as { requestId: string; request: { url: string } }
+        requestUrls.set(params.requestId, params.request.url)
+        if (requestUrls.size > REQ_URL_CAP) {
+          const firstKey = requestUrls.keys().next().value
+          if (firstKey !== undefined) requestUrls.delete(firstKey)
+        }
+      })
+
+      // Redirects update the URL on the same requestId via responseReceived.
+      ctx.cdpSession.on('Network.responseReceived', (rawParams) => {
+        const params = rawParams as { requestId: string; response: { url: string } }
+        requestUrls.set(params.requestId, params.response.url)
+      })
+
+      ctx.cdpSession.on('Network.responseReceivedExtraInfo', (rawParams) => {
+        const params = rawParams as { requestId: string; headers: Record<string, string> }
+        const raw = params.headers['Set-Cookie'] ?? params.headers['set-cookie']
+        if (!raw) return
+        for (const line of raw.split('\n')) {
+          if (!line.trim()) continue
+          const parsed = parseSetCookieHeader(line)
+          if (!parsed) continue
+          if (!nameAllowed(parsed.name)) continue
+          if (parsed.domain && !domainAllowed(parsed.domain)) continue
+
+          const operation: 'set' | 'delete' = isExpired(parsed) ? 'delete' : 'set'
+          const url = requestUrls.get(params.requestId) ?? ''
+          const md: {
+            operation: 'set' | 'delete'
+            url: string
+            requestId: string
+            name: string
+            value?: string
+            domain?: string
+            path?: string
+            expires?: number
+            httpOnly?: boolean
+            secure?: boolean
+            sameSite?: 'Strict' | 'Lax' | 'None'
+            raw: string
+          } = {
+            operation,
+            url,
+            requestId: params.requestId,
+            name: parsed.name,
+            raw: line,
+          }
+          if (operation === 'set') md.value = parsed.value
+          if (parsed.domain !== undefined) md.domain = parsed.domain
+          if (parsed.path !== undefined) md.path = parsed.path
+          if (parsed.expires !== undefined) md.expires = parsed.expires
+          if (parsed.httpOnly !== undefined) md.httpOnly = parsed.httpOnly
+          if (parsed.secure !== undefined) md.secure = parsed.secure
+          if (parsed.sameSite !== undefined) md.sameSite = parsed.sameSite
+
+          void ctx.emit({ type: 'cookie.http', metadata: md })
+        }
+      })
 
       async function snapshotOnce(trigger: SnapshotTrigger): Promise<void> {
         let raw: CdpCookie[] = []

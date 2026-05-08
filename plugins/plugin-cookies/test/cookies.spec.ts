@@ -125,3 +125,39 @@ test('captures CookieStore.set and delete (Chromium)', async ({ page, browserNam
   expect(writes[0].metadata).toMatchObject({ operation: 'set', name: 'cs-name', value: 'cs-val' })
   expect(writes[1].metadata).toMatchObject({ operation: 'delete', name: 'cs-name' })
 })
+
+test('captures HTTP Set-Cookie as cookie.http events', async ({ page }) => {
+  fixture.respond('/login', (_req, res) => {
+    res.writeHead(200, {
+      'set-cookie': [
+        'sid=abc123; HttpOnly; Path=/',
+        'theme=dark; Max-Age=3600; SameSite=Lax',
+      ],
+      'content-type': 'text/plain',
+    })
+    res.end('ok')
+  })
+
+  await page.goto(fixture.url)
+  const handle = await attach(page, { outDir: dir, plugins: [cookies()] })
+
+  await page.evaluate((url) => fetch(url + '/login').then(r => r.text()), fixture.url)
+  await new Promise(r => setTimeout(r, 200))
+  await handle.detach()
+
+  const events = await readEvents(dir)
+  const httpEvents = events.filter((e: { type: string }) => e.type === 'cookie.http')
+  expect(httpEvents).toHaveLength(2)
+
+  const sid = httpEvents.find((e: { metadata: { name: string } }) => e.metadata.name === 'sid')
+  expect(sid).toBeDefined()
+  expect(sid.metadata.httpOnly).toBe(true)
+  expect(sid.metadata.path).toBe('/')
+  expect(sid.metadata.url).toBe(fixture.url + '/login')
+  expect(typeof sid.metadata.requestId).toBe('string')
+
+  const theme = httpEvents.find((e: { metadata: { name: string } }) => e.metadata.name === 'theme')
+  expect(theme).toBeDefined()
+  expect(theme.metadata.sameSite).toBe('Lax')
+  expect(typeof theme.metadata.expires).toBe('number')
+})
