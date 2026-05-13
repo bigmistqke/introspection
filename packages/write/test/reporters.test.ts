@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { createSessionWriter } from '../src/index.js'
-import type { IntrospectionReporter, ReporterContext } from '@introspection/types'
+import type { IntrospectionReporter, ReporterContext, TestStartInfo } from '@introspection/types'
 
 let outDir: string
 
@@ -41,6 +41,22 @@ describe('reporter lifecycle', () => {
     expect(calls[0]!.outDir).toBe(join(outDir, 'sess'))
     expect(calls[0]!.runDir).toBe(outDir)
     expect(calls[0]!.meta.id).toBe('sess')
+  })
+
+  it('calls onTestStart with titlePath and label when a test.start event is emitted', async () => {
+    const seen: TestStartInfo[] = []
+    const reporter: IntrospectionReporter = {
+      name: 'capture',
+      onTestStart(info) { seen.push(info) },
+    }
+    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    await writer.emit({ type: 'test.start', metadata: { label: 'logs in', titlePath: ['auth', 'logs in'] } })
+    await writer.flush()
+    expect(seen).toHaveLength(1)
+    expect(seen[0]!.label).toBe('logs in')
+    expect(seen[0]!.titlePath).toEqual(['auth', 'logs in'])
+    expect(typeof seen[0]!.testId).toBe('string')
+    expect(typeof seen[0]!.startedAt).toBe('number')
   })
 
   it('awaits async onEvent work via flush() (ctx.track wiring)', async () => {

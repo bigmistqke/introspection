@@ -1,7 +1,9 @@
-import type { IntrospectionReporter, ReporterContext, TraceEvent, SessionBus, TestEndInfo, TestStartInfo, PayloadAsset } from '@introspection/types'
+import type { IntrospectionReporter, ReporterContext, TraceEvent, SessionBus, TestEndInfo, TestStartInfo, PayloadAsset, TestStartEvent } from '@introspection/types'
 
-// TestEndInfo, TestStartInfo, PayloadAsset are kept for future tasks
-export type { TestEndInfo, TestStartInfo, PayloadAsset }
+interface ActiveTest {
+  info: TestStartInfo
+  events: TraceEvent[]
+}
 
 export interface ReporterRunner {
   start(): Promise<void>
@@ -15,6 +17,23 @@ export function createReporterRunner(
   bus: SessionBus,
 ): ReporterRunner {
   void bus // used by later tasks
+  let active: ActiveTest | null = null
+
+  function deliverTestStart(event: TestStartEvent) {
+    const info: TestStartInfo = {
+      testId: event.id,
+      label: event.metadata.label,
+      titlePath: event.metadata.titlePath,
+      startedAt: event.timestamp,
+    }
+    active = { info, events: [event] }
+    for (const reporter of reporters) {
+      if (!reporter.onTestStart) continue
+      const result = reporter.onTestStart(info, ctx)
+      if (result instanceof Promise) ctx.track(() => result)
+    }
+  }
+
   return {
     async start() {
       for (const reporter of reporters) {
@@ -23,6 +42,11 @@ export function createReporterRunner(
       }
     },
     handleEvent(event) {
+      if (event.type === 'test.start') {
+        deliverTestStart(event)
+      } else if (active) {
+        active.events.push(event)
+      }
       for (const reporter of reporters) {
         if (!reporter.onEvent) continue
         const result = reporter.onEvent(event, ctx)
