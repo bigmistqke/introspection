@@ -62,6 +62,12 @@ describe('createSessionWriter', () => {
     await createSessionWriter({ outDir, id: 'dup' })
     await expect(createSessionWriter({ outDir, id: 'dup' })).rejects.toThrow(/already exists/)
   })
+
+  it('accepts an optional reporters array', async () => {
+    const reporter = { name: 'noop' }
+    const writer = await createSessionWriter({ outDir, id: 'rs1', reporters: [reporter] })
+    expect(writer.id).toBe('rs1')
+  })
 })
 
 describe('SessionWriter.emit', () => {

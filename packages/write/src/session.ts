@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, PayloadAsset } from '@introspection/types'
+import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, PayloadAsset, IntrospectionReporter } from '@introspection/types'
 import type { MemoryWriteAdapter } from './memory.js'
 import { initSessionDir, appendEvent, writeAsset, finalizeSession } from './session-writer.js'
 import { createBus } from '@introspection/utils'
@@ -9,6 +9,7 @@ export interface CreateSessionWriterOptions {
   id?: string
   label?: string
   plugins?: PluginMeta[]
+  reporters?: IntrospectionReporter[]
   adapter?: MemoryWriteAdapter
 }
 
@@ -51,6 +52,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
   const outDir = options.outDir ?? '.introspect'
   const startedAt = Date.now()
   const adapter = options.adapter
+  const reporters = options.reporters ?? []
 
   const meta: SessionMeta = {
     version: '2',
