@@ -8,17 +8,25 @@ This is a vision document, not a single implementable spec. It defines the targe
 
 Introspection becomes the canonical tracing primitive for Playwright projects. Adoption is two touch points: `withIntrospect(defineConfig({...}), { plugins, reporters })` in `playwright.config.ts`, and `import { test, expect } from '@introspection/playwright'` in test files. From there: every test produces a per-test session directory under a per-run parent (`.introspect/<run-id>/<test-id>/`) containing an NDJSON event stream, an assets folder, and a `meta.json`. Plugins capture app- and page-level state into the stream during the test. Reporters consume per-test events live and write derived artifacts — per-test files, or run-level files via atomic `O_APPEND`. Post-hoc, humans and LLMs query the NDJSON directly via the `introspect` CLI; viewers are built per-project in userspace, on top of the same NDJSON. Introspection itself ships only capture, the Reporter API, plugins, and the CLI — no bundled viewer. Playwright's built-in `trace.zip` is replaced, not augmented.
 
-### Tracing is what you choose to capture
+### Capture is granular; retention is configurable
 
-Playwright's `trace` option has modes — `on-first-retry`, `retain-on-failure`, `on` — because `trace.zip` records *everything* by default: DOM snapshots on every action, the full network log, every console message, screenshots, source maps. The user has no granular control over what's captured, so the only available knob is a global "when do I pay this cost?" switch, and the answer almost has to be "only when something fails." Modes are the symptom of a coarse-grained tracer.
+Playwright's `trace` option folds two concerns into one knob — *what to capture* and *whether to keep it* — because `trace.zip` records everything by default (DOM snapshots on every action, full network log, every console message). The user has no granular control over what's captured, so the only available switch is a global "when do I pay this cost?" toggle, and the answer almost has to be "only when something fails." That's the symptom of a coarse-grained tracer.
 
-Introspection inverts this. There is no monolithic "tracing" to turn on or off — there is the **union of plugins you register**. If you register `redux()` and `network()`, you trace Redux actions and network requests, and nothing else. If you add `domSnapshot()` with a sample rate, you also get DOM snapshots at that rate. The control surface is the plugin list, where each plugin owns its domain, its data shape, and its cost. "Always on" is just the natural default when each plugin's cost is something you've explicitly opted into.
+Introspection separates the two concerns:
 
-This is why `withIntrospect` has no `mode` field. The question "when should I trace?" doesn't apply; the question "what should I trace?" is answered by the plugin list. Users who need conditional capture handle it like any other Node-side condition: env-gate the `withIntrospect` call, switch to a smaller plugin preset, or skip individual tests. None of those need first-class API support.
+**Capture is granular and always on, owned by the plugin list.** There is no monolithic "tracing" to turn on or off — there is the **union of plugins you register**. If you register `redux()` and `network()`, you trace Redux actions and network requests, and nothing else. If you add `domSnapshot()` with a sample rate, you also get DOM snapshots at that rate. The control surface is the plugin list, where each plugin owns its domain, its data shape, and its cost. The redefinition introspection is pushing here is: *tracing is the lens you debug through, composed of the specific observations you care about — not a blanket recording.*
 
-The one exception is a **global kill switch**: setting `INTROSPECT_TRACING=0` in the environment fully disables introspection for that run. `globalSetup` skips creating the run directory; the auto-fixture short-circuits to a no-op handle; no plugins install, no events emit, no reporters run. This is for operators who need an emergency off without touching config — debugging a Playwright-only issue, isolating cost in CI, running in an environment where the filesystem is read-only. The default (`INTROSPECT_TRACING` unset or any value other than `0`/`false`/`off`) is on.
+**Retention is a separate dimension and does take a mode.** Even with granular plugins, "do I want a session directory for every passing test, forever?" is a real question — disk in CI, signal-to-noise locally. `withIntrospect` accepts a `mode` field that controls retention only:
 
-This is the redefinition of tracing introspection is pushing: **tracing is the lens you debug through, composed of the specific observations you care about — not a blanket recording you turn on once something breaks.**
+| `mode` | Capture during the test | Retained on disk afterwards |
+|---|---|---|
+| `'on'` (default) | full | always |
+| `'retain-on-failure'` | full | only for tests whose final status is `failed`, `timedOut`, `interrupted`, or `crashed` |
+| `'on-first-retry'` | no-op handle when `testInfo.retry === 0`; full on retries | matches what was captured |
+
+`'on-first-retry'` is implementable cleanly because `testInfo.retry` is worker-side; no cross-process signaling needed. `'retain-on-failure'` is implemented by a built-in retention step (either in `globalTeardown` or in the auto-fixture's teardown after status is known): it deletes the per-test session directory for passing tests. `tests.jsonl` summary lines emit for everything regardless of mode — you want to see what passed at the summary level.
+
+**Operator override:** `INTROSPECT_TRACING=0` in the environment fully disables introspection for that run, regardless of configured `mode`. `globalSetup` skips creating the run directory; the auto-fixture short-circuits to a no-op handle; no plugins install, no events emit, no reporters run. This is for emergencies (debugging a Playwright-only issue, isolating cost in CI, running on a read-only filesystem) — config still describes steady-state intent; the env var is the override.
 
 ## Scope
 
@@ -48,7 +56,7 @@ This is the redefinition of tracing introspection is pushing: **tracing is the l
                 │  playwright.config.ts                     │
                 │    withIntrospect(                        │
                 │      defineConfig({...}),                 │
-                │      { plugins, reporters }               │
+                │      { plugins, reporters, mode }         │
                 │    )                                      │
                 └───────────────────────────────────────────┘
                                   │
@@ -187,6 +195,7 @@ export default withIntrospect(
   {
     plugins: [redux(), indexeddb(), network(), console(), domSnapshot()],
     reporters: [summaryReporter({ outFile: 'tests.jsonl' })],
+    mode: 'retain-on-failure',
   }
 )
 ```
