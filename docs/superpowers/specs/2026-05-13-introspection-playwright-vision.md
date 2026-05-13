@@ -8,6 +8,16 @@ This is a vision document, not a single implementable spec. It defines the targe
 
 Introspection becomes the canonical tracing primitive for Playwright projects. Adoption is two touch points: `withIntrospect(defineConfig({...}), { plugins, reporters })` in `playwright.config.ts`, and `import { test, expect } from '@introspection/playwright'` in test files. From there: every test produces a per-test session directory under a per-run parent (`.introspect/<run-id>/<test-id>/`) containing an NDJSON event stream, an assets folder, and a `meta.json`. Plugins capture app- and page-level state into the stream during the test. Reporters consume per-test events live and write derived artifacts — per-test files, or run-level files via atomic `O_APPEND`. Post-hoc, humans and LLMs query the NDJSON directly via the `introspect` CLI; viewers are built per-project in userspace, on top of the same NDJSON. Introspection itself ships only capture, the Reporter API, plugins, and the CLI — no bundled viewer. Playwright's built-in `trace.zip` is replaced, not augmented.
 
+### Tracing is what you choose to capture
+
+Playwright's `trace` option has modes — `on-first-retry`, `retain-on-failure`, `on` — because `trace.zip` records *everything* by default: DOM snapshots on every action, the full network log, every console message, screenshots, source maps. The user has no granular control over what's captured, so the only available knob is a global "when do I pay this cost?" switch, and the answer almost has to be "only when something fails." Modes are the symptom of a coarse-grained tracer.
+
+Introspection inverts this. There is no monolithic "tracing" to turn on or off — there is the **union of plugins you register**. If you register `redux()` and `network()`, you trace Redux actions and network requests, and nothing else. If you add `domSnapshot()` with a sample rate, you also get DOM snapshots at that rate. The control surface is the plugin list, where each plugin owns its domain, its data shape, and its cost. "Always on" is just the natural default when each plugin's cost is something you've explicitly opted into.
+
+This is why `withIntrospect` has no `mode` field. The question "when should I trace?" doesn't apply; the question "what should I trace?" is answered by the plugin list. Users who need conditional capture handle it like any other Node-side condition: env-gate the `withIntrospect` call, switch to a smaller plugin preset, or skip individual tests. None of those need first-class API support.
+
+This is the redefinition of tracing introspection is pushing: **tracing is the lens you debug through, composed of the specific observations you care about — not a blanket recording you turn on once something breaks.**
+
 ## Scope
 
 **In scope:**
@@ -36,7 +46,7 @@ Introspection becomes the canonical tracing primitive for Playwright projects. A
                 │  playwright.config.ts                     │
                 │    withIntrospect(                        │
                 │      defineConfig({...}),                 │
-                │      { plugins, reporters, mode }         │
+                │      { plugins, reporters }               │
                 │    )                                      │
                 └───────────────────────────────────────────┘
                                   │
@@ -175,7 +185,6 @@ export default withIntrospect(
   {
     plugins: [redux(), indexeddb(), network(), console(), domSnapshot()],
     reporters: [summaryReporter({ outFile: 'tests.jsonl' })],
-    mode: 'on',
   }
 )
 ```
@@ -233,7 +242,6 @@ Independent sub-specs, ordered roughly by dependency. Each is small enough for o
 
 ## Open questions
 
-- **`mode` semantics for the wrapper.** The default is `'on'` (always capture). The wrapper must also accept `'retain-on-failure'` and `'off'` at minimum; the `'on-first-retry'` variant (skip first attempt, capture on retry) needs design work — particularly around how Playwright signals "this is a retry" to the worker before the auto-fixture creates the session writer.
 - **Playwright peer-dep range.** Worker-side step hooks are semi-public. The package needs a documented Playwright version range and a CI check that the hook still exists in newer minors. See "Step capture / Visibility of the fallback" above for the warning, README, and CI requirements.
 - **Config injection across the runner/worker boundary.** Options: env-serialized path to a `introspect.config.ts` file (clean, requires file loading in workers), or a module-level singleton populated by `withIntrospect` (faster, only works because workers share the same `node_modules`). Decide in the `@introspection/playwright` spec.
 - **Run-id format.** Options: ISO timestamp + short uuid, monotonic counter, user-provided via env. Decide in the `withIntrospect` spec.
