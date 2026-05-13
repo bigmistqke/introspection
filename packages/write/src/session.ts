@@ -1,8 +1,11 @@
 import { randomUUID } from 'crypto'
-import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, PayloadAsset, IntrospectionReporter } from '@introspection/types'
+import { dirname, isAbsolute, join } from 'path'
+import { mkdir, writeFile as fsWriteFile } from 'fs/promises'
+import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, PayloadAsset, IntrospectionReporter, ReporterContext } from '@introspection/types'
 import type { MemoryWriteAdapter } from './memory.js'
 import { initSessionDir, appendEvent, writeAsset, finalizeSession } from './session-writer.js'
 import { createBus } from '@introspection/utils'
+import { createReporterRunner } from './reporter-lifecycle.js'
 
 export interface CreateSessionWriterOptions {
   outDir?: string
@@ -77,6 +80,22 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
   const bus = createBus()
   const queue = createWriteQueue()
   const tracker = createTracker()
+
+  const sessionDir = join(outDir, id)
+  const reporterCtx: ReporterContext = {
+    sessionId: id,
+    outDir: sessionDir,
+    runDir: outDir,
+    meta,
+    writeFile: async (target, content) => {
+      const resolved = isAbsolute(target) ? target : join(outDir, target)
+      await mkdir(dirname(resolved), { recursive: true })
+      await fsWriteFile(resolved, content)
+    },
+    track: (operation) => tracker.track(operation),
+  }
+  const reporterRunner = createReporterRunner(reporters, reporterCtx, bus)
+  await reporterRunner.start()
 
   function timestamp(): number {
     return Date.now() - startedAt
