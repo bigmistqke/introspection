@@ -702,7 +702,7 @@ export type BusPayloadMap = TraceEventMap & {
   'snapshot': { trigger: 'manual' | 'js.error' | 'debugger.paused'; timestamp: number }
   'manual': { trigger: 'manual'; timestamp: number }
   'detach': { trigger: 'detach'; timestamp: number }
-  'introspect:warning': { error: { name: string; message: string; source: 'cdp' | 'write' | 'parse' | 'plugin'; cause?: unknown; stack?: string; pluginName?: string; method?: string } }
+  'introspect:warning': { error: { name: string; message: string; source: 'cdp' | 'write' | 'parse' | 'plugin' | 'reporter'; cause?: unknown; stack?: string; pluginName?: string; method?: string; reporterName?: string } }
   'introspect:debug': { label: string; message: string; args: unknown[]; timestamp: number }
 }
 
@@ -782,6 +782,50 @@ export type PluginSet =
  */
 export interface IntrospectConfig {
   plugins?: PluginSet
+}
+
+// ─── Reporter system ─────────────────────────────────────────────────────────
+
+export interface TestStartInfo {
+  /** Id of the test.start event (matches BaseEvent.id). */
+  testId: string
+  label: string
+  titlePath: string[]
+  /** Wall-clock ms-since-session-start. */
+  startedAt: number
+}
+
+export interface TestEndInfo extends TestStartInfo {
+  endedAt: number
+  duration?: number
+  status: 'passed' | 'failed' | 'timedOut' | 'skipped' | 'interrupted'
+  error?: string
+  /** All events emitted between this test's test.start and test.end (inclusive). */
+  events: TraceEvent[]
+  /** Every PayloadAsset referenced by events in the slice, flattened in emission order. */
+  assets: PayloadAsset[]
+}
+
+export interface ReporterContext {
+  sessionId: string
+  /** Session directory (e.g. `.introspect/<run-id>/<test-id>`). */
+  outDir: string
+  /** Run directory (e.g. `.introspect/<run-id>`). Defaults to the parent of outDir. */
+  runDir: string
+  meta: SessionMeta
+  /** Convenience writer for reporter outputs. Relative paths resolve against runDir. */
+  writeFile(path: string, content: string | Uint8Array): Promise<void>
+  /** Track an async operation so finalize() waits for it. */
+  track(operation: () => Promise<unknown>): void
+}
+
+export interface IntrospectionReporter {
+  name: string
+  onSessionStart?(ctx: ReporterContext): void | Promise<void>
+  onEvent?(event: TraceEvent, ctx: ReporterContext): void | Promise<void>
+  onTestStart?(test: TestStartInfo, ctx: ReporterContext): void | Promise<void>
+  onTestEnd?(test: TestEndInfo, ctx: ReporterContext): void | Promise<void>
+  onSessionEnd?(ctx: ReporterContext): void | Promise<void>
 }
 
 // ─── Supporting types ────────────────────────────────────────────────────────
