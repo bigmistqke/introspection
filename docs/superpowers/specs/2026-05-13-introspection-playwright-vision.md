@@ -16,6 +16,8 @@ Introspection inverts this. There is no monolithic "tracing" to turn on or off �
 
 This is why `withIntrospect` has no `mode` field. The question "when should I trace?" doesn't apply; the question "what should I trace?" is answered by the plugin list. Users who need conditional capture handle it like any other Node-side condition: env-gate the `withIntrospect` call, switch to a smaller plugin preset, or skip individual tests. None of those need first-class API support.
 
+The one exception is a **global kill switch**: setting `INTROSPECT_TRACING=0` in the environment fully disables introspection for that run. `globalSetup` skips creating the run directory; the auto-fixture short-circuits to a no-op handle; no plugins install, no events emit, no reporters run. This is for operators who need an emergency off without touching config — debugging a Playwright-only issue, isolating cost in CI, running in an environment where the filesystem is read-only. The default (`INTROSPECT_TRACING` unset or any value other than `0`/`false`/`off`) is on.
+
 This is the redefinition of tracing introspection is pushing: **tracing is the lens you debug through, composed of the specific observations you care about — not a blanket recording you turn on once something breaks.**
 
 ## Scope
