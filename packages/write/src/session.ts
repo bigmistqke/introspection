@@ -113,6 +113,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
       }
     })
     void bus.emit(full.type, full as BusPayloadMap[typeof full.type])
+    reporterRunner.handleEvent(full)
     return writePromise
   }
 

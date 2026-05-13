@@ -16,6 +16,19 @@ afterEach(async () => {
 })
 
 describe('reporter lifecycle', () => {
+  it('calls onEvent for every emitted event, in emission order', async () => {
+    const seen: string[] = []
+    const reporter: IntrospectionReporter = {
+      name: 'capture',
+      onEvent(event) { seen.push(event.type) },
+    }
+    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    await writer.emit({ type: 'mark', metadata: { label: 'a' } })
+    await writer.emit({ type: 'mark', metadata: { label: 'b' } })
+    await writer.flush()
+    expect(seen).toEqual(['mark', 'mark'])
+  })
+
   it('calls onSessionStart exactly once with a populated context', async () => {
     const calls: ReporterContext[] = []
     const reporter: IntrospectionReporter = {
