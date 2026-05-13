@@ -132,6 +132,12 @@ Step events (`step.start` / `step.end`) originate in the worker process, even th
 
 If the internal hook proves too unstable across Playwright minor versions, the fallback is `test.extend` overriding `.step`. Coverage narrows from "all categories" (`test.step`, `expect`, `pw:api`, `hook`, `fixture`) to "only user-authored `test.step`" — adequate for the `@rg/integration-tests` migration, which is the immediate motivating case.
 
+**Visibility of the fallback.** The internal hook is semi-public; depending on it is a deliberate trade-off and users should know. Requirements:
+
+1. **Runtime detection and warning.** At fixture initialization (first test in a worker), probe whether the internal hook is present. If not, emit a one-shot `introspect:warning` event on the bus with `source: 'playwright'`, naming the missing API and the Playwright version detected, and stating that step coverage is degraded to user-authored `test.step` only. Also log to stderr once per worker so the warning is visible in CI output, not only to viewers that read the bus.
+2. **`packages/playwright/README` section.** A dedicated section titled "Step capture and Playwright version compatibility" documenting: the two paths, the categories each captures, the Playwright version range where the internal hook is verified, what to do when the warning fires (pin Playwright, file an issue, accept narrower coverage), and the pinned version we test against in CI.
+3. **Versioned regression check.** CI runs the test suite against the lowest supported Playwright minor and the latest minor; both must succeed and both must report whichever hook path they took, so a silent change in Playwright internals surfaces as a test diff rather than a degraded user experience in the wild.
+
 ### Run-level aggregation
 
 A run-level summary file like `tests.jsonl` is produced without any central coordinator:
@@ -228,7 +234,7 @@ Independent sub-specs, ordered roughly by dependency. Each is small enough for o
 ## Open questions
 
 - **`mode` semantics for the wrapper.** The default is `'on'` (always capture). The wrapper must also accept `'retain-on-failure'` and `'off'` at minimum; the `'on-first-retry'` variant (skip first attempt, capture on retry) needs design work — particularly around how Playwright signals "this is a retry" to the worker before the auto-fixture creates the session writer.
-- **Playwright peer-dep range.** Worker-side step hooks are semi-public. The package needs a documented Playwright version range and a CI check that the hook still exists in newer minors.
+- **Playwright peer-dep range.** Worker-side step hooks are semi-public. The package needs a documented Playwright version range and a CI check that the hook still exists in newer minors. See "Step capture / Visibility of the fallback" above for the warning, README, and CI requirements.
 - **Config injection across the runner/worker boundary.** Options: env-serialized path to a `introspect.config.ts` file (clean, requires file loading in workers), or a module-level singleton populated by `withIntrospect` (faster, only works because workers share the same `node_modules`). Decide in the `@introspection/playwright` spec.
 - **Run-id format.** Options: ISO timestamp + short uuid, monotonic counter, user-provided via env. Decide in the `withIntrospect` spec.
 - **Reporter naming collision.** Playwright has `Reporter`; we should probably type ours `IntrospectionReporter` to avoid import collisions when both are in scope.
