@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { createSessionWriter } from '../src/index.js'
-import type { IntrospectionReporter, ReporterContext, TestStartInfo } from '@introspection/types'
+import type { IntrospectionReporter, ReporterContext, TestStartInfo, TestEndInfo } from '@introspection/types'
 
 let outDir: string
 
@@ -57,6 +57,46 @@ describe('reporter lifecycle', () => {
     expect(seen[0]!.titlePath).toEqual(['auth', 'logs in'])
     expect(typeof seen[0]!.testId).toBe('string')
     expect(typeof seen[0]!.startedAt).toBe('number')
+  })
+
+  it('calls onTestEnd with the event slice (inclusive) and flattened assets', async () => {
+    const seen: TestEndInfo[] = []
+    const reporter: IntrospectionReporter = {
+      name: 'capture',
+      onTestEnd(info) { seen.push(info) },
+    }
+    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    await writer.emit({ type: 'test.start', metadata: { label: 't', titlePath: ['t'] } })
+    await writer.emit({ type: 'mark', metadata: { label: 'a' } })
+    await writer.emit({
+      type: 'mark',
+      metadata: { label: 'b' },
+      payloads: { snapshot: { kind: 'asset', format: 'json', path: 's/assets/x.json' } },
+    })
+    await writer.emit({ type: 'test.end', metadata: { label: 't', titlePath: ['t'], status: 'passed', duration: 42 } })
+    await writer.flush()
+    expect(seen).toHaveLength(1)
+    const info = seen[0]!
+    expect(info.status).toBe('passed')
+    expect(info.duration).toBe(42)
+    expect(info.events.map(e => e.type)).toEqual(['test.start', 'mark', 'mark', 'test.end'])
+    expect(info.assets).toHaveLength(1)
+    expect(info.assets[0]!.path).toBe('s/assets/x.json')
+  })
+
+  it('does not deliver onTestEnd for events outside any test', async () => {
+    const seen: TestEndInfo[] = [];
+    const events: string[] = [];
+    const reporter: IntrospectionReporter = {
+      name: 'capture',
+      onTestEnd(info) { seen.push(info) },
+      onEvent(event) { events.push(event.type) },
+    }
+    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    await writer.emit({ type: 'mark', metadata: { label: 'outside' } })
+    await writer.flush()
+    expect(seen).toHaveLength(0)
+    expect(events).toEqual(['mark'])
   })
 
   it('awaits async onEvent work via flush() (ctx.track wiring)', async () => {
