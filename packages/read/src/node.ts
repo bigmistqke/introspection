@@ -13,9 +13,10 @@ export type { SessionReader, EventsFilter, EventsAPI } from '@introspection/type
 
 export function createNodeAdapter(dir: string): StorageAdapter {
   return {
-    async listDirectories() {
+    async listDirectories(subPath?: string) {
+      const target = subPath ? join(dir, subPath) : dir
       try {
-        const entries = await readdir(dir, { withFileTypes: true })
+        const entries = await readdir(target, { withFileTypes: true })
         return entries.filter(entry => entry.isDirectory()).map(entry => entry.name)
       } catch {
         return []

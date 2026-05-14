@@ -949,7 +949,7 @@ export interface SessionWriter extends AssetWriter {
 // ─── Storage Adapter ────────────────────────────────────────────────────────────
 
 export interface StorageAdapter {
-  listDirectories(): Promise<string[]>
+  listDirectories(subPath?: string): Promise<string[]>
   readText(path: string): Promise<string>
   readBinary(path: string): Promise<Uint8Array>
   readJSON<T = unknown>(path: string): Promise<T>

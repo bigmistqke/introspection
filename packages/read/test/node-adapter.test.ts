@@ -44,4 +44,17 @@ describe('createNodeAdapter', () => {
     const bytes = await adapter.readBinary!('s/data.bin')
     expect(Array.from(bytes)).toEqual([1, 2, 3, 255])
   })
+
+  it('listDirectories(subPath) lists directories nested under subPath', async () => {
+    await mkdir(join(dir, 'run-a', 'sess-1'), { recursive: true })
+    await mkdir(join(dir, 'run-a', 'sess-2'), { recursive: true })
+    await writeFile(join(dir, 'run-a', 'meta.json'), '{}')
+    const adapter = createNodeAdapter(dir)
+    expect((await adapter.listDirectories('run-a')).sort()).toEqual(['sess-1', 'sess-2'])
+  })
+
+  it('listDirectories(subPath) returns [] when subPath does not exist', async () => {
+    const adapter = createNodeAdapter(dir)
+    expect(await adapter.listDirectories('nope')).toEqual([])
+  })
 })
