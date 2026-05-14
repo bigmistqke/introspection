@@ -86,7 +86,16 @@ export function createReporterRunner(
   }
 
   function deliverTestEnd(event: TestEndEvent) {
-    if (!active) return
+    if (!active) {
+      void bus.emit('introspect:warning', {
+        error: {
+          name: 'OrphanTestEnd',
+          message: 'test.end emitted with no matching test.start',
+          source: 'reporter',
+        },
+      })
+      return
+    }
     active.events.push(event)
     const info: TestEndInfo = {
       ...active.info,

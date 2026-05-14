@@ -160,6 +160,18 @@ describe('reporter lifecycle', () => {
     expect(warnings).toContain('bad-async')
   })
 
+  it('emits an introspect:warning when test.end arrives without a matching test.start', async () => {
+    const warnings: Array<{ source: string; message: string }> = []
+    const writer = await createSessionWriter({ outDir, id: 's', reporters: [] })
+    writer.bus.on('introspect:warning', (w) => { warnings.push({ source: w.error.source, message: w.error.message }) })
+    await writer.emit({ type: 'test.end', metadata: { label: 't', titlePath: ['t'], status: 'passed' } })
+    await writer.flush()
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]!.source).toBe('reporter')
+    expect(warnings[0]!.message).toMatch(/test\.end/i)
+    expect(warnings[0]!.message).toMatch(/no matching test\.start/i)
+  })
+
   it('awaits async onEvent work via flush() (ctx.track wiring)', async () => {
     const seen: string[] = []
     const reporter: IntrospectionReporter = {
