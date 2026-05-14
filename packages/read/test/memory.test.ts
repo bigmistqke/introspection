@@ -57,6 +57,20 @@ describe('createMemoryReadAdapter', () => {
     store.set('file.txt', 'added later')
     expect(await reader.readText('file.txt')).toBe('added later')
   })
+
+  it('listDirectories(subPath) lists directories nested under subPath', async () => {
+    const store = new Map<string, string | Uint8Array>([
+      ['run-a/meta.json', '{}'],
+      ['run-a/sess-1/meta.json', '{}'],
+      ['run-a/sess-2/events.ndjson', ''],
+      ['run-b/sess-x/meta.json', '{}'],
+    ])
+    const adapter = createMemoryReadAdapter(store)
+    expect((await adapter.listDirectories()).sort()).toEqual(['run-a', 'run-b'])
+    expect((await adapter.listDirectories('run-a')).sort()).toEqual(['sess-1', 'sess-2'])
+    expect(await adapter.listDirectories('run-b')).toEqual(['sess-x'])
+    expect(await adapter.listDirectories('missing')).toEqual([])
+  })
 })
 
 describe('createSessionReader + createSessionWriter (memory)', () => {

@@ -4,11 +4,15 @@ export function createMemoryReadAdapter(
   store: Map<string, string | Uint8Array>
 ): StorageAdapter {
   return {
-    async listDirectories() {
+    async listDirectories(subPath?: string) {
+      const prefix = subPath ? `${subPath.replace(/\/$/, '')}/` : ''
       const dirs = new Set<string>()
       for (const path of store.keys()) {
-        const dir = path.split('/')[0]!
-        if (dir) dirs.add(dir)
+        if (prefix && !path.startsWith(prefix)) continue
+        const rest = path.slice(prefix.length)
+        const segment = rest.split('/')[0]
+        // a segment is a directory only if there is a path component after it
+        if (segment && rest.includes('/')) dirs.add(segment)
       }
       return Array.from(dirs)
     },
