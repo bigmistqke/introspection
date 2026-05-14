@@ -6,3 +6,6 @@ test-results/
 playground/
 .turbo/
 .env.local
+
+# git worktrees for parallel/isolated work
+.claude/worktrees/
