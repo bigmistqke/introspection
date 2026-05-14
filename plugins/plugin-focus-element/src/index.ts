@@ -1,3 +1,4 @@
+/// <reference path="./iife.d.ts" />
 import BROWSER_SCRIPT from '../dist/browser.iife.js'
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
