@@ -15,9 +15,8 @@ function flattenAssets(events: TraceEvent[]): PayloadAsset[] {
   const out: PayloadAsset[] = []
   for (const event of events) {
     if (!event.payloads) continue
-    for (const key of Object.keys(event.payloads)) {
-      const payload = event.payloads[key]
-      if (payload && payload.kind === 'asset') out.push(payload)
+    for (const payload of Object.values(event.payloads)) {
+      if (payload.kind === 'asset') out.push(payload)
     }
   }
   return out
@@ -25,6 +24,7 @@ function flattenAssets(events: TraceEvent[]): PayloadAsset[] {
 
 function asEndStatus(raw: string): TestEndInfo['status'] {
   if (raw === 'passed' || raw === 'failed' || raw === 'timedOut' || raw === 'skipped' || raw === 'interrupted') return raw
+  // Treat unrecognised status strings as failures rather than throwing.
   return 'failed'
 }
 
@@ -33,8 +33,42 @@ export function createReporterRunner(
   ctx: ReporterContext,
   bus: SessionBus,
 ): ReporterRunner {
-  void bus
   let active: ActiveTest | null = null
+  const disabled = new Set<IntrospectionReporter>()
+
+  function reportFailure(reporter: IntrospectionReporter, method: string, cause: unknown) {
+    disabled.add(reporter)
+    const error = cause instanceof Error ? cause : new Error(String(cause))
+    void bus.emit('introspect:warning', {
+      error: {
+        name: error.name,
+        message: error.message,
+        source: 'reporter',
+        cause,
+        stack: error.stack,
+        reporterName: reporter.name,
+        method,
+      },
+    })
+  }
+
+  function invoke<T>(
+    reporter: IntrospectionReporter,
+    method: string,
+    call: () => T | Promise<T>,
+  ): void {
+    if (disabled.has(reporter)) return
+    let result: T | Promise<T>
+    try {
+      result = call()
+    } catch (cause) {
+      reportFailure(reporter, method, cause)
+      return
+    }
+    if (result instanceof Promise) {
+      ctx.track(() => result.then(() => undefined, (cause) => { reportFailure(reporter, method, cause) }))
+    }
+  }
 
   function deliverTestStart(event: TestStartEvent) {
     const info: TestStartInfo = {
@@ -47,8 +81,7 @@ export function createReporterRunner(
     active = { info, events: [event] }
     for (const reporter of reporters) {
       if (!reporter.onTestStart) continue
-      const result = reporter.onTestStart(info, ctx)
-      if (result instanceof Promise) ctx.track(() => result)
+      invoke(reporter, 'onTestStart', () => reporter.onTestStart!(info, ctx))
     }
   }
 
@@ -67,8 +100,7 @@ export function createReporterRunner(
     active = null
     for (const reporter of reporters) {
       if (!reporter.onTestEnd) continue
-      const result = reporter.onTestEnd(info, ctx)
-      if (result instanceof Promise) ctx.track(() => result)
+      invoke(reporter, 'onTestEnd', () => reporter.onTestEnd!(info, ctx))
     }
   }
 
@@ -76,7 +108,7 @@ export function createReporterRunner(
     async start() {
       for (const reporter of reporters) {
         if (!reporter.onSessionStart) continue
-        await reporter.onSessionStart(ctx)
+        invoke(reporter, 'onSessionStart', () => reporter.onSessionStart!(ctx))
       }
     },
     handleEvent(event) {
@@ -89,14 +121,13 @@ export function createReporterRunner(
       }
       for (const reporter of reporters) {
         if (!reporter.onEvent) continue
-        const result = reporter.onEvent(event, ctx)
-        if (result instanceof Promise) ctx.track(() => result)
+        invoke(reporter, 'onEvent', () => reporter.onEvent!(event, ctx))
       }
     },
     async end() {
       for (const reporter of reporters) {
         if (!reporter.onSessionEnd) continue
-        await reporter.onSessionEnd(ctx)
+        invoke(reporter, 'onSessionEnd', () => reporter.onSessionEnd!(ctx))
       }
     },
   }

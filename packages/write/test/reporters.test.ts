@@ -107,6 +107,31 @@ describe('reporter lifecycle', () => {
     expect(events).toEqual(['mark'])
   })
 
+  it('disables a reporter after it throws and emits an introspect:warning', async () => {
+    const goodEvents: string[] = []
+    const badEvents: string[] = []
+    const warnings: string[] = []
+    const bad: IntrospectionReporter = {
+      name: 'bad',
+      onEvent(event) {
+        badEvents.push(event.type)
+        throw new Error('boom')
+      },
+    }
+    const good: IntrospectionReporter = {
+      name: 'good',
+      onEvent(event) { goodEvents.push(event.type) },
+    }
+    const writer = await createSessionWriter({ outDir, id: 's', reporters: [bad, good] })
+    writer.bus.on('introspect:warning', (w) => warnings.push(w.error.reporterName ?? ''))
+    await writer.emit({ type: 'mark', metadata: { label: 'a' } })
+    await writer.emit({ type: 'mark', metadata: { label: 'b' } })
+    await writer.flush()
+    expect(badEvents).toEqual(['mark'])              // disabled after first throw
+    expect(goodEvents).toEqual(['mark', 'mark'])     // unaffected
+    expect(warnings).toContain('bad')
+  })
+
   it('awaits async onEvent work via flush() (ctx.track wiring)', async () => {
     const seen: string[] = []
     const reporter: IntrospectionReporter = {
