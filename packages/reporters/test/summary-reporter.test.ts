@@ -50,5 +50,25 @@ describe('summaryReporter', () => {
       error: 'nope',
       eventCount: 2,
     })
+    expect(typeof lines[1].startedAt).toBe('number')
+    expect(typeof lines[1].endedAt).toBe('number')
+  })
+
+  it('uses a custom format projector when provided', async () => {
+    const writer = await createSessionWriter({
+      outDir,
+      id: 's',
+      reporters: [summaryReporter({
+        outFile: 'custom.jsonl',
+        format: (info) => ({ path: info.titlePath.join(' > '), ok: info.status === 'passed' }),
+      })],
+    })
+    await writer.emit({ type: 'test.start', metadata: { label: 't', titlePath: ['s', 't'] } })
+    await writer.emit({ type: 'test.end', metadata: { label: 't', titlePath: ['s', 't'], status: 'passed', duration: 1 } })
+    await writer.finalize()
+
+    const contents = await readFile(join(outDir, 'custom.jsonl'), 'utf-8')
+    const lines = contents.trim().split('\n').map(line => JSON.parse(line))
+    expect(lines).toEqual([{ path: 's > t', ok: true }])
   })
 })
