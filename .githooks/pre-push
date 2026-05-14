@@ -3,8 +3,11 @@ set -e
 
 echo "🔨 Running pre-push checks..."
 
-pnpm build && \
-pnpm typecheck && \
+# Separate statements, not an && chain: bash `set -e` is suppressed for
+# non-final commands in an && list, so a chained build/typecheck failure
+# would NOT abort the push. As plain statements, `set -e` aborts on any.
+pnpm build
+pnpm typecheck
 pnpm exec turbo test --filter '!./demos/**'
 
 echo "✅ All checks passed!"
