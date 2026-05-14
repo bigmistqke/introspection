@@ -188,4 +188,44 @@ describe('reporter lifecycle', () => {
     await writer.flush()
     expect(seen).toEqual(['mark'])
   })
+
+  it('synthesizes an interrupted onTestEnd for a test still in flight when finalize runs', async () => {
+    const seen: TestEndInfo[] = []
+    const sessionEnds: number[] = []
+    const reporter: IntrospectionReporter = {
+      name: 'capture',
+      onTestEnd(info) { seen.push(info) },
+      onSessionEnd() { sessionEnds.push(Date.now()) },
+    }
+    const writer = await createSessionWriter({ outDir, id: 's-interrupt', reporters: [reporter] })
+    await writer.emit({ type: 'test.start', metadata: { label: 'in-flight', titlePath: ['suite', 'in-flight'] } })
+    await writer.emit({ type: 'mark', metadata: { label: 'a' } })
+    // No test.end — finalize while the test is still open.
+    await writer.finalize()
+
+    expect(seen).toHaveLength(1)
+    const info = seen[0]!
+    expect(info.status).toBe('interrupted')
+    expect(info.label).toBe('in-flight')
+    expect(info.titlePath).toEqual(['suite', 'in-flight'])
+    expect(info.events.map(e => e.type)).toEqual(['test.start', 'mark'])
+    expect(typeof info.endedAt).toBe('number')
+    // onSessionEnd still runs, and after the synthesized onTestEnd.
+    expect(sessionEnds).toHaveLength(1)
+  })
+
+  it('does not synthesize an interrupted onTestEnd when no test is in flight', async () => {
+    const seen: TestEndInfo[] = []
+    const reporter: IntrospectionReporter = {
+      name: 'capture',
+      onTestEnd(info) { seen.push(info) },
+    }
+    const writer = await createSessionWriter({ outDir, id: 's-clean', reporters: [reporter] })
+    await writer.emit({ type: 'test.start', metadata: { label: 't', titlePath: ['t'] } })
+    await writer.emit({ type: 'test.end', metadata: { label: 't', titlePath: ['t'], status: 'passed', duration: 5 } })
+    await writer.finalize()
+    // Exactly one onTestEnd — the real one. No phantom interrupted delivery.
+    expect(seen).toHaveLength(1)
+    expect(seen[0]!.status).toBe('passed')
+  })
 })

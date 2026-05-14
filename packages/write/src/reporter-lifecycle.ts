@@ -85,6 +85,13 @@ export function createReporterRunner(
     }
   }
 
+  function dispatchTestEnd(info: TestEndInfo) {
+    for (const reporter of reporters) {
+      if (!reporter.onTestEnd) continue
+      invoke(reporter, 'onTestEnd', () => reporter.onTestEnd!(info, ctx))
+    }
+  }
+
   function deliverTestEnd(event: TestEndEvent) {
     if (!active) {
       void bus.emit('introspect:warning', {
@@ -107,10 +114,7 @@ export function createReporterRunner(
       assets: flattenAssets(active.events),
     }
     active = null
-    for (const reporter of reporters) {
-      if (!reporter.onTestEnd) continue
-      invoke(reporter, 'onTestEnd', () => reporter.onTestEnd!(info, ctx))
-    }
+    dispatchTestEnd(info)
   }
 
   return {
@@ -134,6 +138,19 @@ export function createReporterRunner(
       }
     },
     async end() {
+      if (active) {
+        const events = active.events
+        const lastTimestamp = events[events.length - 1]?.timestamp ?? active.info.startedAt
+        const info: TestEndInfo = {
+          ...active.info,
+          endedAt: lastTimestamp,
+          status: 'interrupted',
+          events,
+          assets: flattenAssets(events),
+        }
+        active = null
+        dispatchTestEnd(info)
+      }
       for (const reporter of reporters) {
         if (!reporter.onSessionEnd) continue
         invoke(reporter, 'onSessionEnd', () => reporter.onSessionEnd!(ctx))
