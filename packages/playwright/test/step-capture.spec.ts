@@ -11,7 +11,7 @@ function fakeSession(): { writer: SessionWriter; emitted: EmitInput[] } {
 
 test('wraps onStepBegin/onStepEnd, emits step events, calls originals, restores on stop', () => {
   const calls: string[] = []
-  const callbacks = {
+  const callbacks: { onStepBegin: (p?: unknown) => void; onStepEnd: (p?: unknown) => void } = {
     onStepBegin: () => { calls.push('begin') },
     onStepEnd: () => { calls.push('end') },
   }
