@@ -8,6 +8,7 @@ export interface SessionInitParams {
   startedAt: number
   label?: string
   plugins?: PluginMeta[]
+  project?: string
 }
 
 export async function initSessionDir(outDir: string, parameters: SessionInitParams): Promise<void> {
@@ -21,6 +22,7 @@ export async function initSessionDir(outDir: string, parameters: SessionInitPara
     startedAt: parameters.startedAt,
     label: parameters.label,
     plugins: parameters.plugins,
+    project: parameters.project,
   }
   await writeFile(join(sessionDir, 'meta.json'), JSON.stringify(meta, null, 2))
   await writeFile(join(sessionDir, 'events.ndjson'), '')
@@ -50,9 +52,15 @@ export async function writeAsset(
   return { kind: 'asset', format, path, size }
 }
 
-export async function finalizeSession(outDir: string, sessionId: string, endedAt: number): Promise<void> {
+export async function finalizeSession(
+  outDir: string,
+  sessionId: string,
+  endedAt: number,
+  extras?: { status?: SessionMeta['status'] },
+): Promise<void> {
   const metaPath = join(outDir, sessionId, 'meta.json')
   const meta = JSON.parse(await readFile(metaPath, 'utf-8')) as SessionMeta
   meta.endedAt = endedAt
+  if (extras?.status) meta.status = extras.status
   await writeFile(metaPath, JSON.stringify(meta, null, 2))
 }

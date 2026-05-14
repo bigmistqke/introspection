@@ -14,6 +14,7 @@ export interface CreateSessionWriterOptions {
   plugins?: PluginMeta[]
   reporters?: IntrospectionReporter[]
   adapter?: MemoryWriteAdapter
+  project?: string
 }
 
 function createWriteQueue() {
@@ -63,6 +64,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
     startedAt,
     label: options.label,
     plugins: options.plugins,
+    project: options.project,
   }
 
   if (adapter) {
@@ -74,6 +76,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
       startedAt,
       label: options.label,
       plugins: options.plugins,
+      project: options.project,
     })
   }
 
@@ -145,16 +148,16 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
       await tracker.flush()
       await queue.flush()
     },
-    async finalize() {
+    async finalize(extras?: { status?: SessionMeta['status'] }) {
       await bus.emit('detach', { trigger: 'detach', timestamp: timestamp() })
       await tracker.flush()
       await queue.flush()
       await reporterRunner.end()
       await tracker.flush()
       if (adapter) {
-        await adapter.writeText(`${id}/meta.json`, JSON.stringify({ ...meta, endedAt: Date.now() }, null, 2))
+        await adapter.writeText(`${id}/meta.json`, JSON.stringify({ ...meta, endedAt: Date.now(), ...(extras?.status ? { status: extras.status } : {}) }, null, 2))
       } else {
-        await finalizeSession(outDir, id, Date.now())
+        await finalizeSession(outDir, id, Date.now(), extras)
       }
     },
   }
