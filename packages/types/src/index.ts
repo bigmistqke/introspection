@@ -98,6 +98,16 @@ export interface TestEndEvent extends BaseEvent {
   metadata: { label: string; titlePath: string[]; status: string; duration?: number; error?: string }
 }
 
+export interface StepStartEvent extends BaseEvent {
+  type: 'step.start'
+  metadata: { stepId: string; parentStepId?: string; title: string; category: string }
+}
+
+export interface StepEndEvent extends BaseEvent {
+  type: 'step.end'
+  metadata: { stepId: string; error?: string }
+}
+
 // ─── Plugin events: network ─────────────────────────────────────────────────
 
 export interface NetworkRequestEvent extends BaseEvent {
@@ -626,6 +636,8 @@ export interface TraceEventMap {
   'describe.end': DescribeEndEvent
   'test.start': TestStartEvent
   'test.end': TestEndEvent
+  'step.start': StepStartEvent
+  'step.end': StepEndEvent
   // Network
   'network.request': NetworkRequestEvent
   'network.response': NetworkResponseEvent
@@ -871,6 +883,11 @@ export interface Snapshot {
 
 // ─── Session ──────────────────────────────────────────────────────────────────
 
+export type RunStatus = 'passed' | 'failed'
+
+export type SessionStatus =
+  | 'passed' | 'failed' | 'timedOut' | 'interrupted' | 'skipped' | 'crashed'
+
 export interface SessionMeta {
   version: '2'
   id: string
@@ -878,6 +895,24 @@ export interface SessionMeta {
   endedAt?: number     // unix ms, set when session ends
   label?: string       // human-readable name
   plugins?: PluginMeta[]
+  /** Playwright project name; 'default' when the config defines no projects. */
+  project?: string
+  /**
+   * Final test status. Written by the worker auto-fixture at finalize.
+   * 'crashed' is never written — it is derived by readers when a session
+   * directory has no test.end event and no endedAt.
+   */
+  status?: SessionStatus
+}
+
+export interface RunMeta {
+  version: '1'
+  id: string
+  startedAt: number          // unix ms
+  endedAt?: number           // unix ms, set by globalTeardown
+  status?: RunStatus         // aggregate, set by globalTeardown
+  branch?: string
+  commit?: string
 }
 
 export interface PluginMeta {
@@ -908,7 +943,7 @@ export interface SessionWriter extends AssetWriter {
   bus: SessionBus
   track(operation: () => Promise<unknown>): void
   flush(): Promise<void>
-  finalize(): Promise<void>
+  finalize(extras?: { status?: SessionStatus }): Promise<void>
 }
 
 // ─── Storage Adapter ────────────────────────────────────────────────────────────
