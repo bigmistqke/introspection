@@ -148,6 +148,8 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
       await bus.emit('detach', { trigger: 'detach', timestamp: timestamp() })
       await tracker.flush()
       await queue.flush()
+      await reporterRunner.end()
+      await tracker.flush()
       if (adapter) {
         await adapter.writeText(`${id}/meta.json`, JSON.stringify({ ...meta, endedAt: Date.now() }, null, 2))
       } else {

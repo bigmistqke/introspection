@@ -84,6 +84,14 @@ describe('reporter lifecycle', () => {
     expect(info.assets[0]!.path).toBe('s/assets/x.json')
   })
 
+  it('calls onSessionEnd exactly once when finalize() runs', async () => {
+    let count = 0
+    const reporter: IntrospectionReporter = { name: 'capture', onSessionEnd() { count++ } }
+    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    await writer.finalize()
+    expect(count).toBe(1)
+  })
+
   it('does not deliver onTestEnd for events outside any test', async () => {
     const seen: TestEndInfo[] = [];
     const events: string[] = [];
