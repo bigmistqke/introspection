@@ -1,3 +1,4 @@
+/// <reference path="./iife.d.ts" />
 // Loaded as raw text by esbuild (tsup.node.config.ts sets loader['.iife.js'] = 'text').
 import type { IntrospectionPlugin, PayloadRef, PluginContext } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
