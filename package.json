@@ -7,7 +7,7 @@
     "prepare": "git config core.hooksPath .githooks && echo 'TURBO_TELEMETRY_DISABLED=1' > .env.local",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
-    "test": "turbo test --filter '!./ctf/**'",
+    "test": "turbo test",
     "test:vitest": "vitest run",
     "test:watch": "vitest",
     "introspect": "node packages/cli/dist/index.js",

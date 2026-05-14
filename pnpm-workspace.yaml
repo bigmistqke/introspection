@@ -2,4 +2,3 @@ packages:
   - "packages/*"
   - "plugins/*"
   - "demos/*"
-  - "ctf/*"
