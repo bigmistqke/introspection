@@ -28,6 +28,19 @@ What's missing is the client half: an adapter that speaks that protocol over
 `demos/` (unpublished, not depended on by the CLI) and may have drifted from
 the current `StorageAdapter` interface. This spec promotes and hardens it.
 
+**This adapter belongs in `@introspection/serve`, not `@introspection/read`.**
+It is not a generic "filesystem over HTTP" — `createHandler` does not serve
+arbitrary paths. It exposes a fixed, semantic endpoint vocabulary: `GET /` →
+session list, `GET /:session/meta.json`, `GET /:session/events.ndjson`,
+`GET /:session/events`, `GET /:session/events?sse`, `GET /:session/assets/...`.
+The HTTP adapter works only because `createSessionReader`'s access pattern
+happens to read exactly those paths. That makes the adapter a *client of
+serve's protocol*, sharing an unwritten contract (the exact endpoint set) with
+`createHandler`. Co-locating producer and consumer in one package is what
+keeps that contract maintainable as a unit — split across packages it drifts
+silently. `StorageAdapter` is defined in `@introspection/types`, so
+`@introspection/serve` depending on that type introduces no cycle.
+
 The result: **the trace read protocol gets a second client.** A server that
 mounts `@introspection/serve` can be read by both a project's own viewer UI
 *and* the `introspect` CLI, through the same endpoints.
@@ -36,12 +49,13 @@ mounts `@introspection/serve` can be read by both a project's own viewer UI
 
 **In scope:**
 
-- `createHttpReadAdapter(baseUrl)` — a public export from `@introspection/read`,
-  implementing `StorageAdapter` over `fetch` against the `@introspection/serve`
-  protocol. Promoted from `demos/shared/src/fetch-adapter.ts`, reconciled
-  against the current `StorageAdapter` interface.
+- `createHttpReadAdapter(baseUrl)` — a new export from `@introspection/serve`
+  (subpath `@introspection/serve/client`), implementing `StorageAdapter` over
+  `fetch` against `createHandler`'s endpoint vocabulary. Promoted from
+  `demos/shared/src/fetch-adapter.ts`, reconciled against the current
+  `StorageAdapter` interface.
 - The demos drop their local `fetch-adapter.ts` copy and import from
-  `@introspection/read`, so there is one implementation.
+  `@introspection/serve/client`, so there is one implementation.
 - `introspect --url <baseUrl>` — a sibling to `--dir`, mutually exclusive,
   building the HTTP adapter instead of the filesystem one.
 - `introspect --ci [ref]` plus an optional `resolveRun(ref)` hook in
@@ -63,6 +77,22 @@ mounts `@introspection/serve` can be read by both a project's own viewer UI
   `@introspection/serve`.
 - Auth. The reference target serves traces on an internal network; if auth is
   needed later it is a follow-up (the adapter would need a header/token hook).
+
+## Sequencing
+
+This spec is **sequenced after** a separate "storage-agnostic `createHandler`"
+spec, and should not be planned or implemented until that one lands.
+
+The dependency is design-stability, not runtime. `createHttpReadAdapter` would
+function against today's disk-bound `createHandler`, and the reference target
+has local disk — so nothing here is *functionally* blocked. But this spec
+lives inside `@introspection/serve` (the package the genericization
+restructures) and reconciles against the `StorageAdapter` interface (which the
+genericization grows: optional `stat` / `watch` / streaming capabilities, and
+`createHandler` becoming async). Building the client first means building on
+an interface and a package layout that are about to move — reconciling twice.
+Let the genericization settle `StorageAdapter`'s final shape and serve's
+structure; then this spec is a clean build on top.
 
 ## Architecture
 
@@ -92,7 +122,9 @@ filesystem adapter. Everything downstream of the adapter is unchanged.
 
 ## `createHttpReadAdapter`
 
-New export from `@introspection/read`:
+New export from `@introspection/serve` at the `@introspection/serve/client`
+subpath (the rationale — endpoint-vocabulary coupling with `createHandler` —
+is in the Why section):
 
 ```ts
 import type { StorageAdapter } from '@introspection/types'
@@ -114,7 +146,7 @@ implementation. The demo prototype implements `listDirectories`, `readText`,
 `readBinary`, `readJSON`; the first implementation task is to diff that against
 `@introspection/types`'s `StorageAdapter` and implement exactly the current
 shape. The demo's `demos/shared/src/fetch-adapter.ts` is then deleted and its
-importers point at `@introspection/read`.
+importers point at `@introspection/serve/client`.
 
 Behaviour, per method:
 
