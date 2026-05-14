@@ -4,11 +4,13 @@ import type { SessionReader } from '@introspection/types'
 import {
   type StorageAdapter,
   type SessionSummary,
+  type RunSummary,
   createSessionReader as createSessionReaderFromAdapter,
+  listRuns as listRunsFromAdapter,
   listSessions as listSessionsFromAdapter,
 } from './index.js'
 
-export type { StorageAdapter, SessionSummary } from './index.js'
+export type { StorageAdapter, SessionSummary, RunSummary } from './index.js'
 export type { SessionReader, EventsFilter, EventsAPI } from '@introspection/types'
 
 export function createNodeAdapter(dir: string): StorageAdapter {
@@ -35,10 +37,17 @@ export function createNodeAdapter(dir: string): StorageAdapter {
   }
 }
 
-export async function createSessionReader(dir: string, options?: { sessionId?: string; verbose?: boolean }): Promise<SessionReader> {
+export async function createSessionReader(
+  dir: string,
+  options?: { runId?: string; sessionId?: string; verbose?: boolean },
+): Promise<SessionReader> {
   return createSessionReaderFromAdapter(createNodeAdapter(dir), options)
 }
 
-export async function listSessions(dir: string): Promise<SessionSummary[]> {
-  return listSessionsFromAdapter(createNodeAdapter(dir))
+export async function listRuns(dir: string): Promise<RunSummary[]> {
+  return listRunsFromAdapter(createNodeAdapter(dir))
+}
+
+export async function listSessions(dir: string, runId: string): Promise<SessionSummary[]> {
+  return listSessionsFromAdapter(createNodeAdapter(dir), runId)
 }

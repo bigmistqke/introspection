@@ -58,3 +58,20 @@ describe('createNodeAdapter', () => {
     expect(await adapter.listDirectories('nope')).toEqual([])
   })
 })
+
+describe('node convenience wrappers', () => {
+  it('listRuns(dir) and listSessions(dir, runId) read the on-disk hierarchy', async () => {
+    const { writeFixtureRun } = await import('./helpers.js')
+    await writeFixtureRun(dir, {
+      id: 'run-1', startedAt: 200, status: 'passed',
+      sessions: [{ id: 'sess-a', startedAt: 210, project: 'p' }],
+    })
+    const { listRuns, listSessions } = await import('../src/node.js')
+    const runs = await listRuns(dir)
+    expect(runs.map(r => r.id)).toEqual(['run-1'])
+    expect(runs[0].sessionCount).toBe(1)
+    const sessions = await listSessions(dir, 'run-1')
+    expect(sessions.map(s => s.id)).toEqual(['sess-a'])
+    expect(sessions[0].project).toBe('p')
+  })
+})
