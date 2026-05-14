@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import introspectGlobalTeardown from '../src/global-teardown.js'
+import { runGlobalTeardown } from '../src/global-teardown.js'
 import { setIntrospectConfig } from '../src/config-store.js'
 
 function seedRun(): { base: string; runDir: string } {
@@ -20,7 +20,7 @@ function seedRun(): { base: string; runDir: string } {
 test('writes endedAt + aggregate status, keeps all dirs in mode "on"', async () => {
   const { base, runDir } = seedRun()
   setIntrospectConfig({ plugins: [], reporters: [], mode: 'on' })
-  await introspectGlobalTeardown({ RUN_DIR: runDir } as NodeJS.ProcessEnv)
+  await runGlobalTeardown({ RUN_DIR: runDir } as NodeJS.ProcessEnv)
 
   const meta = JSON.parse(readFileSync(join(runDir, 'meta.json'), 'utf-8'))
   expect(meta.status).toBe('failed')
@@ -33,7 +33,7 @@ test('writes endedAt + aggregate status, keeps all dirs in mode "on"', async () 
 test('retain-on-failure deletes passing session dirs', async () => {
   const { base, runDir } = seedRun()
   setIntrospectConfig({ plugins: [], reporters: [], mode: 'retain-on-failure' })
-  await introspectGlobalTeardown({ RUN_DIR: runDir } as NodeJS.ProcessEnv)
+  await runGlobalTeardown({ RUN_DIR: runDir } as NodeJS.ProcessEnv)
 
   expect(existsSync(join(runDir, 'a'))).toBe(false)  // passed → deleted
   expect(existsSync(join(runDir, 'b'))).toBe(true)   // failed → kept
@@ -41,5 +41,5 @@ test('retain-on-failure deletes passing session dirs', async () => {
 })
 
 test('does nothing when RUN_DIR is unset', async () => {
-  await introspectGlobalTeardown({} as NodeJS.ProcessEnv)  // must not throw
+  await runGlobalTeardown({} as NodeJS.ProcessEnv)  // must not throw
 })

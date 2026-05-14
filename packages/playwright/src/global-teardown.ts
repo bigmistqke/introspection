@@ -6,14 +6,11 @@ import { getIntrospectConfig } from './config-store.js'
 const RETAINED: ReadonlySet<string> = new Set(['failed', 'timedOut', 'interrupted', 'crashed'])
 
 /**
- * Runner-side run lifecycle teardown. Default-exported so Playwright can load
- * it as a globalTeardown module. Scans per-test session metas to compute the
- * run's aggregate status, then applies `retain-on-failure` cleanup in the same
- * pass.
+ * The run lifecycle teardown logic, parameterised on the environment for
+ * testability. Scans per-test session metas to compute the run's aggregate
+ * status, then applies `retain-on-failure` cleanup in the same pass.
  */
-export default async function introspectGlobalTeardown(
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<void> {
+export async function runGlobalTeardown(env: NodeJS.ProcessEnv): Promise<void> {
   if (env.INTROSPECT_TRACING === '0') return
   const runDir = env.RUN_DIR
   if (!runDir) return
@@ -32,4 +29,13 @@ export default async function introspectGlobalTeardown(
       }
     }
   }
+}
+
+/**
+ * Default export for Playwright's `globalTeardown`. Playwright invokes this
+ * with the resolved config as its argument — the real work lives in
+ * `runGlobalTeardown(env)` and this wrapper hard-wires `process.env`.
+ */
+export default function introspectGlobalTeardown(): Promise<void> {
+  return runGlobalTeardown(process.env)
 }

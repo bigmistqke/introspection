@@ -4,14 +4,11 @@ import { resolveRunId } from './run-id.js'
 import { detectGitInfo, writeRunMeta } from './run-meta.js'
 
 /**
- * Runner-side run lifecycle setup. Default-exported so Playwright can load it
- * as a globalSetup module. The `env` parameter defaults to `process.env`;
- * passing it explicitly is for tests. Mutates `env.RUN_DIR` so test workers
- * (which inherit the runner's environment) can find the run directory.
+ * The run lifecycle setup logic, parameterised on the environment for
+ * testability. Mutates `env.RUN_DIR` so test workers (which inherit the
+ * runner's environment at spawn time) can find the run directory.
  */
-export default async function introspectGlobalSetup(
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<void> {
+export async function runGlobalSetup(env: NodeJS.ProcessEnv): Promise<void> {
   if (env.INTROSPECT_TRACING === '0') return
 
   const runId = resolveRunId(env)
@@ -27,4 +24,13 @@ export default async function introspectGlobalSetup(
   })
 
   env.RUN_DIR = runDir
+}
+
+/**
+ * Default export for Playwright's `globalSetup`. Playwright invokes this with
+ * the resolved config as its argument — which is why the real work lives in
+ * `runGlobalSetup(env)` and this wrapper hard-wires `process.env`.
+ */
+export default function introspectGlobalSetup(): Promise<void> {
+  return runGlobalSetup(process.env)
 }
