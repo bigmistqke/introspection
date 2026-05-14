@@ -123,13 +123,41 @@ describe('reporter lifecycle', () => {
       onEvent(event) { goodEvents.push(event.type) },
     }
     const writer = await createSessionWriter({ outDir, id: 's', reporters: [bad, good] })
-    writer.bus.on('introspect:warning', (w) => warnings.push(w.error.reporterName ?? ''))
+    writer.bus.on('introspect:warning', (w) => { warnings.push(w.error.reporterName ?? '') })
     await writer.emit({ type: 'mark', metadata: { label: 'a' } })
     await writer.emit({ type: 'mark', metadata: { label: 'b' } })
     await writer.flush()
     expect(badEvents).toEqual(['mark'])              // disabled after first throw
     expect(goodEvents).toEqual(['mark', 'mark'])     // unaffected
     expect(warnings).toContain('bad')
+  })
+
+  it('disables a reporter whose async onEvent rejects, and emits a warning', async () => {
+    const goodEvents: string[] = []
+    const badEvents: string[] = []
+    const warnings: string[] = []
+    const bad: IntrospectionReporter = {
+      name: 'bad-async',
+      async onEvent(event) {
+        badEvents.push(event.type)
+        await Promise.resolve()
+        throw new Error('async boom')
+      },
+    }
+    const good: IntrospectionReporter = {
+      name: 'good',
+      onEvent(event) { goodEvents.push(event.type) },
+    }
+    const writer = await createSessionWriter({ outDir, id: 's-async-reject', reporters: [bad, good] })
+    writer.bus.on('introspect:warning', (w) => { warnings.push(w.error.reporterName ?? '') })
+    await writer.emit({ type: 'mark', metadata: { label: 'a' } })
+    await writer.flush()
+    // After the first event's async rejection is flushed, 'bad-async' is disabled.
+    await writer.emit({ type: 'mark', metadata: { label: 'b' } })
+    await writer.flush()
+    expect(badEvents).toEqual(['mark'])              // only the first event reached it
+    expect(goodEvents).toEqual(['mark', 'mark'])     // good reporter unaffected
+    expect(warnings).toContain('bad-async')
   })
 
   it('awaits async onEvent work via flush() (ctx.track wiring)', async () => {

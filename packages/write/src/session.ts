@@ -96,6 +96,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
   }
   const reporterRunner = createReporterRunner(reporters, reporterCtx, bus)
   await reporterRunner.start()
+  await tracker.flush()
 
   function timestamp(): number {
     return Date.now() - startedAt
