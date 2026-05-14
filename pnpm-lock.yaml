@@ -424,6 +424,19 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.17)
 
+  packages/reporters:
+    dependencies:
+      '@introspection/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@introspection/write':
+        specifier: workspace:*
+        version: link:../write
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.17)
+
   packages/serve:
     dependencies:
       '@introspection/types':
