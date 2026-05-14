@@ -4,7 +4,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import type { TraceEvent } from '@introspection/types'
 import { createSessionReader } from '../src/node.js'
-import { writeFixtureSession, markEvent, networkRequestEvent } from './helpers.js'
+import { writeFixtureRun, markEvent, networkRequestEvent } from './helpers.js'
 
 let dir: string
 
@@ -17,26 +17,43 @@ afterEach(async () => {
 })
 
 describe('createSessionReader — selection & meta', () => {
-  it('selects the most recent session when no id is given', async () => {
-    await writeFixtureSession(dir, { id: 'old', startedAt: 100 })
-    await writeFixtureSession(dir, { id: 'new', startedAt: 999 })
+  it('selects the latest session of the latest run when no ids are given', async () => {
+    await writeFixtureRun(dir, { id: 'run-old', startedAt: 100, sessions: [{ id: 's', startedAt: 110 }] })
+    await writeFixtureRun(dir, {
+      id: 'run-new', startedAt: 500,
+      sessions: [{ id: 'early', startedAt: 510 }, { id: 'late', startedAt: 590 }],
+    })
     const reader = await createSessionReader(dir)
-    expect(reader.id).toBe('new')
+    expect(reader.id).toBe('late')
   })
 
-  it('selects a specific session when sessionId is given', async () => {
-    await writeFixtureSession(dir, { id: 'a', startedAt: 100 })
-    await writeFixtureSession(dir, { id: 'b', startedAt: 200 })
+  it('selects a specific session within the latest run when sessionId is given', async () => {
+    await writeFixtureRun(dir, {
+      id: 'run', startedAt: 100,
+      sessions: [{ id: 'a', startedAt: 110 }, { id: 'b', startedAt: 120 }],
+    })
     const reader = await createSessionReader(dir, { sessionId: 'a' })
     expect(reader.id).toBe('a')
   })
 
-  it('throws when no sessions exist', async () => {
-    await expect(createSessionReader(dir)).rejects.toThrow(/No sessions found/)
+  it('selects a session within an explicitly named run', async () => {
+    await writeFixtureRun(dir, { id: 'run-1', startedAt: 100, sessions: [{ id: 'x', startedAt: 110 }] })
+    await writeFixtureRun(dir, { id: 'run-2', startedAt: 500, sessions: [{ id: 'y', startedAt: 510 }] })
+    const reader = await createSessionReader(dir, { runId: 'run-1' })
+    expect(reader.id).toBe('x')
+  })
+
+  it('throws when no runs exist', async () => {
+    await expect(createSessionReader(dir)).rejects.toThrow(/No runs found/)
+  })
+
+  it('throws when the named run has no sessions', async () => {
+    await writeFixtureRun(dir, { id: 'empty', startedAt: 100 })
+    await expect(createSessionReader(dir, { runId: 'empty' })).rejects.toThrow(/No sessions in run/)
   })
 
   it('exposes meta including label and plugins', async () => {
-    await writeFixtureSession(dir, { id: 's', startedAt: 10, label: 'hi' })
+    await writeFixtureRun(dir, { id: 'run', startedAt: 10, sessions: [{ id: 's', startedAt: 10, label: 'hi' }] })
     const reader = await createSessionReader(dir)
     expect(reader.meta.id).toBe('s')
     expect(reader.meta.label).toBe('hi')
@@ -45,10 +62,10 @@ describe('createSessionReader — selection & meta', () => {
 
 describe('events.ls', () => {
   it('returns all events', async () => {
-    await writeFixtureSession(dir, {
-      id: 's',
+    await writeFixtureRun(dir, {
+      id: 'run',
       startedAt: 0,
-      events: [markEvent('e1', 10, 'a'), markEvent('e2', 20, 'b')],
+      sessions: [{ id: 's', startedAt: 0, events: [markEvent('e1', 10, 'a'), markEvent('e2', 20, 'b')] }],
     })
     const reader = await createSessionReader(dir)
     const events = await reader.events.ls()
@@ -56,7 +73,7 @@ describe('events.ls', () => {
   })
 
   it('returns empty array for a session with no events', async () => {
-    await writeFixtureSession(dir, { id: 's', startedAt: 0 })
+    await writeFixtureRun(dir, { id: 'run', startedAt: 0, sessions: [{ id: 's', startedAt: 0 }] })
     const reader = await createSessionReader(dir)
     expect(await reader.events.ls()).toEqual([])
   })
@@ -66,15 +83,19 @@ describe('events.query', () => {
   let reader: Awaited<ReturnType<typeof createSessionReader>>
 
   beforeEach(async () => {
-    await writeFixtureSession(dir, {
-      id: 's',
+    await writeFixtureRun(dir, {
+      id: 'run',
       startedAt: 0,
-      events: [
-        markEvent('e1', 10, 'start'),
-        networkRequestEvent('e2', 20, '/api/a'),
-        { id: 'e3', type: 'network.response', timestamp: 25, initiator: 'e2', metadata: { cdpRequestId: '2', cdpTimestamp: 0, requestId: '2', url: '/api/a', status: 200, headers: {} } } as TraceEvent,
-        markEvent('e4', 30, 'end'),
-      ],
+      sessions: [{
+        id: 's',
+        startedAt: 0,
+        events: [
+          markEvent('e1', 10, 'start'),
+          networkRequestEvent('e2', 20, '/api/a'),
+          { id: 'e3', type: 'network.response', timestamp: 25, initiator: 'e2', metadata: { cdpRequestId: '2', cdpTimestamp: 0, requestId: '2', url: '/api/a', status: 200, headers: {} } } as TraceEvent,
+          markEvent('e4', 30, 'end'),
+        ],
+      }],
     })
     reader = await createSessionReader(dir)
   })
@@ -117,10 +138,10 @@ describe('events.query', () => {
 
 describe('events.push + reactive watch', () => {
   it('ls.watch() yields an initial snapshot then updates on push', async () => {
-    await writeFixtureSession(dir, {
-      id: 's',
+    await writeFixtureRun(dir, {
+      id: 'run',
       startedAt: 0,
-      events: [markEvent('e1', 10, 'a')],
+      sessions: [{ id: 's', startedAt: 0, events: [markEvent('e1', 10, 'a')] }],
     })
     const reader = await createSessionReader(dir)
     const iterator = reader.events.ls.watch()[Symbol.asyncIterator]()
@@ -138,10 +159,10 @@ describe('events.push + reactive watch', () => {
   })
 
   it('query.watch(filter) only yields filtered events and skips non-matching pushes', async () => {
-    await writeFixtureSession(dir, {
-      id: 's',
+    await writeFixtureRun(dir, {
+      id: 'run',
       startedAt: 0,
-      events: [markEvent('e1', 10, 'a')],
+      sessions: [{ id: 's', startedAt: 0, events: [markEvent('e1', 10, 'a')] }],
     })
     const reader = await createSessionReader(dir)
     const iterator = reader.events.query.watch({ type: 'mark' })[Symbol.asyncIterator]()
@@ -166,7 +187,7 @@ describe('events.push + reactive watch', () => {
   })
 
   it('return() stops the watch', async () => {
-    await writeFixtureSession(dir, { id: 's', startedAt: 0 })
+    await writeFixtureRun(dir, { id: 'run', startedAt: 0, sessions: [{ id: 's', startedAt: 0 }] })
     const reader = await createSessionReader(dir)
     const iterator = reader.events.ls.watch()[Symbol.asyncIterator]()
     await iterator.next()
@@ -177,17 +198,17 @@ describe('events.push + reactive watch', () => {
 
 describe('resolvePayload', () => {
   it('returns the inline value verbatim', async () => {
-    await writeFixtureSession(dir, { id: 's', startedAt: 0 })
+    await writeFixtureRun(dir, { id: 'run', startedAt: 0, sessions: [{ id: 's', startedAt: 0 }] })
     const reader = await createSessionReader(dir)
     const value = await reader.resolvePayload({ kind: 'inline', value: { hello: 'world' } })
     expect(value).toEqual({ hello: 'world' })
   })
 
   it('reads and parses a json asset by format', async () => {
-    await writeFixtureSession(dir, {
-      id: 's',
+    await writeFixtureRun(dir, {
+      id: 'run',
       startedAt: 0,
-      assets: [{ path: 'assets/hello.json', content: '{"hello":"world"}' }],
+      sessions: [{ id: 's', startedAt: 0, assets: [{ path: 'assets/hello.json', content: '{"hello":"world"}' }] }],
     })
     const reader = await createSessionReader(dir)
     const value = await reader.resolvePayload({
@@ -199,10 +220,10 @@ describe('resolvePayload', () => {
   })
 
   it('returns raw bytes for binary assets', async () => {
-    await writeFixtureSession(dir, {
-      id: 's',
+    await writeFixtureRun(dir, {
+      id: 'run',
       startedAt: 0,
-      assets: [{ path: 'assets/blob.bin', content: Buffer.from([1, 2, 3]) }],
+      sessions: [{ id: 's', startedAt: 0, assets: [{ path: 'assets/blob.bin', content: Buffer.from([1, 2, 3]) }] }],
     })
     const reader = await createSessionReader(dir)
     const value = await reader.resolvePayload({
@@ -214,4 +235,3 @@ describe('resolvePayload', () => {
     expect(Array.from(value as Buffer)).toEqual([1, 2, 3])
   })
 })
-

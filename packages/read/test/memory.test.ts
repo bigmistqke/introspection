@@ -79,12 +79,12 @@ describe('createSessionReader + createSessionWriter (memory)', () => {
     const writeAdapter = createMemoryWriteAdapter(store)
     const readAdapter = createMemoryReadAdapter(store)
 
-    const writer = await createSessionWriter({ adapter: writeAdapter, id: 'test-session' })
+    const writer = await createSessionWriter({ adapter: writeAdapter, id: 'run-1/test-session' })
     await writer.emit({ type: 'mark', metadata: { label: 'first', extra: { foo: 'bar' } } })
     await writer.emit({ type: 'playwright.result', metadata: {} })
     await writer.finalize()
 
-    const reader = await createSessionReader(readAdapter, { sessionId: 'test-session' })
+    const reader = await createSessionReader(readAdapter, { runId: 'run-1', sessionId: 'test-session' })
     const events = await reader.events.ls()
 
     expect(events).toHaveLength(2)
@@ -95,14 +95,14 @@ describe('createSessionReader + createSessionWriter (memory)', () => {
 
   it('appends events correctly (no duplication)', async () => {
     const store = new Map<string, string | Uint8Array>()
-    const writer = await createSessionWriter({ adapter: createMemoryWriteAdapter(store), id: 'test' })
+    const writer = await createSessionWriter({ adapter: createMemoryWriteAdapter(store), id: 'run-1/test' })
 
     await writer.emit({ type: 'browser.navigate', metadata: { from: '/', to: '/about' } })
     await writer.emit({ type: 'mark', metadata: { label: 'mid' } })
     await writer.emit({ type: 'playwright.result', metadata: {} })
     await writer.finalize()
 
-    const reader = await createSessionReader(createMemoryReadAdapter(store), { sessionId: 'test' })
+    const reader = await createSessionReader(createMemoryReadAdapter(store), { runId: 'run-1', sessionId: 'test' })
     const events = await reader.events.ls()
 
     expect(events).toHaveLength(3)

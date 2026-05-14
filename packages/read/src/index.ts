@@ -97,6 +97,7 @@ export async function listSessions(adapter: StorageAdapter, runId: string): Prom
 }
 
 export interface CreateSessionReaderOptions {
+  runId?: string
   sessionId?: string
   verbose?: boolean
 }
@@ -104,14 +105,19 @@ export interface CreateSessionReaderOptions {
 export async function createSessionReader(adapter: StorageAdapter, options?: CreateSessionReaderOptions): Promise<SessionReader> {
   const debug = createDebug('session-reader', options?.verbose ?? false)
 
-  const id = options?.sessionId ?? (await getLatestSessionId(adapter))
-  if (!id) throw new Error('No sessions found')
+  const runId = options?.runId ?? (await getLatestRunId(adapter))
+  if (!runId) throw new Error('No runs found')
 
-  const metaRaw = await adapter.readText(`${id}/meta.json`)
+  const id = options?.sessionId ?? (await getLatestSessionId(adapter, runId))
+  if (!id) throw new Error(`No sessions in run '${runId}'`)
+
+  const prefix = `${runId}/${id}`
+
+  const metaRaw = await adapter.readText(`${prefix}/meta.json`)
   const meta = JSON.parse(metaRaw) as SessionMeta
 
-  const initialEvents = await loadEvents(adapter, id)
-  debug('loaded', initialEvents.length, 'events from', id)
+  const initialEvents = await loadEvents(adapter, prefix)
+  debug('loaded', initialEvents.length, 'events from', prefix)
 
   // Mutable event store
   const events: TraceEvent[] = [...initialEvents]
@@ -211,7 +217,7 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
     },
     async resolvePayload(ref: PayloadRef): Promise<unknown> {
       if (ref.kind === 'inline') return ref.value
-      const fullPath = `${id}/${ref.path}`
+      const fullPath = `${prefix}/${ref.path}`
       switch (ref.format) {
         case 'json':
           return adapter.readJSON(fullPath)
@@ -231,15 +237,14 @@ export async function createSessionReader(adapter: StorageAdapter, options?: Cre
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
-async function getLatestSessionId(adapter: StorageAdapter): Promise<string | null> {
-  const sessionIds = await adapter.listDirectories()
-  if (sessionIds.length === 0) return null
+async function getLatestRunId(adapter: StorageAdapter): Promise<string | null> {
+  const runIds = await adapter.listDirectories()
+  if (runIds.length === 0) return null
 
   const metas = await Promise.all(
-    sessionIds.map(async id => {
+    runIds.map(async id => {
       try {
-        const raw = await adapter.readText(`${id}/meta.json`)
-        const meta = JSON.parse(raw) as { startedAt: number }
+        const meta = JSON.parse(await adapter.readText(`${id}/meta.json`)) as { startedAt: number }
         return { id, startedAt: meta.startedAt }
       } catch {
         return { id, startedAt: 0 }
@@ -250,8 +255,26 @@ async function getLatestSessionId(adapter: StorageAdapter): Promise<string | nul
   return metas[0].id
 }
 
-async function loadEvents(adapter: StorageAdapter, sessionId: string): Promise<TraceEvent[]> {
-  const eventsRaw = await adapter.readText(`${sessionId}/events.ndjson`)
+async function getLatestSessionId(adapter: StorageAdapter, runId: string): Promise<string | null> {
+  const sessionIds = await adapter.listDirectories(runId)
+  if (sessionIds.length === 0) return null
+
+  const metas = await Promise.all(
+    sessionIds.map(async id => {
+      try {
+        const meta = JSON.parse(await adapter.readText(`${runId}/${id}/meta.json`)) as { startedAt: number }
+        return { id, startedAt: meta.startedAt }
+      } catch {
+        return { id, startedAt: 0 }
+      }
+    })
+  )
+  metas.sort((a, b) => b.startedAt - a.startedAt)
+  return metas[0].id
+}
+
+async function loadEvents(adapter: StorageAdapter, sessionPrefix: string): Promise<TraceEvent[]> {
+  const eventsRaw = await adapter.readText(`${sessionPrefix}/events.ndjson`)
   return eventsRaw
     .split('\n')
     .filter(line => line.trim())
