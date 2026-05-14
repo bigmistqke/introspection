@@ -80,19 +80,59 @@ mounts `@introspection/serve` can be read by both a project's own viewer UI
 
 ## Sequencing
 
-This spec is **sequenced after** a separate "storage-agnostic `createHandler`"
-spec, and should not be planned or implemented until that one lands.
+This spec is the **last node in a four-spec chain** and must not be planned or
+implemented until the chain above it lands. A brainstorming + grill session on
+2026-05-14 decomposed the work:
 
-The dependency is design-stability, not runtime. `createHttpReadAdapter` would
-function against today's disk-bound `createHandler`, and the reference target
-has local disk — so nothing here is *functionally* blocked. But this spec
-lives inside `@introspection/serve` (the package the genericization
-restructures) and reconciles against the `StorageAdapter` interface (which the
-genericization grows: optional `stat` / `watch` / streaming capabilities, and
-`createHandler` becoming async). Building the client first means building on
-an interface and a package layout that are about to move — reconciling twice.
-Let the genericization settle `StorageAdapter`'s final shape and serve's
-structure; then this spec is a clean build on top.
+```
+Spec A — Run/session hierarchy contract + writer-side metadata
+  · Largely already decomposed in the Playwright vision doc
+    (2026-05-13-introspection-playwright-vision.md, sub-projects #3, #4, #6):
+    session meta.json gains `status`/`titlePath`/`runId`/etc.; tests.jsonl is
+    the run-level aggregation.
+  · GAP found by the grill: nothing carries run-level *identity* (branch,
+    commit, run timestamp, aggregate status) — `introspect runs` needs it,
+    but no such artifact exists or is planned. Logged in the vision doc's
+    Open questions as an input to the `withIntrospect` spec (#3).
+        │
+        ▼
+Spec B — StorageAdapter hierarchy + read
+  · StorageAdapter grows listRuns() / listSessions(runId), returning rich
+    objects (id + status + identity metadata), not bare names.
+  · node + memory adapters implement them; @introspection/read navigates the
+    two-level <run-id>/<session-id>/ hierarchy.
+        │
+        ▼
+Spec C — createHandler whole-tree + storage-agnostic
+  · createHandler({ adapter }) instead of { directory }; async; consumes a
+    StorageAdapter so it no longer assumes a locally-mounted disk.
+  · Two-level routing: GET / → runs (with metadata), GET /<run>/ → sessions,
+    GET /<run>/<session>/<file> → reads. Fixed depth, not an arbitrary tree.
+  · SSE / fs.watch live-tailing leaves @introspection/serve entirely and
+    moves into the solid-streaming demo, which mounts its own SSE path.
+  · A new demo exercises the adapter-driven createHandler.
+        │
+        ▼
+Spec D — THIS SPEC (remote trace access for the CLI)
+```
+
+**Why the chain, not just a runtime dependency.** "Seamless local *and*
+remote" makes the `introspect` CLI a generic consumer of a run/session
+hierarchy — and that hierarchy is the canonical layout *locally* too
+(`<run-id>/<session-id>/`), so it is not a remote-only concern. Specs B and C
+settle `StorageAdapter`'s final shape (the hierarchy methods) and serve's
+structure; this spec's `createHttpReadAdapter` and `introspect runs` build
+directly on both. Building the client first means building against an
+interface and a package layout that are still moving.
+
+**This spec's own scope expands when its turn comes.** As written below it
+covers `createHttpReadAdapter` + `--url` + `--ci`/`resolveRun`. Spec D will
+additionally need: an `introspect runs` command, `createHttpReadAdapter`
+implementing the hierarchy methods (`listRuns`/`listSessions`), and run/session
+selection across every command — with `--ci`/`resolveRun` reframed as a thin
+convenience over `listRuns()` (filter to current branch, take latest) rather
+than a standalone project hook. The sections below predate the decomposition
+and will be revised at planning time.
 
 ## Architecture
 
