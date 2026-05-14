@@ -1,0 +1,23 @@
+{
+  "name": "@introspection/reporters",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@introspection/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@introspection/write": "workspace:*",
+    "vitest": "^2.0.0"
+  }
+}

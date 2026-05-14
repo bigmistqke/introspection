@@ -1,14 +1,18 @@
 import { randomUUID } from 'crypto'
-import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, PayloadAsset } from '@introspection/types'
+import { dirname, isAbsolute, join } from 'path'
+import { mkdir, writeFile as fsWriteFile } from 'fs/promises'
+import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, PayloadAsset, IntrospectionReporter, ReporterContext } from '@introspection/types'
 import type { MemoryWriteAdapter } from './memory.js'
 import { initSessionDir, appendEvent, writeAsset, finalizeSession } from './session-writer.js'
 import { createBus } from '@introspection/utils'
+import { createReporterRunner } from './reporter-lifecycle.js'
 
 export interface CreateSessionWriterOptions {
   outDir?: string
   id?: string
   label?: string
   plugins?: PluginMeta[]
+  reporters?: IntrospectionReporter[]
   adapter?: MemoryWriteAdapter
 }
 
@@ -51,6 +55,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
   const outDir = options.outDir ?? '.introspect'
   const startedAt = Date.now()
   const adapter = options.adapter
+  const reporters = options.reporters ?? []
 
   const meta: SessionMeta = {
     version: '2',
@@ -76,6 +81,23 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
   const queue = createWriteQueue()
   const tracker = createTracker()
 
+  const sessionDir = join(outDir, id)
+  const reporterCtx: ReporterContext = {
+    sessionId: id,
+    outDir: sessionDir,
+    runDir: outDir,
+    meta,
+    writeFile: async (target, content) => {
+      const resolved = isAbsolute(target) ? target : join(outDir, target)
+      await mkdir(dirname(resolved), { recursive: true })
+      await fsWriteFile(resolved, content)
+    },
+    track: (operation) => tracker.track(operation),
+  }
+  const reporterRunner = createReporterRunner(reporters, reporterCtx, bus)
+  await reporterRunner.start()
+  await tracker.flush()
+
   function timestamp(): number {
     return Date.now() - startedAt
   }
@@ -92,6 +114,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
       }
     })
     void bus.emit(full.type, full as BusPayloadMap[typeof full.type])
+    reporterRunner.handleEvent(full)
     return writePromise
   }
 
@@ -126,6 +149,8 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
       await bus.emit('detach', { trigger: 'detach', timestamp: timestamp() })
       await tracker.flush()
       await queue.flush()
+      await reporterRunner.end()
+      await tracker.flush()
       if (adapter) {
         await adapter.writeText(`${id}/meta.json`, JSON.stringify({ ...meta, endedAt: Date.now() }, null, 2))
       } else {
