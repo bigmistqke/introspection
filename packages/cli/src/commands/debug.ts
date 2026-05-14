@@ -1,12 +1,12 @@
 import { chromium } from '@playwright/test'
-import { resolve as resolvePath, extname } from 'path'
-import { readFile, stat } from 'fs/promises'
+import { resolve as resolvePath, extname, join } from 'path'
+import { readFile, stat, mkdir, writeFile } from 'fs/promises'
 import { createReadStream } from 'fs'
 import { createServer } from 'http'
-import { attach } from '@introspection/playwright'
+import { attach, resolveRunId } from '@introspection/playwright'
 import { createDebug } from '@introspection/utils'
 import { loadIntrospectConfig, resolvePlugins } from '@introspection/config'
-import type { IntrospectionPlugin } from '@introspection/types'
+import type { IntrospectionPlugin, RunMeta } from '@introspection/types'
 
 export interface DebugOptions {
   url?: string
@@ -17,7 +17,7 @@ export interface DebugOptions {
   dir: string
 }
 
-export async function runDebug(opts: DebugOptions) {
+export async function runDebug(opts: DebugOptions): Promise<{ runId: string; sessionId: string }> {
   const debug = createDebug('introspect:debug', opts.verbose ?? false)
 
   debug('Starting debug session', { url: opts.url, serve: opts.serve, verbose: opts.verbose })
@@ -65,10 +65,17 @@ export async function runDebug(opts: DebugOptions) {
   const context = await browser.newContext()
   const page = await context.newPage()
 
+  const runId = resolveRunId(process.env)
+  const runDir = join(opts.dir, runId)
+  await mkdir(runDir, { recursive: true })
+  const startedAt = Date.now()
+  const runMeta: RunMeta = { version: '1', id: runId, startedAt }
+  await writeFile(join(runDir, 'meta.json'), JSON.stringify(runMeta, null, 2))
+
   try {
-    // Attach introspection
+    // Attach introspection — the session lands at <runDir>/<session-id>/
     const handle = await attach(page, {
-      outDir: opts.dir,
+      outDir: runDir,
       plugins,
       testTitle: `debug: ${navigationUrl}`,
     })
@@ -94,10 +101,16 @@ export async function runDebug(opts: DebugOptions) {
     await handle.flush()
     await handle.detach()
 
-    console.log(`\n✓ Session saved to: ${handle.session.id}`)
-    console.log(`  Query with: introspect events --session-id ${handle.session.id}`)
+    // Finalize the run meta
+    await writeFile(
+      join(runDir, 'meta.json'),
+      JSON.stringify({ ...runMeta, endedAt: Date.now() } satisfies RunMeta, null, 2),
+    )
 
-    return handle.session.id
+    console.log(`\n✓ Session saved to: ${runId}/${handle.session.id}`)
+    console.log(`  Query with: introspect events --run ${runId} --session-id ${handle.session.id}`)
+
+    return { runId, sessionId: handle.session.id }
   } finally {
     await browser.close()
     if (serverInfo?.server) {
