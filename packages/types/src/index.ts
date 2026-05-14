@@ -778,10 +778,19 @@ export type PluginSet =
   | ({ default: IntrospectionPlugin[] } & Record<string, IntrospectionPlugin[]>)
 
 /**
+ * A reporters field in introspect config: either a flat array (single always-active set)
+ * or an object of named presets where `default` is required.
+ */
+export type ReporterSet =
+  | IntrospectionReporter[]
+  | ({ default: IntrospectionReporter[] } & Record<string, IntrospectionReporter[]>)
+
+/**
  * Shape of `introspect.config.{ts,js,mjs,mts}` default export.
  */
 export interface IntrospectConfig {
   plugins?: PluginSet
+  reporters?: ReporterSet
 }
 
 // ─── Reporter system ─────────────────────────────────────────────────────────
