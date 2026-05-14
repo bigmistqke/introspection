@@ -111,6 +111,12 @@ Spec C — createHandler whole-tree + storage-agnostic
   · SSE / fs.watch live-tailing leaves @introspection/serve entirely and
     moves into the solid-streaming demo, which mounts its own SSE path.
   · A new demo exercises the adapter-driven createHandler.
+  · MUST also: fix demos/shared/fetch-adapter.ts's listDirectories to honour
+    `subPath`, and un-skip the four HTTP-served demo tests (vanilla-basic,
+    wc-graph, react-session-list, solid-streaming). They were `test.skip`-ed
+    when Spec B landed because the flat createHandler + flat fetch-adapter
+    cannot serve or navigate the <run-id>/<session-id>/ hierarchy. Each skipped
+    test carries a `// SKIPPED: blocked on Spec C` comment.
         │
         ▼
 Spec D — THIS SPEC (remote trace access for the CLI)
