@@ -71,4 +71,36 @@ describe('summaryReporter', () => {
     const lines = contents.trim().split('\n').map(line => JSON.parse(line))
     expect(lines).toEqual([{ path: 's > t', ok: true }])
   })
+
+  // POSIX O_APPEND guarantees atomic appends below PIPE_BUF (~4KB); summary
+  // lines are well under that. This test is POSIX-only in spirit — on Windows
+  // the atomicity guarantee differs. The repo currently targets POSIX dev/CI.
+  it('produces non-interleaved lines when two writers append concurrently', async () => {
+    async function runWriter(id: string, label: string, count: number) {
+      const writer = await createSessionWriter({
+        outDir,
+        id,
+        reporters: [summaryReporter({ outFile: 'tests.jsonl' })],
+      })
+      for (let index = 0; index < count; index++) {
+        await writer.emit({ type: 'test.start', metadata: { label: `${label}-${index}`, titlePath: [label, String(index)] } })
+        await writer.emit({ type: 'test.end', metadata: { label: `${label}-${index}`, titlePath: [label, String(index)], status: 'passed', duration: 1 } })
+      }
+      await writer.finalize()
+    }
+
+    await Promise.all([
+      runWriter('a', 'alpha', 50),
+      runWriter('b', 'beta', 50),
+    ])
+
+    const contents = await readFile(join(outDir, 'tests.jsonl'), 'utf-8')
+    const lines = contents.trim().split('\n')
+    expect(lines).toHaveLength(100)
+    const parsed = lines.map(line => JSON.parse(line))
+    const alpha = parsed.filter(p => p.titlePath[0] === 'alpha')
+    const beta = parsed.filter(p => p.titlePath[0] === 'beta')
+    expect(alpha).toHaveLength(50)
+    expect(beta).toHaveLength(50)
+  })
 })
