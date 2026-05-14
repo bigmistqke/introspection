@@ -1,5 +1,5 @@
 import { Suspense, use } from 'react'
-import { listSessions } from '@introspection/read'
+import { listRuns, listSessions } from '@introspection/read'
 import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
 import { SessionCard } from './SessionCard.jsx'
 
@@ -8,7 +8,11 @@ const baseUrl = typeof window !== 'undefined'
   : 'http://localhost:5175/__introspect'
 
 const adapter = createFetchAdapter(baseUrl)
-const sessionsPromise = listSessions(adapter)
+// Demo: show the latest run's sessions. createSessionReader({ sessionId })
+// downstream resolves within that same latest run.
+const sessionsPromise = listRuns(adapter).then(runs =>
+  runs.length > 0 ? listSessions(adapter, runs[0].id) : [],
+)
 
 export default function App() {
   const sessions = use(sessionsPromise)

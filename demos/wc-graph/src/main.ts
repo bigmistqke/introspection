@@ -1,5 +1,5 @@
 import type { TraceEvent } from '@introspection/types'
-import { createSessionReader, listSessions } from '@introspection/read'
+import { createSessionReader, listRuns, listSessions } from '@introspection/read'
 import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
 import './widgets/event-graph.js'
 
@@ -13,7 +13,9 @@ async function loadSession(sessionId: string) {
   graphElement.load(events)
 }
 
-const sessions = await listSessions(adapter)
+// Demo: show the latest run's sessions.
+const runs = await listRuns(adapter)
+const sessions = runs.length > 0 ? await listSessions(adapter, runs[0].id) : []
 if (sessions.length === 0) {
   selectElement.innerHTML = '<option value="">No sessions</option>'
 } else {

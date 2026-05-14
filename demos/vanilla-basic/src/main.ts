@@ -1,4 +1,4 @@
-import { createSessionReader, listSessions } from '@introspection/read'
+import { createSessionReader, listRuns, listSessions } from '@introspection/read'
 import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
 import type { TraceEvent } from '@introspection/types'
 
@@ -80,7 +80,9 @@ async function loadSession(sessionId: string) {
   detailElement.innerHTML = '<span class="empty">Select an event</span>'
 }
 
-const sessions = await listSessions(adapter)
+// Demo: show the latest run's sessions.
+const runs = await listRuns(adapter)
+const sessions = runs.length > 0 ? await listSessions(adapter, runs[0].id) : []
 if (sessions.length === 0) {
   timelineElement.innerHTML = '<span class="error">No sessions found in .introspect/</span>'
   selectElement.innerHTML = '<option value="">No sessions</option>'

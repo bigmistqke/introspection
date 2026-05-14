@@ -1,4 +1,4 @@
-import { createSessionReader, listSessions } from '@introspection/read/node'
+import { createSessionReader, listRuns, listSessions } from '@introspection/read/node'
 import type { TraceEvent } from '@introspection/types'
 import { writeFileSync } from 'fs'
 import { resolve } from 'path'
@@ -67,19 +67,21 @@ ${rows}
 
 async function generate() {
   const resolvedDirectory = resolve(directory)
-  const sessions = await listSessions(resolvedDirectory)
+  const runs = await listRuns(resolvedDirectory)
 
-  if (sessions.length === 0) {
-    console.error(`No sessions found in ${resolvedDirectory}`)
+  if (runs.length === 0) {
+    console.error(`No runs found in ${resolvedDirectory}`)
     process.exit(1)
   }
 
   const sections: string[] = []
 
-  for (const summary of sessions) {
-    const session = await createSessionReader(resolvedDirectory, { sessionId: summary.id })
-    const events = await session.events.ls()
-    sections.push(renderSession(summary.id, events))
+  for (const run of runs) {
+    for (const summary of await listSessions(resolvedDirectory, run.id)) {
+      const session = await createSessionReader(resolvedDirectory, { runId: run.id, sessionId: summary.id })
+      const events = await session.events.ls()
+      sections.push(renderSession(`${run.id}/${summary.id}`, events))
+    }
   }
 
   const html = `<!DOCTYPE html>
@@ -101,13 +103,13 @@ async function generate() {
   </style>
 </head>
 <body>
-  <h1>Introspection Report — ${sessions.length} session${sessions.length === 1 ? '' : 's'}</h1>
+  <h1>Introspection Report — ${sections.length} session${sections.length === 1 ? '' : 's'}</h1>
 ${sections.join('\n')}
 </body>
 </html>`
 
   writeFileSync(outputPath, html)
-  console.log(`Report written to ${outputPath} (${sessions.length} sessions)`)
+  console.log(`Report written to ${outputPath} (${sections.length} sessions)`)
 }
 
 generate()
