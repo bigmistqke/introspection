@@ -6,10 +6,12 @@ import { formatEvents } from './commands/events.js'
 import { formatPlugins } from './commands/plugins.js'
 import { runDebug } from './commands/debug.js'
 import { runPayloadCommand } from './commands/payload.js'
+import { formatRunsTable } from './commands/runs.js'
+import { formatSessionsTable } from './commands/list.js'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
-import { createSessionReader, listSessions } from '@introspection/read/node'
+import { createSessionReader, listRuns, listSessions } from '@introspection/read/node'
 import { serve } from '@introspection/serve/node'
 
 const BUNDLED_SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url))
@@ -18,9 +20,9 @@ const program = new Command()
 program.name('introspect').description('Query Playwright test introspection traces').version('0.1.0')
   .option('--dir <path>', 'Trace output directory', resolve('.introspect'))
 
-async function loadSession(opts: { sessionId?: string; verbose?: boolean }) {
+async function loadSession(opts: { run?: string; sessionId?: string; verbose?: boolean }) {
   const dir = program.opts().dir as string
-  return createSessionReader(dir, opts)
+  return createSessionReader(dir, { runId: opts.run, sessionId: opts.sessionId, verbose: opts.verbose })
 }
 
 program
@@ -36,6 +38,7 @@ program
   })
 
 program.command('summary')
+  .option('--run <id>')
   .option('--session-id <id>')
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (opts) => {
@@ -51,6 +54,7 @@ program.command('summary')
   })
 
 program.command('network')
+  .option('--run <id>')
   .option('--session-id <id>')
   .option('--failed')
   .option('--url <pattern>')
@@ -62,22 +66,34 @@ program.command('network')
   })
 
 
-program.command('list')
-  .description('List available sessions')
-  .option('--verbose', 'Enable verbose debug logging')
-  .action(async (opts) => {
+program.command('runs')
+  .description('List recorded runs')
+  .action(async () => {
     const dir = program.opts().dir as string
-    const sessions = await listSessions(dir)
-    if (sessions.length === 0) { console.error(`No sessions found in ${dir}`); process.exit(1) }
-    for (const session of sessions) {
-      const label = session.label ?? session.id
-      const duration = session.duration != null ? `${session.duration}ms` : 'ongoing'
-      console.log(`${session.id.padEnd(40)}  ${duration.padEnd(10)}  ${label}`)
+    const runs = await listRuns(dir)
+    if (runs.length === 0) { console.error(`No runs found in ${dir}`); process.exit(1) }
+    console.log(formatRunsTable(runs))
+  })
+
+program.command('list')
+  .description('List sessions in a run')
+  .option('--run <id>', 'Run id (default: latest run)')
+  .action(async (opts: { run?: string }) => {
+    const dir = program.opts().dir as string
+    const runs = await listRuns(dir)
+    if (runs.length === 0) { console.error(`No runs found in ${dir}`); process.exit(1) }
+    if (opts.run && !runs.some(r => r.id === opts.run)) {
+      console.error(`Run '${opts.run}' not found in ${dir}`); process.exit(1)
     }
+    const runId = opts.run ?? runs[0].id
+    const sessions = await listSessions(dir, runId)
+    if (sessions.length === 0) { console.error(`No sessions in run '${runId}'`); process.exit(1) }
+    console.log(formatSessionsTable(sessions))
   })
 
 program.command('plugins')
   .description('Show plugin metadata for a session')
+  .option('--run <id>')
   .option('--session-id <id>')
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (opts) => {
@@ -144,6 +160,7 @@ skillsCmd
 program
   .command('events')
   .description('Filter and transform trace events')
+  .option('--run <id>')
   .option('--session-id <id>')
   .option('--filter <expr>', 'Boolean predicate per event (event), e.g. \'event.metadata.status >= 400\'')
   .option('--format <fmt>', 'Output format: text (default) or json')
@@ -180,6 +197,7 @@ program.command('payload')
   .description('Print one named payload of one event to stdout')
   .argument('<event-id>')
   .argument('<name>')
+  .option('--run <id>')
   .option('--session-id <id>')
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (eventId: string, name: string, opts) => {
