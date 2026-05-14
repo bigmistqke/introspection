@@ -1,4 +1,4 @@
-import type { TraceEvent, SessionReader, SessionMeta, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter, PayloadRef } from '@introspection/types'
+import type { TraceEvent, SessionReader, SessionMeta, RunMeta, SessionStatus, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter, PayloadRef } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 
 export type { SessionReader, EventsFilter, EventsAPI, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
@@ -19,11 +19,23 @@ export function matchEventType(pattern: string, eventType: string): boolean {
   return eventType === pattern
 }
 
-// ─── Session summary ─────────────────────────────────────────────────────────
+// ─── Run & session summaries ─────────────────────────────────────────────────
+
+export interface RunSummary {
+  id: string
+  startedAt: number
+  endedAt?: number
+  status?: RunMeta['status']
+  branch?: string
+  commit?: string
+  sessionCount: number
+}
 
 export interface SessionSummary {
   id: string
   label?: string
+  project?: string
+  status?: SessionStatus
   startedAt: number
   endedAt?: number
   duration?: number
@@ -31,16 +43,50 @@ export interface SessionSummary {
 
 // ─── Query functions ─────────────────────────────────────────────────────────
 
-export async function listSessions(adapter: StorageAdapter): Promise<SessionSummary[]> {
-  const sessionIds = await adapter.listDirectories()
+export async function listRuns(adapter: StorageAdapter): Promise<RunSummary[]> {
+  const runIds = await adapter.listDirectories()
+  if (runIds.length === 0) return []
+
+  const results = await Promise.all(
+    runIds.map(async (id): Promise<RunSummary | null> => {
+      try {
+        const meta = JSON.parse(await adapter.readText(`${id}/meta.json`)) as RunMeta
+        const sessions = await adapter.listDirectories(id)
+        return {
+          id: meta.id,
+          startedAt: meta.startedAt,
+          endedAt: meta.endedAt,
+          status: meta.status,
+          branch: meta.branch,
+          commit: meta.commit,
+          sessionCount: sessions.length,
+        }
+      } catch {
+        return null // skip malformed runs
+      }
+    })
+  )
+
+  return results.filter((r): r is RunSummary => r !== null).sort((a, b) => b.startedAt - a.startedAt)
+}
+
+export async function listSessions(adapter: StorageAdapter, runId: string): Promise<SessionSummary[]> {
+  const sessionIds = await adapter.listDirectories(runId)
   if (sessionIds.length === 0) return []
 
   const results = await Promise.all(
     sessionIds.map(async (id): Promise<SessionSummary | null> => {
       try {
-        const raw = await adapter.readText(`${id}/meta.json`)
-        const meta = JSON.parse(raw) as { id: string; startedAt: number; endedAt?: number; label?: string }
-        return { id: meta.id, label: meta.label, startedAt: meta.startedAt, endedAt: meta.endedAt, duration: meta.endedAt ? meta.endedAt - meta.startedAt : undefined }
+        const meta = JSON.parse(await adapter.readText(`${runId}/${id}/meta.json`)) as SessionMeta
+        return {
+          id: meta.id,
+          label: meta.label,
+          project: meta.project,
+          status: meta.status,
+          startedAt: meta.startedAt,
+          endedAt: meta.endedAt,
+          duration: meta.endedAt ? meta.endedAt - meta.startedAt : undefined,
+        }
       } catch {
         return null // skip malformed sessions
       }
