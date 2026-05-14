@@ -9,7 +9,7 @@ Attaches CDP-based tracing to a Playwright `Page`. Captures network requests, JS
 - [attach(page, opts)](#attachpage-opts)
 - [IntrospectHandle](#introspecthandle)
 - [What gets captured automatically](#what-gets-captured-automatically)
-- [Fixture](#fixture)
+- [withIntrospect (Playwright integration)](#withintrospect-playwright-integration)
 - [Exports](#exports)
 
 ## Install
@@ -113,46 +113,75 @@ On uncaught JS errors the debugger pauses to collect scope locals from the call 
 
 ---
 
-## Fixture
+## withIntrospect (Playwright integration)
 
-For automatic attach/detach with test result propagation:
+Adoption is two touch points. Wrap the config:
 
 ```ts
-// fixtures.ts
-import { introspectFixture } from '@introspection/playwright/fixture'
+// playwright.config.ts
+import { defineConfig } from '@playwright/test'
+import { withIntrospect } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
-export const { test, expect } = introspectFixture({ outDir: '.introspect', plugins: defaults() })
+
+export default withIntrospect(
+  defineConfig({ testDir: './test' }),
+  { plugins: defaults() },
+)
 ```
+
+…and import `test` / `expect` from the package in test files:
 
 ```ts
 // my.spec.ts
-import { test, expect } from './fixtures'
+import { test, expect } from '@introspection/playwright'
 
-test('example', async ({ page, introspect }) => {
+test('example', async ({ page }) => {
   await page.goto('/')
-  await introspect.emit({ type: 'mark', metadata: { label: 'loaded' } })
-  // detach() is called automatically with { status, duration, error } from testInfo
+  // every test is captured automatically — no per-test opt-in
 })
 ```
 
-`introspectFixture(opts)` options:
+`withIntrospect(playwrightConfig, options)` stashes the config in a module
+singleton (re-read in each worker, since Playwright re-evaluates the config
+file per worker) and composes introspection's `globalSetup` / `globalTeardown`
+into the config via Playwright's array form, preserving the project's own.
+
+`options`:
 
 | Option | Type | Description |
 |---|---|---|
 | `plugins` | `IntrospectionPlugin[]` | **required** — plugins to install, e.g. `defaults()` |
-| `outDir` | `string` | Session output directory |
-| `viteUrl` | `string` | Vite dev server URL (optional) |
+| `reporters` | `IntrospectionReporter[]` | reporters wired into each per-test session writer (optional) |
+| `mode` | `'on' \| 'retain-on-failure' \| 'on-first-retry'` | retention knob, default `'on'` (optional) |
 
-The `introspect` fixture value is the full `IntrospectHandle`. The fixture is auto-used (`{ auto: true }`), so it activates for every test even without destructuring it.
+Each test produces a session directory at
+`.introspect/<run-id>/<project>__<test-id>/` containing `events.ndjson`,
+`meta.json` (with `status` and `project`), and `assets/`. The run directory
+also carries a `meta.json` (`RunMeta`: id, branch, commit, startedAt, endedAt,
+aggregate status). The built-in auto-fixture emits `test.start` / `test.end`
+and captures `test.step` boundaries as `step.start` / `step.end` events.
 
-On test failure or timeout, the fixture automatically calls `handle.snapshot()` before `detach()`, so DOM state and scope locals are always captured when a test fails.
+Environment variables:
+
+| Variable | Effect |
+|---|---|
+| `INTROSPECT_RUN_ID` | Run directory name (CI sets e.g. `<branch>_<pipeline>`); otherwise auto-generated |
+| `INTROSPECT_DIR` | Base directory for runs (default `.introspect`) |
+| `INTROSPECT_RUN_BRANCH` / `INTROSPECT_RUN_COMMIT` | Override the git-detected branch / commit in `RunMeta` |
+| `INTROSPECT_TRACING=0` | Fully disables introspection for the run |
+
+The lower-level `attach()` / `session()` primitives remain available for
+ad-hoc capture outside the Playwright test runner.
 
 ---
 
 ## Exports
 
 ```ts
-import { attach } from '@introspection/playwright'
-import type { AttachOptions, BusPayloadMap, BusTrigger } from '@introspection/playwright'
-import { introspectFixture } from '@introspection/playwright/fixture'
+import { attach, session, withIntrospect, test, expect } from '@introspection/playwright'
+import type {
+  AttachOptions, SessionOptions, SessionContext,
+  WithIntrospectOptions, IntrospectMode,
+  BusPayloadMap, BusTrigger,
+} from '@introspection/playwright'
 ```
