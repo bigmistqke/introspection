@@ -1,5 +1,7 @@
 export { attach } from './attach.js'
 export type { AttachOptions } from './attach.js'
+export { attachRun } from './attach-run.js'
+export type { AttachRunOptions } from './attach-run.js'
 export { session } from './session.js'
 export type { SessionOptions, SessionContext } from './session.js'
 export { withIntrospect } from './with-introspect.js'

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { attach } from '@introspection/playwright'
+import { attachRun } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
 
 test('renders trace session in timeline viewer', async ({ page }) => {
@@ -9,10 +9,9 @@ test('renders trace session in timeline viewer', async ({ page }) => {
     body: '<html><head><title>Test Fixture</title></head><body><button id="test-btn">Click me</button></body></html>',
   }))
 
-  // Attach introspection and generate events
-  const handle = await attach(page, {
+  // Capture into a run directory (.introspect/<run-id>/<session-id>/)
+  const handle = await attachRun(page, {
     plugins: [...defaults()],
-    outDir: '.introspect',
   })
 
   await handle.page.goto('/fixture')

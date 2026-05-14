@@ -1,14 +1,14 @@
 import { test, expect } from '@playwright/test'
-import { attach } from '@introspection/playwright'
+import { attachRun } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
 import { reactScanPlugin } from '@introspection/plugin-react-scan'
 import { createSessionReader } from '@introspection/read/node'
 import { join } from 'node:path'
 
 test('captures react renders from the demo', async ({ page }) => {
-  const handle = await attach(page, {
+  // Capture into a run directory (.introspect/<run-id>/<session-id>/)
+  const handle = await attachRun(page, {
     plugins: [...defaults(), reactScanPlugin({ verbose: true })],
-    outDir: '.introspect',
     testTitle: 'react-plugin-capture',
   })
 
@@ -18,6 +18,7 @@ test('captures react renders from the demo', async ({ page }) => {
   await handle.detach({ status: 'passed' })
 
   const reader = await createSessionReader(join(process.cwd(), '.introspect'), {
+    runId: handle.runId,
     sessionId: handle.session.id,
   })
   const events = await reader.events.ls()

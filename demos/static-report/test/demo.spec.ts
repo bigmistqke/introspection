@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 import { chromium } from '@playwright/test'
-import { attach } from '@introspection/playwright'
+import { attachRun } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
 import { execa } from 'execa'
 import { readFileSync } from 'fs'
@@ -17,9 +17,8 @@ test('generates HTML report from trace', async () => {
     body: '<html><head><title>Test</title></head><body><h1>Test Page</h1></body></html>',
   }))
 
-  const handle = await attach(page, {
+  const handle = await attachRun(page, {
     plugins: [...defaults()],
-    outDir: '.introspect',
   })
 
   await handle.page.goto('http://localhost/fixture')

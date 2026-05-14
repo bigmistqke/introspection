@@ -1,4 +1,4 @@
-import { attach } from "@introspection/playwright";
+import { attachRun } from "@introspection/playwright";
 import { defaults } from "@introspection/plugin-defaults";
 import { solidDevtools } from "@introspection/plugin-solid-devtools";
 import { expect, test } from "@playwright/test";
@@ -6,10 +6,9 @@ import { expect, test } from "@playwright/test";
 test("streaming demo auto-connects and streams events", async ({ page }) => {
   const startTime = Date.now();
 
-  const handle = await attach(page, {
+  const handle = await attachRun(page, {
     testTitle: "streaming demo",
     plugins: [...defaults(), solidDevtools()],
-    outDir: ".introspect",
   });
 
   await handle.page.goto("/");
