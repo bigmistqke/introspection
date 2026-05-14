@@ -184,19 +184,26 @@ On run end:
   5. Emit `test.end` (status from `testInfo`); write the per-test `meta.json`
      including `status`, `duration`, `error`, `titlePath`.
   6. Finalize the writer (await reporter `track()` callbacks).
-- **Per-test directory name (`<test-id>`)**: a readable slug from
-  `testInfo.project.name` + `testInfo.titlePath`, with a `-<retry>` suffix when
-  `testInfo.retry > 0` (retries are distinct captures — see `on-first-retry`).
-  Readable beats `testInfo.testId`'s opaque hash for `ls` and CLI output;
-  `project.name` + `titlePath` is collision-free per test.
+- **Per-test directory name (`<test-id>`)**: `<project>__<slug>`, where
+  `<project>` is the normalized `testInfo.project.name` — falling back to
+  `default` when a config defines no `projects` array and the name is empty —
+  and `<slug>` is a readable slug of `testInfo.titlePath`. A `-<retry>` suffix
+  is appended when `testInfo.retry > 0` (retries are distinct captures — see
+  `on-first-retry`). The Playwright project is encoded as a *filename prefix*,
+  not a structural directory level: `ls .introspect/<run-id>/` still groups
+  sessions by project (they sort together), but the tree stays two-level so
+  nothing downstream — `StorageAdapter`, `createHandler`, the CLI — gains a
+  level. Readable beats `testInfo.testId`'s opaque hash for `ls` and CLI
+  output; `project` + `titlePath` is collision-free per test.
 
 ## `@introspection/types` changes
 
 - `SessionMeta` gains `status: 'passed' | 'failed' | 'timedOut' | 'interrupted'
-  | 'skipped' | 'crashed'`. Per-test pass/fail currently lives only in the
-  `test.end` event; denormalizing it into `meta.json` is what lets
-  `globalTeardown` (and later `listSessions`) read status without scanning
-  NDJSON.
+  | 'skipped' | 'crashed'` and `project: string` (the Playwright project name,
+  `default` when unnamed). Per-test pass/fail currently lives only in the
+  `test.end` event; denormalizing status — and `project` — into `meta.json` is
+  what lets `globalTeardown` (and later `listSessions`, the viewer, the CLI)
+  read and group by them without scanning NDJSON or parsing directory names.
 - New `RunMeta`: `{ version, id, startedAt, endedAt?, status?, branch?,
   commit? }`. `status` / `endedAt` are absent until `globalTeardown` runs (a run
   with no teardown — crashed runner — is legitimately left without them).
