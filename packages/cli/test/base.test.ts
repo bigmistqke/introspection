@@ -34,6 +34,14 @@ describe('parseBase', () => {
   it('treats a plain word without :// as a relative path', () => {
     expect(parseBase('foo')).toEqual({ kind: 'path', path: resolve('foo') })
   })
+
+  it('treats an empty string as a path (resolves to cwd)', () => {
+    expect(parseBase('')).toEqual({ kind: 'path', path: resolve('') })
+  })
+
+  it('throws on a bare :// (empty scheme)', () => {
+    expect(() => parseBase('://')).toThrow(/Unsupported URL scheme.*--base/)
+  })
 })
 
 describe('createAdapterFromBase', () => {
