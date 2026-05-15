@@ -21,20 +21,16 @@ const program = new Command()
 program.name('introspect').description('Query Playwright test introspection traces').version('0.1.0')
   .option('--base <pathOrUrl>', 'Trace source: a filesystem path or http(s):// URL (default: ./.introspect)')
 
-let cachedBase: string | undefined
-let baseResolved = false
+let cachedBasePromise: Promise<string | undefined> | undefined
 async function resolveBaseValue(): Promise<string | undefined> {
   const flag = program.opts().base as string | undefined
   if (flag) return flag
-  if (baseResolved) return cachedBase
-  try {
-    const config = await loadIntrospectConfig({ cwd: process.cwd() })
-    cachedBase = config?.base
-  } catch {
-    cachedBase = undefined
+  if (!cachedBasePromise) {
+    cachedBasePromise = loadIntrospectConfig({ cwd: process.cwd() })
+      .then(config => config?.base)
+      .catch(() => undefined)
   }
-  baseResolved = true
-  return cachedBase
+  return cachedBasePromise
 }
 
 async function describeBase(): Promise<string> {
