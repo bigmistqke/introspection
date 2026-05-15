@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createHandler } from '../index.js'
 import type { StorageAdapter } from '@introspection/types'
-import { TraversalError } from '@introspection/read'
+import { TraversalError } from '@introspection/read/node'
 
 function stubAdapter(overrides: Partial<StorageAdapter> = {}): StorageAdapter {
   return {

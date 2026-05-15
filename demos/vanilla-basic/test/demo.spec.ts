@@ -2,13 +2,7 @@ import { test, expect } from '@playwright/test'
 import { attachRun } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
 
-// SKIPPED: blocked on Spec C. This demo reads traces over HTTP via
-// createFetchAdapter → introspectionServe (createHandler). createHandler only
-// routes one level (GET /:session/...) and fetch-adapter's listDirectories
-// ignores subPath, so the <run-id>/<session-id>/ hierarchy can't be served or
-// navigated yet. Un-skip when Spec C (whole-tree createHandler + fetch-adapter
-// subPath) lands. See docs/superpowers/specs/2026-05-14-remote-trace-cli-design.md.
-test.skip('renders trace session in timeline viewer', async ({ page }) => {
+test('renders trace session in timeline viewer', async ({ page }) => {
   // Set up a simple fixture page
   await page.route('/fixture', route => route.fulfill({
     contentType: 'text/html',

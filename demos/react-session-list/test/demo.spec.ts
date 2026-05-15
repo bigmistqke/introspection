@@ -5,12 +5,7 @@ import { reactScanPlugin } from '@introspection/plugin-react-scan'
 import { createSessionReader } from '@introspection/read/node'
 import { join } from 'node:path'
 
-// SKIPPED: blocked on Spec C. This demo reads traces over HTTP via
-// createFetchAdapter → introspectionServe (createHandler), which can't serve
-// or navigate the <run-id>/<session-id>/ hierarchy yet. Un-skip when Spec C
-// (whole-tree createHandler + fetch-adapter subPath) lands.
-// See docs/superpowers/specs/2026-05-14-remote-trace-cli-design.md.
-test.skip('captures react renders from the demo', async ({ page }) => {
+test('captures react renders from the demo', async ({ page }) => {
   // Capture into a run directory (.introspect/<run-id>/<session-id>/)
   const handle = await attachRun(page, {
     plugins: [...defaults(), reactScanPlugin({ verbose: true })],
@@ -18,7 +13,11 @@ test.skip('captures react renders from the demo', async ({ page }) => {
   })
 
   await handle.page.goto('/')
-  await expect(page.locator('body')).toContainText(/Sessions|No sessions/, { timeout: 10000 })
+  // Tighten: verify the captured session is rendered in the session list.
+  // The app renders summary.label ?? summary.id; testTitle sets the label to
+  // 'react-plugin-capture', so that's what appears in the DOM (not the UUID).
+  const testTitle = 'react-plugin-capture'
+  await expect(page.locator('body')).toContainText(testTitle, { timeout: 10000 })
 
   await handle.detach({ status: 'passed' })
 

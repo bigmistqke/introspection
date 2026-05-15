@@ -3,7 +3,6 @@ import { createDebug } from '@introspection/utils'
 
 export type { SessionReader, EventsFilter, EventsAPI, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
 export { createMemoryReadAdapter } from './memory.js'
-export { TraversalError } from './node.js'
 
 // ─── Type matching ───────────────────────────────────────────────────────────
 
