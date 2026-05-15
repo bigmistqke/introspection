@@ -20,13 +20,21 @@ const program = new Command()
 program.name('introspect').description('Query Playwright test introspection traces').version('0.1.0')
   .option('--base <pathOrUrl>', 'Trace source: a filesystem path or http(s):// URL (default: ./.introspect)')
 
+function resolveBaseValue(): string | undefined {
+  return program.opts().base as string | undefined
+}
+
+function describeBase(): string {
+  return resolveBaseValue() ?? './.introspect'
+}
+
 function getAdapter() {
-  return createAdapterFromBase(program.opts().base as string | undefined)
+  return createAdapterFromBase(resolveBaseValue())
 }
 
 /** For commands that write to disk (debug) or serve a directory. URL form errors. */
 function getBasePath(): string {
-  const parsed = parseBase(program.opts().base as string | undefined)
+  const parsed = parseBase(resolveBaseValue())
   if (parsed.kind === 'url') {
     throw new Error('This command requires a local --base path; URL form is read-only')
   }
@@ -87,7 +95,7 @@ program.command('runs')
   .action(async () => {
     const adapter = getAdapter()
     const runs = await listRuns(adapter)
-    if (runs.length === 0) { console.error('No runs found'); process.exit(1) }
+    if (runs.length === 0) { console.error(`No runs found at '${describeBase()}'`); process.exit(1) }
     console.log(formatRunsTable(runs))
   })
 
@@ -97,13 +105,13 @@ program.command('list')
   .action(async (opts: { run?: string }) => {
     const adapter = getAdapter()
     const runs = await listRuns(adapter)
-    if (runs.length === 0) { console.error('No runs found'); process.exit(1) }
+    if (runs.length === 0) { console.error(`No runs found at '${describeBase()}'`); process.exit(1) }
     if (opts.run && !runs.some(r => r.id === opts.run)) {
-      console.error(`Run '${opts.run}' not found`); process.exit(1)
+      console.error(`Run '${opts.run}' not found at '${describeBase()}'`); process.exit(1)
     }
     const runId = opts.run ?? runs[0].id
     const traces = await listTraces(adapter, runId)
-    if (traces.length === 0) { console.error(`No traces in run '${runId}'`); process.exit(1) }
+    if (traces.length === 0) { console.error(`No traces in run '${runId}' at '${describeBase()}'`); process.exit(1) }
     console.log(formatTracesTable(traces))
   })
 
