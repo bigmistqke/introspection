@@ -1,175 +1,71 @@
-import { existsSync, readdirSync, readFileSync, statSync, createReadStream, watch as fsWatch, openSync, readSync, closeSync } from 'fs'
-import { resolve, join } from 'path'
-import type { ServeOptions, SessionMeta } from './types.js'
-import { errorResponse, ERROR_SESSION_NOT_FOUND, ERROR_ASSET_NOT_FOUND } from './errors.js'
+import type { ServeOptions } from './types.js'
+import { errorResponse } from './errors.js'
 
 const CONTENT_TYPES: Record<string, string> = {
   json: 'application/json',
   ndjson: 'application/x-ndjson',
   png: 'image/png',
   jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
   html: 'text/html',
   txt: 'text/plain',
 }
 
-export function createHandler(options: ServeOptions) {
-  const { directory, prefix = '/_introspect' } = options
-  const resolvedDirectory = resolve(directory)
+function contentTypeFor(path: string): string {
+  const dot = path.lastIndexOf('.')
+  if (dot < 0) return 'application/octet-stream'
+  const ext = path.slice(dot + 1).toLowerCase()
+  return CONTENT_TYPES[ext] ?? 'application/octet-stream'
+}
 
-  return (request: { url: string; headers?: Record<string, string> }): Response | null => {
+export function createHandler(options: ServeOptions) {
+  const { adapter, prefix = '/_introspect' } = options
+
+  return async (request: { url: string }): Promise<Response | null> => {
     const url = request.url
     if (!url.startsWith(prefix)) return null
 
-    const cleanUrl = url.slice(prefix.length)
-    const parsed = new URL(`http://localhost${cleanUrl}`)
-    const path = parsed.pathname
-    const isSSE = parsed.searchParams.has('sse')
-
-    if (path === '' || path === '/') {
-      if (!existsSync(resolvedDirectory)) {
-        return new Response('[]', { headers: { 'Content-Type': 'application/json' } })
-      }
-      const entries = readdirSync(resolvedDirectory, { withFileTypes: true })
-      const sessions = entries.filter(entry => entry.isDirectory()).map(entry => entry.name)
-      return new Response(JSON.stringify(sessions), {
-        headers: { 'Content-Type': 'application/json' },
-      })
+    const tail = url.slice(prefix.length).replace(/^\/+/, '')
+    // tail is now "dirs/<sub>", "dirs", "dirs/", "file/<path>", or something else
+    let verb: 'dirs' | 'file' | null = null
+    let rest = ''
+    if (tail === 'dirs' || tail === 'dirs/' || tail.startsWith('dirs/')) {
+      verb = 'dirs'
+      rest = tail === 'dirs' || tail === 'dirs/' ? '' : tail.slice('dirs/'.length)
+    } else if (tail.startsWith('file/')) {
+      verb = 'file'
+      rest = tail.slice('file/'.length)
+    } else {
+      return errorResponse(404, { error: 'Not found' })
     }
 
-    const pathWithoutLeadingSlash = path.startsWith('/') ? path.slice(1) : path
-    const segments = pathWithoutLeadingSlash.split('/').filter(Boolean)
-    const sessionId = segments[0]
-    const remainder = segments.slice(1).join('/')
-
-    if (!sessionId) {
-      return errorResponse(400, { error: 'Missing session ID' })
-    }
-
-    const sessionDir = join(resolvedDirectory, sessionId)
-    const resolvedSessionDir = resolve(sessionDir)
-
-    if (!resolvedSessionDir.startsWith(resolvedDirectory)) {
-      return errorResponse(403, { error: 'Forbidden' })
-    }
-
-    if (!existsSync(sessionDir)) {
-      return errorResponse(404, ERROR_SESSION_NOT_FOUND)
-    }
-
-    if (remainder === 'meta.json') {
-      const metaPath = join(sessionDir, 'meta.json')
-      if (!existsSync(metaPath)) {
-        const meta: SessionMeta = { id: sessionId }
-        return new Response(JSON.stringify(meta), {
+    try {
+      if (verb === 'dirs') {
+        const dirs = await adapter.listDirectories(rest || undefined)
+        return new Response(JSON.stringify(dirs), {
+          status: 200,
           headers: { 'Content-Type': 'application/json' },
         })
       }
-      const meta = JSON.parse(readFileSync(metaPath, 'utf-8'))
-      return new Response(JSON.stringify({ ...meta, id: sessionId }), {
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
-    if (remainder === 'events.ndjson') {
-      const eventsPath = join(sessionDir, 'events.ndjson')
-      if (!existsSync(eventsPath)) {
-        return new Response('', { headers: { 'Content-Type': 'application/x-ndjson' } })
-      }
-      const stat = statSync(eventsPath)
-      const stream = createReadStream(eventsPath)
-      return new Response(stream as unknown as ReadableStream<Uint8Array>, {
-        headers: { 'Content-Type': 'application/x-ndjson', 'Content-Length': String(stat.size) },
-      })
-    }
-
-    // GET /:session/events -> Event[] (JSON)
-    if (remainder === 'events' && !isSSE) {
-      const eventsPath = join(sessionDir, 'events.ndjson')
-      if (!existsSync(eventsPath)) {
-        return new Response('[]', { headers: { 'Content-Type': 'application/json' } })
-      }
-      const lines = readFileSync(eventsPath, 'utf-8').split('\n').filter(l => l.trim())
-      const events = lines.map(line => JSON.parse(line))
-      return new Response(JSON.stringify(events), {
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
-    // GET /:session/events?sse -> SSE
-    if (remainder === 'events' && isSSE) {
-      const eventsPath = join(sessionDir, 'events.ndjson')
-      if (!existsSync(eventsPath)) {
-        return new Response('', { 
-          headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } 
-        })
-      }
-      const encoder = new TextEncoder()
-      
-      let watcher: ReturnType<typeof fsWatch> | null = null
-      const stream = new ReadableStream({
-        start(controller) {
-          let position = 0
-          const sendNewEvents = () => {
-            try {
-              const stat = statSync(eventsPath)
-              if (stat.size > position) {
-                const fd = openSync(eventsPath, 'r')
-                const buffer = Buffer.alloc(stat.size - position)
-                readSync(fd, buffer, 0, buffer.length, position)
-                closeSync(fd)
-                position = stat.size
-                const newLines = buffer.toString('utf-8').split('\n').filter(l => l.trim())
-                for (const line of newLines) {
-                  controller.enqueue(encoder.encode(`data: ${line}\n\n`))
-                }
-              }
-            } catch { /* file deleted or changed during read */ }
-          }
-          
-          const initial = readFileSync(eventsPath, 'utf-8')
-          position = statSync(eventsPath).size
-          const lines = initial.split('\n').filter(l => l.trim())
-          for (const line of lines) {
-            controller.enqueue(encoder.encode(`data: ${line}\n\n`))
-          }
-          
-          watcher = fsWatch(eventsPath, (eventType: string) => {
-            if (eventType === 'change') sendNewEvents()
-          })
-          
-          controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'))
+      // verb === 'file'
+      if (!rest) return errorResponse(404, { error: 'Not found' })
+      const bytes = await adapter.readBinary(rest)
+      return new Response(bytes as BodyInit, {
+        status: 200,
+        headers: {
+          'Content-Type': contentTypeFor(rest),
+          'Content-Length': String(bytes.byteLength),
         },
-        cancel() {
-          watcher?.close()
-        }
       })
-      return new Response(stream, {
-        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
-      })
-    }
-
-    if (remainder.startsWith('assets/')) {
-      const assetPath = join(sessionDir, remainder)
-      const resolvedAssetPath = resolve(assetPath)
-      
-      if (!resolvedAssetPath.startsWith(resolvedSessionDir)) {
+    } catch (err) {
+      if ((err as Error).name === 'TraversalError') {
         return errorResponse(403, { error: 'Forbidden' })
       }
-      
-      if (!existsSync(assetPath)) {
-        return errorResponse(404, ERROR_ASSET_NOT_FOUND)
+      if (verb === 'file') {
+        // Treat any read failure as not-found — adapters throw on missing files.
+        return errorResponse(404, { error: 'Not found' })
       }
-
-      const stat = statSync(assetPath)
-      const extension = assetPath.split('.').pop()?.toLowerCase()
-      const contentType = CONTENT_TYPES[extension ?? ''] ?? 'application/octet-stream'
-      const stream = createReadStream(assetPath)
-      
-      return new Response(stream as unknown as ReadableStream<Uint8Array>, {
-        headers: { 'Content-Type': contentType, 'Content-Length': String(stat.size) },
-      })
+      return errorResponse(500, { error: (err as Error).message })
     }
-
-    return errorResponse(404, { error: 'Not found' })
   }
 }

@@ -1,9 +1,5 @@
-import type { ErrorResponse } from './types.js'
-
-export const ERROR_SESSION_NOT_FOUND: ErrorResponse = { error: 'Session not found' }
-export const ERROR_ASSET_NOT_FOUND: ErrorResponse = { error: 'Asset not found' }
-export const ERROR_STREAMING_NOT_ENABLED: ErrorResponse = { 
-  error: 'Streaming not enabled. Set streaming: true in options.' 
+export interface ErrorResponse {
+  error: string
 }
 
 export function errorResponse(status: number, body: ErrorResponse): Response {

@@ -1,17 +1,15 @@
+import type { StorageAdapter } from '@introspection/types'
+
 export interface ServeOptions {
-  directory: string
+  adapter: StorageAdapter
   prefix?: string
 }
 
-export interface NodeServeOptions extends ServeOptions {
+export interface NodeServeOptions {
+  directory: string
   port: number
   host?: string
-}
-
-export interface SessionMeta {
-  id: string
-  label?: string
-  startedAt?: number
+  prefix?: string
 }
 
 export interface ErrorResponse {

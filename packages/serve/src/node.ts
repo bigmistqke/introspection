@@ -1,19 +1,21 @@
 import { createServer, type Server } from 'http'
-import { createHandler, type NodeServeOptions } from './index.js'
+import { createNodeAdapter } from '@introspection/read/node'
+import { createHandler } from './index.js'
+import type { NodeServeOptions } from './types.js'
 
-export { type NodeServeOptions } from './index.js'
+export { type NodeServeOptions } from './types.js'
 
 export function serve(options: NodeServeOptions): Server {
-  const { port, host = '0.0.0.0', ...handlerOptions } = options
-  const handler = createHandler(handlerOptions)
+  const { port, host = '0.0.0.0', directory, prefix } = options
+  const adapter = createNodeAdapter(directory)
+  const handler = createHandler({ adapter, prefix })
 
   const server = createServer(async (req, res) => {
     const request = {
       url: req.url ?? '',
-      headers: req.headers as Record<string, string>,
     }
-    const response = handler(request)
-    
+    const response = await handler(request)
+
     if (response === null) {
       res.statusCode = 404
       res.end('Not found')
@@ -27,7 +29,7 @@ export function serve(options: NodeServeOptions): Server {
 
     const body = response.body
     if (body) {
-      for await (const chunk of body) {
+      for await (const chunk of body as AsyncIterable<Uint8Array>) {
         res.write(Buffer.from(chunk))
       }
     }
@@ -35,7 +37,7 @@ export function serve(options: NodeServeOptions): Server {
   })
 
   server.listen(port, host, () => {
-    console.log(`Serving introspection traces at http://${host}:${port}${handlerOptions.prefix ?? '/_introspect'}`)
+    console.log(`Serving introspection traces at http://${host}:${port}${prefix ?? '/_introspect'}`)
   })
 
   return server

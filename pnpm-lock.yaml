@@ -331,6 +331,9 @@ importers:
 
   packages/serve:
     dependencies:
+      '@introspection/read':
+        specifier: workspace:*
+        version: link:../read
       '@introspection/types':
         specifier: workspace:*
         version: link:../types
