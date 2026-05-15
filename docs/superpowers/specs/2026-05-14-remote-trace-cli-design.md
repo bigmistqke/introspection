@@ -103,20 +103,23 @@ Spec B — StorageAdapter hierarchy + read
     two-level <run-id>/<session-id>/ hierarchy.
         │
         ▼
-Spec C — createHandler whole-tree + storage-agnostic
-  · createHandler({ adapter }) instead of { directory }; async; consumes a
-    StorageAdapter so it no longer assumes a locally-mounted disk.
-  · Two-level routing: GET / → runs (with metadata), GET /<run>/ → sessions,
-    GET /<run>/<session>/<file> → reads. Fixed depth, not an arbitrary tree.
-  · SSE / fs.watch live-tailing leaves @introspection/serve entirely and
-    moves into the solid-streaming demo, which mounts its own SSE path.
-  · A new demo exercises the adapter-driven createHandler.
-  · MUST also: fix demos/shared/fetch-adapter.ts's listDirectories to honour
-    `subPath`, and un-skip the four HTTP-served demo tests (vanilla-basic,
-    wc-graph, react-session-list, solid-streaming). They were `test.skip`-ed
-    when Spec B landed because the flat createHandler + flat fetch-adapter
-    cannot serve or navigate the <run-id>/<session-id>/ hierarchy. Each skipped
-    test carries a `// SKIPPED: blocked on Spec C` comment.
+Spec C — createHandler as a generic StorageAdapter-over-HTTP transport
+  · createHandler({ adapter }) — async, no filesystem code, no trace
+    vocabulary; just two URL verbs: GET <prefix>/dirs/<subPath> →
+    adapter.listDirectories(subPath); GET <prefix>/file/<path> →
+    adapter.readBinary(path). readText/readJSON parse client-side.
+  · Traversal protection pushed down into createNodeAdapter
+    (TraversalError; handler maps to 403).
+  · serve({ directory }) keeps the convenience by building a node adapter
+    internally; demos/shared/introspectionServe likewise.
+  · SSE leaves @introspection/serve entirely and moves into a
+    solid-streaming-only Vite plugin (GET /__introspect/stream/<run>/
+    <session>/events).
+  · Also fixes demos/shared/fetch-adapter.ts (listDirectories honours
+    subPath; reads hit /file/...) and un-skips the four HTTP-demo tests,
+    tightening the weak ones (wc-graph + react-session-list).
+  · Full design: docs/superpowers/specs/2026-05-15-storage-agnostic-
+    createhandler-design.md.
         │
         ▼
 Spec D — THIS SPEC (remote trace access for the CLI)
