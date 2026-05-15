@@ -60,9 +60,14 @@ describe('createHttpReadAdapter', () => {
     await expect(adapter.listDirectories()).rejects.toThrow(/listDirectories.*404/)
   })
 
-  it('read* throws on a non-OK response', async () => {
+  it('readText throws on a non-OK response', async () => {
     const adapter = createHttpReadAdapter('https://h/_introspect')
     await expect(adapter.readText('missing')).rejects.toThrow(/Failed to fetch missing: 404/)
+  })
+
+  it('readBinary throws on a non-OK response', async () => {
+    const adapter = createHttpReadAdapter('https://h/_introspect')
+    await expect(adapter.readBinary('missing')).rejects.toThrow(/Failed to fetch missing: 404/)
   })
 
   it('strips a trailing slash from baseUrl', async () => {

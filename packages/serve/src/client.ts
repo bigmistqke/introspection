@@ -24,20 +24,23 @@ export function createHttpReadAdapter(baseUrl: string): StorageAdapter {
       const url = subPath ? `${base}/dirs/${subPath}` : `${base}/dirs/`
       const response = await fetch(url)
       if (!response.ok) {
-        throw new Error(`listDirectories(${JSON.stringify(subPath)}) failed: ${response.status} from ${url}`)
+        const label = subPath !== undefined ? `listDirectories(${JSON.stringify(subPath)})` : `listDirectories()`
+        throw new Error(`${label} failed: ${response.status} from ${url}`)
       }
       return response.json()
     },
 
     async readText(path: string) {
-      const response = await fetch(`${base}/file/${path}`)
-      if (!response.ok) throw new Error(`Failed to fetch ${path}: ${response.status}`)
+      const url = `${base}/file/${path}`
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`Failed to fetch ${path}: ${response.status} from ${url}`)
       return response.text()
     },
 
     async readBinary(path: string) {
-      const response = await fetch(`${base}/file/${path}`)
-      if (!response.ok) throw new Error(`Failed to fetch ${path}: ${response.status}`)
+      const url = `${base}/file/${path}`
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`Failed to fetch ${path}: ${response.status} from ${url}`)
       return new Uint8Array(await response.arrayBuffer())
     },
 
