@@ -7,10 +7,6 @@
     "./vite-plugin": {
       "types": "./src/vite-plugin.ts",
       "import": "./src/vite-plugin.ts"
-    },
-    "./fetch-adapter": {
-      "types": "./src/fetch-adapter.ts",
-      "import": "./src/fetch-adapter.ts"
     }
   },
   "dependencies": {
