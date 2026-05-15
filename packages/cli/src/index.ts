@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
 import { createTraceReader, listRuns, listTraces } from '@introspection/read'
 import { serve } from '@introspection/serve/node'
-import { parseBase, createAdapterFromBase } from './base.js'
+import { parseBase, createAdapterFromBase, DEFAULT_BASE } from './base.js'
 import { loadIntrospectConfig } from '@introspection/config'
 
 const BUNDLED_SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url))
@@ -34,7 +34,7 @@ async function resolveBaseValue(): Promise<string | undefined> {
 }
 
 async function describeBase(): Promise<string> {
-  return (await resolveBaseValue()) ?? './.introspect'
+  return (await resolveBaseValue()) ?? DEFAULT_BASE
 }
 
 async function getAdapter() {

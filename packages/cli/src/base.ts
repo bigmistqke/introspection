@@ -7,7 +7,7 @@ export type ParsedBase =
   | { kind: 'path'; path: string }
   | { kind: 'url'; url: string }
 
-const DEFAULT_BASE = './.introspect'
+export const DEFAULT_BASE = './.introspect'
 
 /**
  * Parse the value of --base (or `base` in introspect.config.ts) into a
