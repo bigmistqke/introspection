@@ -75,3 +75,53 @@ describe('node convenience wrappers', () => {
     expect(sessions[0].project).toBe('p')
   })
 })
+
+describe('createNodeAdapter — traversal guard', () => {
+  it('throws TraversalError on .. in listDirectories', async () => {
+    const adapter = createNodeAdapter(dir)
+    await expect(adapter.listDirectories('..')).rejects.toThrow(/escapes base directory/)
+  })
+
+  it('throws TraversalError on absolute path in listDirectories', async () => {
+    const adapter = createNodeAdapter(dir)
+    await expect(adapter.listDirectories('/etc')).rejects.toThrow(/escapes base directory/)
+  })
+
+  it('throws TraversalError on .. in readText', async () => {
+    const adapter = createNodeAdapter(dir)
+    await expect(adapter.readText('../secret.txt')).rejects.toThrow(/escapes base directory/)
+  })
+
+  it('throws TraversalError on absolute path in readText', async () => {
+    const adapter = createNodeAdapter(dir)
+    await expect(adapter.readText('/etc/passwd')).rejects.toThrow(/escapes base directory/)
+  })
+
+  it('throws TraversalError on traversal inside compound path in readBinary', async () => {
+    const adapter = createNodeAdapter(dir)
+    await expect(adapter.readBinary('safe/../../escape')).rejects.toThrow(/escapes base directory/)
+  })
+
+  it('throws TraversalError on .. in readJSON', async () => {
+    const adapter = createNodeAdapter(dir)
+    await expect(adapter.readJSON('../other.json')).rejects.toThrow(/escapes base directory/)
+  })
+
+  it('errors are TraversalError instances (name)', async () => {
+    const adapter = createNodeAdapter(dir)
+    try {
+      await adapter.readText('../x')
+      throw new Error('expected throw')
+    } catch (e) {
+      expect((e as Error).name).toBe('TraversalError')
+    }
+  })
+
+  it('valid nested paths still work', async () => {
+    await mkdir(join(dir, 'sub'), { recursive: true })
+    await writeFile(join(dir, 'sub', 'x.txt'), 'ok')
+    const adapter = createNodeAdapter(dir)
+    expect(await adapter.readText('sub/x.txt')).toBe('ok')
+    expect(await adapter.listDirectories('sub')).toEqual([])
+  })
+})
