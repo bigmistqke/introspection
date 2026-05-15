@@ -1,32 +1,32 @@
 import { test as base } from '@playwright/test'
 import type { TestType, PlaywrightTestArgs, PlaywrightWorkerArgs } from '@playwright/test'
-import type { SessionWriter, IntrospectionPlugin } from '@introspection/types'
-import { createSessionWriter } from '@introspection/write'
+import type { TraceWriter, IntrospectionPlugin } from '@introspection/types'
+import { createTraceWriter } from '@introspection/write'
 import { attach, toPluginMetas } from './attach.js'
 
-export interface SessionOptions {
+export interface TraceOptions {
   plugins?: IntrospectionPlugin[]
   label?: string
   outDir?: string
 }
 
-export interface SessionContext {
+export interface TraceContext {
   test: TestType<PlaywrightTestArgs, PlaywrightWorkerArgs>
   attach: typeof attach
 }
 
-export function session(
-  options: SessionOptions,
-  callback: (context: SessionContext) => void,
+export function trace(
+  options: TraceOptions,
+  callback: (context: TraceContext) => void,
 ): void {
   const plugins = options.plugins ?? []
   const pluginMetas = toPluginMetas(plugins)
 
-  let sessionRef: SessionWriter | null = null
+  let traceRef: TraceWriter | null = null
 
-  base.describe(options.label ?? 'session', () => {
+  base.describe(options.label ?? 'trace', () => {
     base.beforeAll(async () => {
-      sessionRef = await createSessionWriter({
+      traceRef = await createTraceWriter({
         outDir: options.outDir,
         label: options.label,
         plugins: pluginMetas.length > 0 ? pluginMetas : undefined,
@@ -34,19 +34,19 @@ export function session(
     })
 
     base.afterAll(async () => {
-      if (sessionRef) {
-        await sessionRef.finalize()
-        sessionRef = null
+      if (traceRef) {
+        await traceRef.finalize()
+        traceRef = null
       }
     })
 
     // Create a proxied test that emits lifecycle events
-    const proxiedTest = createProxiedTest(base, () => sessionRef, plugins)
+    const proxiedTest = createProxiedTest(base, () => traceRef, plugins)
 
-    // Bound attach that uses the session
+    // Bound attach that uses the trace
     const boundAttach: typeof attach = (page, options = {}) => {
-      if (!sessionRef) throw new Error('session not initialized — attach must be called inside a test')
-      return attach(page, { ...options, session: sessionRef, plugins })
+      if (!traceRef) throw new Error('trace not initialized — attach must be called inside a test')
+      return attach(page, { ...options, trace: traceRef, plugins })
     }
 
     callback({ test: proxiedTest, attach: boundAttach })
@@ -55,24 +55,24 @@ export function session(
 
 function createProxiedTest(
   original: TestType<PlaywrightTestArgs, PlaywrightWorkerArgs>,
-  getSession: () => SessionWriter | null,
+  getTrace: () => TraceWriter | null,
   plugins: IntrospectionPlugin[],
 ): TestType<PlaywrightTestArgs, PlaywrightWorkerArgs> {
   // Wrap test(name, fn) to emit test.start/test.end and auto-attach page
   const wrapped = function testWrapper(title: string, fn: (...args: unknown[]) => Promise<void>) {
     original(title, async (fixtures, testInfo) => {
-      const currentSession = getSession()
-      if (!currentSession) throw new Error('session not initialized')
+      const currentTrace = getTrace()
+      if (!currentTrace) throw new Error('trace not initialized')
 
       const titlePath = testInfo.titlePath
 
-      currentSession.emit({
+      currentTrace.emit({
         type: 'test.start',
         metadata: { label: title, titlePath },
       })
 
-      // Auto-attach the page to the session
-      const handle = await attach(fixtures.page, { session: currentSession, plugins })
+      // Auto-attach the page to the trace
+      const handle = await attach(fixtures.page, { trace: currentTrace, plugins })
 
       try {
         await fn({ ...fixtures, page: handle.page }, testInfo)
@@ -86,7 +86,7 @@ function createProxiedTest(
 
         await handle.detach()
 
-        currentSession.emit({
+        currentTrace.emit({
           type: 'test.end',
           metadata: {
             label: title,
@@ -107,11 +107,11 @@ function createProxiedTest(
   ) {
     describeVariant(title, () => {
       original.beforeAll(async () => {
-        getSession()?.emit({ type: 'describe.start', metadata: { label: title } })
+        getTrace()?.emit({ type: 'describe.start', metadata: { label: title } })
       })
       fn()
       original.afterAll(async () => {
-        getSession()?.emit({ type: 'describe.end', metadata: { label: title } })
+        getTrace()?.emit({ type: 'describe.end', metadata: { label: title } })
       })
     })
   }

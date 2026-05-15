@@ -3,7 +3,7 @@
 The Playwright adoption surface for introspection: a `withIntrospect` config
 wrapper, runner-side `globalSetup` / `globalTeardown` for run lifecycle, and a
 pre-built `test` / `expect` whose auto-fixture captures every test into a
-per-run, per-test session directory.
+per-run, per-test trace directory.
 
 > **Position.** This is sub-project #3 (`withIntrospect` + `globalSetup` /
 > `globalTeardown`) of the Playwright vision
@@ -17,11 +17,11 @@ per-run, per-test session directory.
 ## Why
 
 Today `@introspection/playwright` ships *primitives* — `attach()` (wires
-plugins to a page + a session writer), `session()`, and `introspectFixture(opts)`
+plugins to a page + a trace writer), `trace()`, and `introspectFixture(opts)`
 (a worker-side auto-fixture *factory* that takes `plugins` / `outDir`
 explicitly). There is **no run-level concept at all**: nothing picks a run id,
 creates a run directory, or runs at the Playwright *runner* level. Every test's
-session writer points at a flat `outDir`.
+trace writer points at a flat `outDir`.
 
 The vision's adoption surface is two touch points — `withIntrospect(...)` in
 `playwright.config.ts`, and `import { test, expect } from '@introspection/playwright'`
@@ -38,16 +38,16 @@ between them.
   directory creation, run-level `meta.json`, `RUN_DIR` env propagation,
   aggregate status, `retain-on-failure` cleanup.
 - Worker side: **delete the `introspectFixture` factory**; ship a pre-built
-  `test` / `expect`. The lower-level `attach()` / `session()` primitives stay
+  `test` / `expect`. The lower-level `attach()` / `trace()` primitives stay
   (used by `introspect debug` and ad-hoc capture).
-- The auto-fixture: per-test session directory under the run dir, reporter
+- The auto-fixture: per-test trace directory under the run dir, reporter
   wiring, `test.start` / `test.end`, per-test `meta.json` including `status`.
 - **Step capture**: a worker-side listener on Playwright's internal step hook
   emitting `step.start` / `step.end` into the bus. If the internal hook is
   absent, **throw** at fixture init (see §8).
 - `mode` retention knob (`on` / `retain-on-failure` / `on-first-retry`).
 - `INTROSPECT_TRACING=0` operator override.
-- `@introspection/types` changes: `SessionMeta` gains `status`; a new `RunMeta`
+- `@introspection/types` changes: `TraceMeta` gains `status`; a new `RunMeta`
   type.
 
 **Out of scope:**
@@ -59,7 +59,7 @@ between them.
 - **`@introspection/config`** (vision #1) — already built; this spec consumes
   it.
 - **Reporter API internals** (vision #2) — already in implementation;
-  `createSessionWriter` already accepts `reporters`. This spec only *wires*
+  `createTraceWriter` already accepts `reporters`. This spec only *wires*
   reporters through, it does not design them.
 - The `test.extend` `.step`-override fallback. Resolved: no fallback — a
   missing internal hook throws (§8).
@@ -82,12 +82,12 @@ playwright.config.ts:
   │ introspectSetup:          │        │ pre-built `test` auto-fixture:    │
   │  · resolve run-id         │RUN_DIR │  · read RUN_DIR from env          │
   │  · mkdir run dir          │───────▶│  · read config from singleton     │
-  │  · write run meta.json    │ (env)  │  · createSessionWriter →          │
+  │  · write run meta.json    │ (env)  │  · createTraceWriter →          │
   │    (identity)             │        │      <RUN_DIR>/<test-id>/         │
   │  · export RUN_DIR         │        │  · attach(page); wire reporters   │
   │ introspectTeardown:       │        │  · register step listener         │
-  │  · scan session metas     │        │  · emit test.start / test.end     │
-  │  · write endedAt + status │        │  · write session meta.json        │
+  │  · scan trace metas     │        │  · emit test.start / test.end     │
+  │  · write endedAt + status │        │  · write trace meta.json        │
   │  · retain-on-failure GC   │        │      (incl. status)               │
   └───────────────────────────┘        │  · finalize (await reporters)     │
                                        └───────────────────────────────────┘
@@ -97,7 +97,7 @@ playwright.config.ts:
                                 ├── meta.json            ← RunMeta
                                 ├── <test-id-1>/
                                 │     ├── events.ndjson
-                                │     ├── meta.json       ← SessionMeta + status
+                                │     ├── meta.json       ← TraceMeta + status
                                 │     └── assets/
                                 └── <test-id-2>/ ...
 ```
@@ -166,7 +166,7 @@ On run end:
 - Compute the aggregate: `failed` if any test is `failed` / `timedOut` /
   `interrupted` / `crashed`, else `passed`. Write it plus `endedAt` into the run
   `meta.json`.
-- **`retain-on-failure`**: in the *same scan*, delete the session directories of
+- **`retain-on-failure`**: in the *same scan*, delete the trace directories of
   passing tests. (Status computation and retention GC share one pass — this is
   why aggregate status is computed at teardown rather than derived on read.)
 
@@ -174,10 +174,10 @@ On run end:
 
 - **`introspectFixture(opts)` is deleted.** `@introspection/playwright` exports
   a pre-built `test` and `expect`: `import { test, expect } from '@introspection/playwright'`.
-  Test bodies are unchanged. `attach()` and `session()` stay as primitives.
+  Test bodies are unchanged. `attach()` and `trace()` stay as primitives.
 - The built-in auto-fixture (`{ auto: true }`), per test:
   1. Read `RUN_DIR` from env, `{ plugins, reporters, mode }` from the singleton.
-  2. `createSessionWriter({ outDir: <RUN_DIR>/<test-id>/, plugins, reporters })`,
+  2. `createTraceWriter({ outDir: <RUN_DIR>/<test-id>/, plugins, reporters })`,
      `attach(page)`.
   3. Register the step listener (§8); emit `test.start`.
   4. `await use(handle)`.
@@ -191,18 +191,18 @@ On run end:
   is appended when `testInfo.retry > 0` (retries are distinct captures — see
   `on-first-retry`). The Playwright project is encoded as a *filename prefix*,
   not a structural directory level: `ls .introspect/<run-id>/` still groups
-  sessions by project (they sort together), but the tree stays two-level so
+  traces by project (they sort together), but the tree stays two-level so
   nothing downstream — `StorageAdapter`, `createHandler`, the CLI — gains a
   level. Readable beats `testInfo.testId`'s opaque hash for `ls` and CLI
   output; `project` + `titlePath` is collision-free per test.
 
 ## `@introspection/types` changes
 
-- `SessionMeta` gains `status: 'passed' | 'failed' | 'timedOut' | 'interrupted'
+- `TraceMeta` gains `status: 'passed' | 'failed' | 'timedOut' | 'interrupted'
   | 'skipped' | 'crashed'` and `project: string` (the Playwright project name,
   `default` when unnamed). Per-test pass/fail currently lives only in the
   `test.end` event; denormalizing status — and `project` — into `meta.json` is
-  what lets `globalTeardown` (and later `listSessions`, the viewer, the CLI)
+  what lets `globalTeardown` (and later `listTraces`, the viewer, the CLI)
   read and group by them without scanning NDJSON or parsing directory names.
 - New `RunMeta`: `{ version, id, startedAt, endedAt?, status?, branch?,
   commit? }`. `status` / `endedAt` are absent until `globalTeardown` runs (a run
@@ -212,13 +212,13 @@ On run end:
 
 | `mode` | Capture | Retained |
 |---|---|---|
-| `'on'` (default) | full | every session directory |
+| `'on'` (default) | full | every trace directory |
 | `'retain-on-failure'` | full | `globalTeardown` deletes passing tests' dirs (§ above) |
 | `'on-first-retry'` | no-op handle when `testInfo.retry === 0`; full on retries | matches what was captured |
 
 `on-first-retry` is worker-side only — `testInfo.retry` is worker-local, so no
 cross-process signaling. The auto-fixture installs a no-op handle on the first
-attempt and a real session writer on retries.
+attempt and a real trace writer on retries.
 
 ## `INTROSPECT_TRACING=0`
 

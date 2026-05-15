@@ -5,7 +5,7 @@
 
 ## Goal
 
-A plugin that records every focus transition during a session — useful both for assertion debugging ("focus didn't land where I expected") and for full focus-journey tracing (tab order, modal traps, route changes that restore focus, accessibility review).
+A plugin that records every focus transition during a trace — useful both for assertion debugging ("focus didn't land where I expected") and for full focus-journey tracing (tab order, modal traps, route changes that restore focus, accessibility review).
 
 ## Non-goals
 

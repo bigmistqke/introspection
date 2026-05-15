@@ -37,20 +37,20 @@ async function stopVite(): Promise<void> {
   }
 }
 
-// ─── Session helpers ─────────────────────────────────────────────────────────
+// ─── Trace helpers ─────────────────────────────────────────────────────────
 
-async function makeSession(page: Page, options?: SolidDevtoolsOptions) {
+async function makeTrace(page: Page, options?: SolidDevtoolsOptions) {
   const outDir = await mkdtemp(join(tmpdir(), 'introspect-solid-'))
   const plugin = solidDevtools(options)
   const handle = await attach(page, { outDir, plugins: [plugin] })
   return { outDir, plugin, handle }
 }
 
-async function endSession(handle: IntrospectHandle, outDir: string) {
+async function endTrace(handle: IntrospectHandle, outDir: string) {
   await handle.detach()
   try {
-    const [sessionId] = await readdir(outDir)
-    const raw = await readFile(join(outDir, sessionId, 'events.ndjson'), 'utf-8')
+    const [traceId] = await readdir(outDir)
+    const raw = await readFile(join(outDir, traceId, 'events.ndjson'), 'utf-8')
     return raw.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
   } finally {
     await rm(outDir, { recursive: true, force: true })
@@ -69,13 +69,13 @@ test.describe('solid devtools plugin', () => {
   })
 
   test('streams structure updates for a SolidJS app', async ({ page }) => {
-    const { outDir, handle } = await makeSession(page, { structureUpdates: 'stream' })
+    const { outDir, handle } = await makeTrace(page, { structureUpdates: 'stream' })
 
     await page.goto(viteUrl)
     await page.waitForSelector('button', { timeout: 10_000 })
     await page.waitForTimeout(2_000)
 
-    const events = await endSession(handle, outDir)
+    const events = await endTrace(handle, outDir)
     const structureEvents = events.filter(
       (event: { type: string }) => event.type === 'solid-devtools.structure',
     )
@@ -83,7 +83,7 @@ test.describe('solid devtools plugin', () => {
   })
 
   test('captures structure asset on manual trigger', async ({ page }) => {
-    const { outDir, handle } = await makeSession(page, {
+    const { outDir, handle } = await makeTrace(page, {
       structureUpdates: 'trigger',
       nodeUpdates: 'off',
       dependencyGraph: 'off',
@@ -95,7 +95,7 @@ test.describe('solid devtools plugin', () => {
 
     await handle.snapshot()
 
-    const events = await endSession(handle, outDir)
+    const events = await endTrace(handle, outDir)
     // Look for solid.capture events with assets
     const solidCaptures = events.filter((event: { type: string; payloads?: Record<string, unknown> }) =>
       event.type === 'solid-devtools.capture' && event.payloads && Object.keys(event.payloads).length > 0)
@@ -103,7 +103,7 @@ test.describe('solid devtools plugin', () => {
   })
 
   test('emits warning when SolidDevtools$$ is missing', async ({ page }) => {
-    const { outDir, handle } = await makeSession(page)
+    const { outDir, handle } = await makeTrace(page)
 
     // Navigate to a page served by Vite but without Solid — use a static HTML file
     // page.setContent doesn't trigger addInitScript, so navigate to about:blank first
@@ -113,7 +113,7 @@ test.describe('solid devtools plugin', () => {
     // Wait for the 3s detection timeout plus buffer
     await page.waitForTimeout(5_000)
 
-    const events = await endSession(handle, outDir)
+    const events = await endTrace(handle, outDir)
     const warnings = events.filter(
       (event: { type: string }) => event.type === 'solid-devtools.warning',
     )

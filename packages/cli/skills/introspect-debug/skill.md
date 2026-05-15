@@ -1,11 +1,11 @@
 ---
 name: introspect-debug
-description: Use when a Playwright test fails or an app behaves unexpectedly and introspection is set up — guides querying the session trace to identify root cause
+description: Use when a Playwright test fails or an app behaves unexpectedly and introspection is set up — guides querying the trace trace to identify root cause
 ---
 
 # Debugging with introspect
 
-When a test fails or something behaves unexpectedly, query the session trace **before** reading source files, adding `page.on('console')`, or inserting `console.log` into test code. The trace already captures what actually happened at runtime: console output, network requests and response bodies, JS errors with stacks, Playwright actions, and plugin-specific data.
+When a test fails or something behaves unexpectedly, query the trace trace **before** reading source files, adding `page.on('console')`, or inserting `console.log` into test code. The trace already captures what actually happened at runtime: console output, network requests and response bodies, JS errors with stacks, Playwright actions, and plugin-specific data.
 
 ## Golden rule
 
@@ -19,7 +19,7 @@ If the CLI can't surface what you need in readable form, that's a gap in the CLI
 introspect summary
 ```
 
-Plain-language overview: session label, failed network requests, JS errors. This usually points directly at the problem. Use `--session-id <id>` to target a specific session (default: most recent). Run `introspect list` to see all sessions.
+Plain-language overview: trace label, failed network requests, JS errors. This usually points directly at the problem. Use `--trace-id <id>` to target a specific trace (default: most recent). Run `introspect list` to see all traces.
 
 If `summary` doesn't surface the answer:
 
@@ -27,7 +27,7 @@ If `summary` doesn't surface the answer:
 introspect events
 ```
 
-Chronological, human-readable timeline of everything: `[timestamp] type detail`. Defaults to the latest session. This is the introspect-native replacement for `page.on('console')` — it shows console output, Playwright actions, navigations, JS errors, and network events interleaved in order.
+Chronological, human-readable timeline of everything: `[timestamp] type detail`. Defaults to the latest trace. This is the introspect-native replacement for `page.on('console')` — it shows console output, Playwright actions, navigations, JS errors, and network events interleaved in order.
 
 ## Decision tree
 
@@ -37,7 +37,7 @@ Chronological, human-readable timeline of everything: `[timestamp] type detail`.
 introspect events --last 30
 ```
 
-Shows the last 30 events before the session ended. Often reveals: an infinite render loop (30 repeat console events in <100ms), a pending network request (request emitted, no response), a stuck Playwright action (action emitted, no subsequent events).
+Shows the last 30 events before the trace ended. Often reveals: an infinite render loop (30 repeat console events in <100ms), a pending network request (request emitted, no response), a stuck Playwright action (action emitted, no subsequent events).
 
 ```bash
 introspect events --type console                   # isolate console spam
@@ -139,7 +139,7 @@ Assets are attached to events via `event.assets: AssetRef[]`; there is no standa
 
 ## Asset reference
 
-`introspect assets` lists every asset across the session; pass a path to print its contents:
+`introspect assets` lists every asset across the trace; pass a path to print its contents:
 
 ```bash
 introspect assets            # list all (columns: kind, path)
@@ -150,6 +150,6 @@ Filter by kind in shell if needed, e.g. `introspect assets | grep '^image'`.
 
 ## Notes
 
-- All commands default to the most recent session. Use `--session-id <id>` to target a specific one.
+- All commands default to the most recent trace. Use `--trace-id <id>` to target a specific one.
 - `introspect assets <path>` displays the asset. Text content (json, html) is shown as-is; images show dimensions.
 - WebGL events only appear if the `plugin-webgl` plugin was attached and `plugin.watch(...)` was called.

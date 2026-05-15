@@ -59,7 +59,7 @@ Every catch-and-wrap site that currently throws `new Error(...)` or plain `.catc
 
 ### Subscribable debug (`createDebug` stays introspection-unaware)
 
-`createDebug` remains a pure utility — it doesn't know about sessions, plugins, or buses. It gains one new affordance: a `.subscribe(callback)` method that lets external code receive every call. Plugins explicitly wire that subscription to the session bus inside `install`. Framework code does the same.
+`createDebug` remains a pure utility — it doesn't know about traces, plugins, or buses. It gains one new affordance: a `.subscribe(callback)` method that lets external code receive every call. Plugins explicitly wire that subscription to the trace bus inside `install`. Framework code does the same.
 
 **Updated `createDebug` surface (in `@introspection/utils/debug.ts`):**
 
@@ -78,7 +78,7 @@ When `debug(message, ...args)` is invoked:
 1. If `verbose` is true, write `[label] message ...args` to stderr (today's behavior).
 2. Notify every registered subscriber with `(message, args)` regardless of `verbose`.
 
-No imports of `@introspection/types`, no awareness of buses or sessions. Could be extracted to a standalone package later.
+No imports of `@introspection/types`, no awareness of buses or traces. Could be extracted to a standalone package later.
 
 **Plugin-side wiring (explicit, ~11 plugins × 2 lines):**
 
@@ -103,9 +103,9 @@ return {
 
 The plugin author sees the wiring; nothing magic. They can choose to *not* subscribe (and only get stderr output), or to subscribe to a different sink for non-introspection use cases.
 
-**Framework-side wiring** (in `attach.ts`, `session-writer.ts`):
+**Framework-side wiring** (in `attach.ts`, `trace-writer.ts`):
 
-Same pattern — module-level `createDebug`, then a `.subscribe(...)` call that emits on the session bus once the session exists. For session-writer, the subscription happens during construction; for attach, during the attach call.
+Same pattern — module-level `createDebug`, then a `.subscribe(...)` call that emits on the trace bus once the trace exists. For trace-writer, the subscription happens during construction; for attach, during the attach call.
 
 **Rationale for subscription-as-opt-in:** a plugin's `verbose: true` controls stderr noise; the bus subscription is independent. `plugin-introspection({ includeDebug: true })` listens on `introspect:debug` and converts to trace events. Without that plugin attached, the bus emissions land on no subscribers and are no-ops.
 
@@ -154,7 +154,7 @@ The framework does **not** classify the cause. The error is wrapped in `CdpError
 
 **Trade-off acknowledged:** in tests with many navigations, the trace will contain a steady stream of `introspect.warning` events for context-destruction races. That's a visible cost of `plugin-introspection({ includeFailures: true })`. The introspect-debug skill should document common cause-message patterns so consumers know how to filter.
 
-**Compare** to boundary 1 (plugin-handler wrapper) and boundary 3 (bus dispatch): same shape, different framework intent. Those catches mean "a plugin had a bug" — still emit on `introspect:warning` (the session continues), just with a different `error.source` (`'plugin'` vs `'cdp'`). The discriminator is in the typed error, not on the channel.
+**Compare** to boundary 1 (plugin-handler wrapper) and boundary 3 (bus dispatch): same shape, different framework intent. Those catches mean "a plugin had a bug" — still emit on `introspect:warning` (the trace continues), just with a different `error.source` (`'plugin'` vs `'cdp'`). The discriminator is in the typed error, not on the channel.
 
 **3. Bus dispatch** in `@introspection/utils/bus.ts:22`. Other handlers keep running (`allSettled` preserved). Rejected handlers are *reported* instead of silently discarded:
 
@@ -166,16 +166,16 @@ The framework does **not** classify the cause. The error is wrapped in `CdpError
 
 The wrapping also covers `await page.evaluate(plugin.script)` (currently `attach.ts:111` with `.catch(() => {})`) and the implicit `await ctx.cdpSession.send(...)` calls plugins make inside their `install`. Any of those rejecting trips the same warning path; the loop continues with the next plugin.
 
-`PluginMeta` stays unchanged — no mutable fields, no `updatePluginMeta` API on `SessionWriter`.
+`PluginMeta` stays unchanged — no mutable fields, no `updatePluginMeta` API on `TraceWriter`.
 
 ### Non-boundary sites: throw
 
 Everywhere else in the catalog that's currently `.catch(() => {})` or an empty catch gets ripped out:
 
-- `packages/write/src/session.ts:18` — stop swallowing. `ENOSPC` / `EACCES` during `appendEvent` fails the test via rejected write.
-- `packages/playwright/src/attach.ts:111` — plugin script eval failures are caught by the plugin-install loop wrapping (above): the plugin is marked failed in session metadata, a warning is emitted, and the loop continues. Not a separate site.
+- `packages/write/src/trace.ts:18` — stop swallowing. `ENOSPC` / `EACCES` during `appendEvent` fails the test via rejected write.
+- `packages/playwright/src/attach.ts:111` — plugin script eval failures are caught by the plugin-install loop wrapping (above): the plugin is marked failed in trace metadata, a warning is emitted, and the loop continues. Not a separate site.
 - `packages/playwright/src/attach.ts:82,163,176,179` — unwatch / flush roundtrip / detach catches use the same pattern as boundary 2. Wrap the cause in `CdpError`, emit on `introspect:warning`, continue. No silent swallows; no classification.
-- `packages/read/src/index.ts:235` — NDJSON parse in `.map` gets its own per-line try/catch that wraps parse failures in `ParseError` with line number, so one malformed line doesn't abort the whole session.
+- `packages/read/src/index.ts:235` — NDJSON parse in `.map` gets its own per-line try/catch that wraps parse failures in `ParseError` with line number, so one malformed line doesn't abort the whole trace.
 - `packages/utils/src/summarise-body.ts:5` — parse failure throws instead of returning empty default. Caller decides what to do.
 
 ### Internal bus channels
@@ -224,7 +224,7 @@ interface IntrospectDebugEvent extends BaseEvent {
 
 Added to `TraceEventMap`. Only `plugin-introspection` emits these in practice.
 
-**No `introspect.error` in v1.** Every fatal-throw site in the codebase either (a) breaks the write path itself (so it can't tombstone in the trace) or (b) happens outside session context (read-side, pre-attach validation). The catch+record+rethrow pattern has no working caller. If a future `strict: true` mode promotes warnings into thrown errors, reintroduce `introspect.error` then with a real caller.
+**No `introspect.error` in v1.** Every fatal-throw site in the codebase either (a) breaks the write path itself (so it can't tombstone in the trace) or (b) happens outside trace context (read-side, pre-attach validation). The catch+record+rethrow pattern has no working caller. If a future `strict: true` mode promotes warnings into thrown errors, reintroduce `introspect.error` then with a real caller.
 
 ### `@introspection/plugin-introspection` (new)
 
@@ -320,10 +320,10 @@ Follows every plugin convention — `verbose`, `createDebug`, `events` map, READ
 | `packages/utils/src/errors.ts` | New file, 5 error classes, ~40 lines. |
 | `packages/utils/src/debug.ts` | `createDebug` gains a `.subscribe(callback)` method on the returned function. No other API change; remains introspection-unaware. |
 | `packages/utils/src/bus.ts` | Line 22: report rejections via stderr + (for app channels) re-emit on `introspect:warning`. Internal channels stderr-only to avoid recursion. |
-| `packages/types/src/index.ts` | Add 2 trace event types (`introspect.warning`, `introspect.debug`), 2 internal bus channels (`introspect:warning`, `introspect:debug`). No `PluginMeta` / `PluginContext` / `SessionWriter` API changes — wiring is done via `debug.subscribe` + `ctx.bus.emit`. |
-| `packages/playwright/src/attach.ts` | Remove 5 `.catch(() => {})` sites. Wrap plugin handlers in try/catch → bus emit. Wrap plugin-install loop. Navigation-recovery catch → report. Subscribe own framework `debug` to session bus. |
+| `packages/types/src/index.ts` | Add 2 trace event types (`introspect.warning`, `introspect.debug`), 2 internal bus channels (`introspect:warning`, `introspect:debug`). No `PluginMeta` / `PluginContext` / `TraceWriter` API changes — wiring is done via `debug.subscribe` + `ctx.bus.emit`. |
+| `packages/playwright/src/attach.ts` | Remove 5 `.catch(() => {})` sites. Wrap plugin handlers in try/catch → bus emit. Wrap plugin-install loop. Navigation-recovery catch → report. Subscribe own framework `debug` to trace bus. |
 | `packages/playwright/src/snapshot.ts` | Three non-fatal catches → report on bus. |
-| `packages/write/src/session.ts` | Remove the swallow on line 18. Write errors propagate. Subscribe own framework `debug` to session bus. |
+| `packages/write/src/trace.ts` | Remove the swallow on line 18. Write errors propagate. Subscribe own framework `debug` to trace bus. |
 | `packages/read/src/index.ts:235` | Per-line try/catch wraps parse errors in `ParseError`. |
 | Each plugin (11) | Add `debug.subscribe((message, args) => ctx.bus.emit('introspect:debug', { … }))` inside `install`. Top-level `createDebug` declaration unchanged. |
 | `plugins/plugin-introspection/` | New package. |
@@ -340,4 +340,4 @@ Follows every plugin convention — `verbose`, `createDebug`, `events` map, READ
 2. `pnpm test` — all existing plugin + core-package tests stay green.
 3. New `failure-handling.spec.ts` covers every boundary + every "throw by default" regression risk.
 4. New `plugin-introspection` tests assert both opt-ins plus the no-op default.
-5. Manually: `pnpm -C demos/react-session-list test` with `plugin-introspection({ includeFailures: true, includeDebug: true })` attached, then `introspect events --type 'introspect.*'` shows the debug log line and any boundary-catch failures from the run.
+5. Manually: `pnpm -C demos/react-trace-list test` with `plugin-introspection({ includeFailures: true, includeDebug: true })` attached, then `introspect events --type 'introspect.*'` shows the debug log line and any boundary-catch failures from the run.

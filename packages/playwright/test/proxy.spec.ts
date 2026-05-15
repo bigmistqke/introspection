@@ -94,8 +94,8 @@ test('proxied page.screenshot() saves asset and emits playwright.screenshot even
 
   // Verify the asset file exists
   const entries = (await readdir(dir)).filter(e => !e.startsWith('.'))
-  const sessionDir = join(dir, entries[0])
-  const assetPath = join(sessionDir, (screenshot as PayloadAsset).path)
+  const traceDir = join(dir, entries[0])
+  const assetPath = join(traceDir, (screenshot as PayloadAsset).path)
   const assetContent = await readFile(assetPath)
   expect(assetContent.length).toBeGreaterThan(0)
 })

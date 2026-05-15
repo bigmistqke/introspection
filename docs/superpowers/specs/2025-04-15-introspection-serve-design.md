@@ -2,7 +2,7 @@
 
 ## Overview
 
-A deployable server package for serving introspection traces. Provides a handler factory + standalone server for serving session data read-only, with optional SSE streaming.
+A deployable server package for serving introspection traces. Provides a handler factory + standalone server for serving trace data read-only, with optional SSE streaming.
 
 ## Package
 
@@ -130,7 +130,7 @@ SSE events:
 | Scenario | Status | Body |
 |----------|--------|------|
 | Directory doesn't exist | 200 | `[]` |
-| Session not found | 404 | `{ error: "Session not found" }` |
+| Trace not found | 404 | `{ error: "Trace not found" }` |
 | Asset not found | 404 | `{ error: "Asset not found" }` |
 | Streaming endpoint without streaming enabled | 400 | `{ error: "Streaming not enabled. Set streaming: true in options." }` |
 

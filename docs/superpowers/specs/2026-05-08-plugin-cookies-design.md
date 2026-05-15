@@ -6,7 +6,7 @@ Sibling to `plugin-web-storage` and `plugin-indexeddb`. Follows the same playboo
 
 ## Why
 
-Auth and session bugs are constant pain points and rarely visible in network logs alone — apps set cookies via `document.cookie`, the browser sets them via `Set-Cookie` response headers, and SameSite/Secure/HttpOnly attribute interactions surprise people. With `plugin-network` already capturing `Set-Cookie` headers, this plugin closes the remaining gaps: page-side mutations and full cookie state at moments of interest.
+Auth and trace bugs are constant pain points and rarely visible in network logs alone — apps set cookies via `document.cookie`, the browser sets them via `Set-Cookie` response headers, and SameSite/Secure/HttpOnly attribute interactions surprise people. With `plugin-network` already capturing `Set-Cookie` headers, this plugin closes the remaining gaps: page-side mutations and full cookie state at moments of interest.
 
 ## Scope
 
@@ -28,7 +28,7 @@ import { cookies } from '@introspection/plugin-cookies'
 attach(page, {
   plugins: [
     cookies(),                                      // writes + snapshots
-    cookies({ names: ['session', 'auth-token'] }),  // restrict to specific cookie names
+    cookies({ names: ['trace', 'auth-token'] }),  // restrict to specific cookie names
     cookies({ origins: ['https://app.example.com'] }), // restrict to cookies for these hostnames
   ],
 })
@@ -45,7 +45,7 @@ interface CookiesOptions {
   origins?: string[]
   /**
    * Restrict capture to cookies with these names. Default: all. Useful for
-   * focusing on auth / session cookies and ignoring tracking noise.
+   * focusing on auth / trace cookies and ignoring tracking noise.
    */
   names?: string[]
   verbose?: boolean
@@ -65,7 +65,7 @@ export interface CookieEntry {
   value: string
   domain: string
   path: string
-  /** Unix seconds. Absent for session cookies. */
+  /** Unix seconds. Absent for trace cookies. */
   expires?: number
   httpOnly: boolean
   secure: boolean
@@ -252,14 +252,14 @@ const { cookies } = await cdpSession.send('Network.getAllCookies') as {
   cookies: Array<{
     name: string; value: string; domain: string; path: string;
     expires: number; size: number;
-    httpOnly: boolean; secure: boolean; session: boolean;
+    httpOnly: boolean; secure: boolean; trace: boolean;
     sameSite?: 'Strict' | 'Lax' | 'None';
     partitionKey?: string;
   }>
 }
 ```
 
-`Network.getAllCookies` returns *every* cookie in the browser context, including HttpOnly. We then apply origin and name filters before emitting. The CDP `expires` field is unix seconds; `-1` means session — we omit `expires` in that case.
+`Network.getAllCookies` returns *every* cookie in the browser context, including HttpOnly. We then apply origin and name filters before emitting. The CDP `expires` field is unix seconds; `-1` means trace — we omit `expires` in that case.
 
 ### Origin and name filters
 
@@ -319,7 +319,7 @@ Playwright integration tests against an HTTP fixture (cookies don't behave well 
 - (when `CookieStore` exists) `cookieStore.set('c', '3')` and `cookieStore.delete('c')` → one event each, source: 'CookieStore'.
 - HTTP response with `Set-Cookie: foo=bar; HttpOnly` → one `cookie.http` event with `httpOnly: true`, populated `url` and `requestId` fields. No `cookie.write` event.
 - `js.error` mid-test → cookie snapshot with `trigger: 'js.error'`.
-- `names: ['session']` filter → only cookies named `session` appear in writes and snapshots.
+- `names: ['trace']` filter → only cookies named `trace` appear in writes and snapshots.
 - `origins: ['https://other.example']` filter → cookies for the test origin are excluded.
 - HttpOnly cookie set via `page.context().addCookies` → present in snapshot (CDP sees through HttpOnly).
 

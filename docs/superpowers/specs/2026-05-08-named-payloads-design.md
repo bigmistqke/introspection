@@ -72,7 +72,7 @@ Rename rationale: once inline is a first-class variant, "asset" stops fitting on
 `emit({ payloads })` accepts two forms per entry:
 
 ```ts
-// 1. Bare JSON-serializable value — threshold-checked using session default.
+// 1. Bare JSON-serializable value — threshold-checked using trace default.
 emit({ type: 'redux.snapshot', payloads: { state } })
 
 // 2. Already-resolved PayloadRef — passed through as-is.
@@ -105,9 +105,9 @@ When `emit` sees a bare value:
 3. If `≤ inlineUnder` → store as `{ kind: 'inline', value }`.
 4. Else → `writeAsset({ format: 'json', content: <serialized> })` and store the returned `{ kind: 'asset', format: 'json', path, ext }`.
 
-`inlineUnder` resolution: per-call (via `ctx.payload`) > session default (via `attach({ inlineUnder })`) > global default.
+`inlineUnder` resolution: per-call (via `ctx.payload`) > trace default (via `attach({ inlineUnder })`) > global default.
 
-**Initial global default: `0`.** Every payload stays an asset on day one — behavior is unchanged from today. The threshold mechanism is shipped but dormant. We then measure real payload sizes from a recorded session and pick a defensible default (likely 8–32 KB) in a follow-up. This decouples the schema migration from the policy decision and keeps the rollout reversible.
+**Initial global default: `0`.** Every payload stays an asset on day one — behavior is unchanged from today. The threshold mechanism is shipped but dormant. We then measure real payload sizes from a recorded trace and pick a defensible default (likely 8–32 KB) in a follow-up. This decouples the schema migration from the policy decision and keeps the rollout reversible.
 
 ### Read API
 
@@ -132,9 +132,9 @@ The change implies updates to the CLI to keep the read workflow ergonomic.
 
 **`introspect assets`.** Removed entirely. Flat directory listings of asset files no longer have a clear user-facing purpose now that events name their payloads.
 
-### Legacy session normalization
+### Legacy trace normalization
 
-Existing recorded `.introspect/` sessions on disk have `assets: AssetRef[]`. The read layer maps them on load:
+Existing recorded `.introspect/` traces on disk have `assets: AssetRef[]`. The read layer maps them on load:
 
 ```ts
 // Old AssetRef.kind becomes new PayloadRef.format on the asset variant.

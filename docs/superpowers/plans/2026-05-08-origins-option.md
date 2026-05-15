@@ -25,7 +25,7 @@ Two layers, plugin-level overrides framework-level:
      plugins: [...]
    }
    ```
-   Applied in `attach()` when calling `page.addInitScript` and when attaching CDP sessions to frame targets. Default: all origins (current behaviour).
+   Applied in `attach()` when calling `page.addInitScript` and when attaching CDP traces to frame targets. Default: all origins (current behaviour).
 
 2. **Per-plugin override** on the plugin options:
    ```ts

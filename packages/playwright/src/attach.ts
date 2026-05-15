@@ -1,9 +1,9 @@
 import { randomUUID } from 'crypto'
 import type { Page } from '@playwright/test'
-import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginMeta, BusPayloadMap, SessionWriter, EmitInput } from '@introspection/types'
+import type { TraceEvent, IntrospectHandle, DetachResult, IntrospectionPlugin, PluginMeta, BusPayloadMap, TraceWriter, EmitInput } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 import { takeSnapshot } from './snapshot.js'
-import { appendEvent, writeAsset, finalizeSession, createSessionWriter } from '@introspection/write'
+import { appendEvent, writeAsset, finalizeTrace, createTraceWriter } from '@introspection/write'
 import { createPageProxy } from './proxy.js'
 import { PluginRegistry } from './plugin-registry.js'
 export interface AttachOptions {
@@ -14,7 +14,7 @@ export interface AttachOptions {
   workerIndex?: number
   plugins?: IntrospectionPlugin[]
   verbose?: boolean
-  session?: SessionWriter
+  trace?: TraceWriter
 }
 
 /**
@@ -64,9 +64,9 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
   const plugins = options.plugins ?? []
   const pluginMetas = toPluginMetas(plugins)
 
-  // Use provided session or create an implicit one
-  const ownsSession = !options.session
-  const session = options.session ?? await createSessionWriter({
+  // Use provided trace or create an implicit one
+  const ownsTrace = !options.trace
+  const trace = options.trace ?? await createTraceWriter({
     id: options.id,
     outDir: options.outDir,
     label: options.testTitle,
@@ -75,7 +75,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
 
   const pageId = randomUUID().replace(/-/g, '').slice(0, 8)
 
-  debug('attach', { sessionId: session.id, pageId, testTitle: options.testTitle })
+  debug('attach', { traceId: trace.id, pageId, testTitle: options.testTitle })
 
   const formatters = plugins
     .map((plugin) => plugin.formatEvent)
@@ -93,14 +93,14 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
     return null
   }
 
-  // Wrap session.emit to stamp pageId onto every event from this page
+  // Wrap trace.emit to stamp pageId onto every event from this page
   // and populate event.summary. Order: caller-provided > framework > plugins.
   function emit(event: EmitInput): Promise<void> {
     const summary = event.summary ?? formatFrameworkEvent(event) ?? runPluginFormatters(event) ?? undefined
-    return session.emit({ pageId, ...event, ...(summary !== undefined ? { summary } : {}) })
+    return trace.emit({ pageId, ...event, ...(summary !== undefined ? { summary } : {}) })
   }
 
-  const { bus, timestamp } = session
+  const { bus, timestamp } = trace
 
   const cdp = await page.context().newCDPSession(page)
 
@@ -116,11 +116,11 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
         send: (method: string, params?: Record<string, unknown>) => cdp.send(method as Parameters<typeof cdp.send>[0], params as Parameters<typeof cdp.send>[1]),
         on: (event: string, handler: (params: unknown) => void) => cdp.on(event as Parameters<typeof cdp.on>[0], handler as Parameters<typeof cdp.on>[1]),
       },
-      rawCdpSession: cdp,
+      rawCdpTrace: cdp,
       emit,
-      writeAsset: session.writeAsset.bind(session),
+      writeAsset: trace.writeAsset.bind(trace),
       timestamp,
-      track: (operation: () => Promise<unknown>) => session.track(operation),
+      track: (operation: () => Promise<unknown>) => trace.track(operation),
       async addSubscription(pluginName: string, spec: unknown) {
         const expression = `(() => { const p = window.__introspect_plugins__?.['${pluginName}']; return p ? p.watch(${JSON.stringify(spec)}) : null })()`
         const evaluationResult = await cdp.send('Runtime.evaluate', { expression, returnByValue: true }) as { result: { value: string } }
@@ -167,7 +167,7 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
 
   // Re-apply subscriptions after each navigation
   page.on('load', () => {
-    session.track(async () => {
+    trace.track(async () => {
       await Promise.all(
         Array.from(registry.all()).map(async ([nodeId, subscription]) => {
           try {
@@ -189,18 +189,18 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
 
   const proxiedPage = createPageProxy({
     emit: (event) => emit(event),
-    writeAsset: async (wopts) => session.writeAsset(wopts),
+    writeAsset: async (wopts) => trace.writeAsset(wopts),
     timestamp,
     page,
   })
 
   return {
-    session,
+    trace,
     pageId,
     page: proxiedPage,
     emit,
     async writeAsset(opts) {
-      return session.writeAsset(opts)
+      return trace.writeAsset(opts)
     },
     async mark(label: string) {
       await emit({ type: 'mark', metadata: { label } })
@@ -213,9 +213,9 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
       // events from the page's most recent JS may still be in flight after a
       // page.evaluate returns. Doing a no-op CDP roundtrip drains the queue —
       // the response can't arrive until the prior events have been delivered.
-      // Then session.flush() waits for plugin async work + the write queue.
+      // Then trace.flush() waits for plugin async work + the write queue.
       await cdp.send('Runtime.evaluate', { expression: '0' }).catch(() => {})
-      await session.flush()
+      await trace.flush()
     },
     async detach(detachResult?: DetachResult) {
       debug('detach', detachResult?.status)
@@ -232,9 +232,9 @@ export async function attach(page: Page, options: AttachOptions = {}): Promise<I
 
       try { await cdp.detach() } catch { /* non-fatal */ }
 
-      // Only finalize if we own the session (implicit session, not shared)
-      if (ownsSession) {
-        await session.finalize()
+      // Only finalize if we own the trace (implicit trace, not shared)
+      if (ownsTrace) {
+        await trace.finalize()
       }
     },
   }

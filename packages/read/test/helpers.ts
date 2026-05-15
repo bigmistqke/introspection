@@ -1,14 +1,14 @@
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
-import type { TraceEvent, SessionMeta, RunMeta } from '@introspection/types'
+import type { TraceEvent, TraceMeta, RunMeta } from '@introspection/types'
 
-export interface FixtureSessionOptions {
+export interface FixtureTraceOptions {
   id: string
   startedAt: number
   endedAt?: number
   label?: string
   project?: string
-  status?: SessionMeta['status']
+  status?: TraceMeta['status']
   events?: TraceEvent[]
   assets?: Array<{ path: string; content: string | Buffer }>
 }
@@ -20,19 +20,19 @@ export interface FixtureRunOptions {
   status?: RunMeta['status']
   branch?: string
   commit?: string
-  sessions?: FixtureSessionOptions[]
+  traces?: FixtureTraceOptions[]
 }
 
-/** Writes a session directory under a run directory, matching the on-disk layout. */
-export async function writeFixtureSession(
+/** Writes a trace directory under a run directory, matching the on-disk layout. */
+export async function writeFixtureTrace(
   dir: string,
   runId: string,
-  options: FixtureSessionOptions,
+  options: FixtureTraceOptions,
 ): Promise<void> {
-  const sessionDir = join(dir, runId, options.id)
-  await mkdir(join(sessionDir, 'assets'), { recursive: true })
+  const traceDir = join(dir, runId, options.id)
+  await mkdir(join(traceDir, 'assets'), { recursive: true })
 
-  const meta: SessionMeta = {
+  const meta: TraceMeta = {
     version: '2',
     id: options.id,
     startedAt: options.startedAt,
@@ -41,17 +41,17 @@ export async function writeFixtureSession(
     project: options.project,
     status: options.status,
   }
-  await writeFile(join(sessionDir, 'meta.json'), JSON.stringify(meta, null, 2))
+  await writeFile(join(traceDir, 'meta.json'), JSON.stringify(meta, null, 2))
 
   const ndjson = (options.events ?? []).map(event => JSON.stringify(event)).join('\n')
-  await writeFile(join(sessionDir, 'events.ndjson'), ndjson ? ndjson + '\n' : '')
+  await writeFile(join(traceDir, 'events.ndjson'), ndjson ? ndjson + '\n' : '')
 
   for (const asset of options.assets ?? []) {
-    await writeFile(join(sessionDir, asset.path), asset.content)
+    await writeFile(join(traceDir, asset.path), asset.content)
   }
 }
 
-/** Writes a run directory (RunMeta + its session sub-directories). */
+/** Writes a run directory (RunMeta + its trace sub-directories). */
 export async function writeFixtureRun(dir: string, options: FixtureRunOptions): Promise<void> {
   const runDir = join(dir, options.id)
   await mkdir(runDir, { recursive: true })
@@ -67,8 +67,8 @@ export async function writeFixtureRun(dir: string, options: FixtureRunOptions): 
   }
   await writeFile(join(runDir, 'meta.json'), JSON.stringify(meta, null, 2))
 
-  for (const session of options.sessions ?? []) {
-    await writeFixtureSession(dir, options.id, session)
+  for (const trace of options.traces ?? []) {
+    await writeFixtureTrace(dir, options.id, trace)
   }
 }
 

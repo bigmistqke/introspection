@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { formatPlugins } from '../../src/commands/plugins.js'
-import type { SessionMeta } from '@introspection/types'
+import type { TraceMeta } from '@introspection/types'
 
 describe('formatPlugins', () => {
   it('formats plugin metadata with events and options', () => {
-    const session: SessionMeta = {
+    const trace: TraceMeta = {
       version: '2',
       id: 'sess-1',
       startedAt: 1000,
@@ -28,7 +28,7 @@ describe('formatPlugins', () => {
         },
       ],
     }
-    const out = formatPlugins(session)
+    const out = formatPlugins(trace)
     expect(out).toContain('js-error')
     expect(out).toContain('Captures errors')
     expect(out).toContain('js.error')
@@ -43,8 +43,8 @@ describe('formatPlugins', () => {
   })
 
   it('returns message when no plugins metadata', () => {
-    const session: SessionMeta = { version: '2', id: 'sess-1', startedAt: 1000 }
-    const out = formatPlugins(session)
+    const trace: TraceMeta = { version: '2', id: 'sess-1', startedAt: 1000 }
+    const out = formatPlugins(trace)
     expect(out).toContain('No plugin metadata')
   })
 })

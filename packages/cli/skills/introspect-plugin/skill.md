@@ -5,7 +5,7 @@ description: Use when writing a custom introspection plugin to capture framework
 
 # Writing a custom introspection plugin
 
-A plugin is a **factory function** returning an `IntrospectionPlugin`. At session startup, `attach()` calls `install(ctx)` once per plugin. The plugin wires up CDP subscriptions or browser-side code and emits trace events via `ctx.emit()`.
+A plugin is a **factory function** returning an `IntrospectionPlugin`. At trace startup, `attach()` calls `install(ctx)` once per plugin. The plugin wires up CDP subscriptions or browser-side code and emits trace events via `ctx.emit()`.
 
 ## The IntrospectionPlugin interface
 
@@ -28,7 +28,7 @@ interface PluginContext {
   rawCdpSession: CDPSession                 // escape hatch — instrumentation plugins only
   emit(event: EmitInput): Promise<void>     // emit a trace event (id + timestamp auto-filled)
   writeAsset(opts: { format: PayloadFormat; content: string | Buffer; ext?: string }): Promise<PayloadAsset>
-  timestamp(): number                       // ms since session start
+  timestamp(): number                       // ms since trace start
   track(operation: () => Promise<unknown>): void   // flush() waits on tracked work
   bus: {
     on<T extends BusTrigger>(trigger: T, handler: (payload: BusPayloadMap[T]) => void | Promise<void>): void
@@ -227,9 +227,9 @@ Plugins are tested end-to-end with real Playwright against a real browser. See `
 
 - **Import from `dist/`, not `src/`.** Tests mirror consumer usage — `pnpm build` before `pnpm test`.
 - **`await handle.flush()` before reading events.** Drains the CDP queue and awaits the write tail.
-- **`await handle.detach()` to finalize the session.**
+- **`await handle.detach()` to finalize the trace.**
 - **Unique tmp directory per test** via `mkdtemp(join(tmpdir(), 'introspect-<name>-'))`. Tests run serially, but shared state is still a footgun.
-- **No mocking.** A mocked CDP session tests the mock, not the plugin.
+- **No mocking.** A mocked CDP trace tests the mock, not the plugin.
 - **Assert on behavior, not type shape.** The type checker covers shape. Tests verify events fire, values match, assets land on disk.
 - **Network-body tests need a real HTTP server.** Playwright's `route.fulfill` doesn't expose a body to `Network.getResponseBody`; see `plugin-network`'s test for the pattern.
 

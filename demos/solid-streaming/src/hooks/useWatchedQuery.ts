@@ -1,6 +1,6 @@
 import type {
   EventsFilter,
-  SessionReader,
+  TraceReader,
   TraceEvent,
 } from "@introspection/types";
 import { createDebug } from "@introspection/utils";
@@ -10,11 +10,11 @@ import { createStore, reconcile } from "solid-js/store";
 let watchId = 0;
 
 /**
- * Bridges a SessionReader's query.watch() AsyncIterable into a Solid signal.
- * Re-subscribes when the session accessor changes.
+ * Bridges a TraceReader's query.watch() AsyncIterable into a Solid signal.
+ * Re-subscribes when the trace accessor changes.
  */
 export function useWatchedQuery(
-  getSession: Accessor<SessionReader | undefined>,
+  getTrace: Accessor<TraceReader | undefined>,
   filter?: EventsFilter,
   options?: { filter?: EventsFilter; verbose?: boolean },
 ) {
@@ -31,19 +31,19 @@ export function useWatchedQuery(
   debug("created");
 
   createEffect(() => {
-    const session = getSession();
+    const trace = getTrace();
 
-    debug("effect fired, session:", session ? session.id : "undefined");
+    debug("effect fired, trace:", trace ? trace.id : "undefined");
 
-    if (!session) {
+    if (!trace) {
       console.log("this happens????");
       setEvents([]);
       return;
     }
 
     const iterable = filter
-      ? session.events.query.watch(filter)
-      : session.events.ls.watch();
+      ? trace.events.query.watch(filter)
+      : trace.events.ls.watch();
 
     debug("iterable created, using", filter ? "query.watch" : "ls.watch");
 

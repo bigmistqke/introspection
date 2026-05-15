@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `@introspection/read` and the `introspect` CLI navigate the two-level `<run-id>/<session-id>/` trace layout that `withIntrospect` established on disk.
+**Goal:** Make `@introspection/read` and the `introspect` CLI navigate the two-level `<run-id>/<trace-id>/` trace layout that `withIntrospect` established on disk.
 
-**Architecture:** `StorageAdapter` gets one change — `listDirectories(subPath?)`. `@introspection/read` builds `listRuns()` / `listSessions(runId)` / hierarchy-aware `createSessionReader` on top, reading `RunMeta` / `SessionMeta`. The node + memory adapters implement the widened method. `introspect debug` is updated to produce a one-session run so every shipped producer uses the single model. The CLI gains an `introspect runs` command, `introspect list` scoped to a run, and `--run` selection across the per-session commands.
+**Architecture:** `StorageAdapter` gets one change — `listDirectories(subPath?)`. `@introspection/read` builds `listRuns()` / `listTraces(runId)` / hierarchy-aware `createTraceReader` on top, reading `RunMeta` / `TraceMeta`. The node + memory adapters implement the widened method. `introspect debug` is updated to produce a one-trace run so every shipped producer uses the single model. The CLI gains an `introspect runs` command, `introspect list` scoped to a run, and `--run` selection across the per-trace commands.
 
 **Tech Stack:** TypeScript (NodeNext), pnpm workspace, tsup (build), vitest (tests for `@introspection/types`, `@introspection/read`, `@introspection/cli`).
 
@@ -16,20 +16,20 @@
 
 **Modify:**
 - `packages/types/src/index.ts` — `StorageAdapter.listDirectories` gains an optional `subPath`.
-- `packages/read/src/node.ts` — `createNodeAdapter` honours `subPath`; new `/node` wrappers `listRuns(dir)` / `listSessions(dir, runId)`.
+- `packages/read/src/node.ts` — `createNodeAdapter` honours `subPath`; new `/node` wrappers `listRuns(dir)` / `listTraces(dir, runId)`.
 - `packages/read/src/memory.ts` — `createMemoryReadAdapter` honours `subPath`.
-- `packages/read/src/index.ts` — `RunSummary` type; `listRuns`; `listSessions(adapter, runId)`; `SessionSummary` gains `project`/`status`; hierarchy-aware `createSessionReader`; `getLatestRunId` + `getLatestSessionId(adapter, runId)`.
-- `packages/read/test/helpers.ts` — `writeFixtureRun`; `writeFixtureSession` nests under a run id.
-- `packages/read/test/list-sessions.test.ts`, `packages/read/test/session-reader.test.ts` — migrated to the hierarchy.
+- `packages/read/src/index.ts` — `RunSummary` type; `listRuns`; `listTraces(adapter, runId)`; `TraceSummary` gains `project`/`status`; hierarchy-aware `createTraceReader`; `getLatestRunId` + `getLatestTraceId(adapter, runId)`.
+- `packages/read/test/helpers.ts` — `writeFixtureRun`; `writeFixtureTrace` nests under a run id.
+- `packages/read/test/list-traces.test.ts`, `packages/read/test/trace-reader.test.ts` — migrated to the hierarchy.
 - `packages/read/test/node-adapter.test.ts`, `packages/read/test/memory.test.ts` — add nested-listing cases.
 - `packages/playwright/src/index.ts` — export `resolveRunId`.
 - `packages/cli/src/commands/debug.ts` — produce a run directory.
 - `packages/cli/test/commands/debug.test.ts` — migrated to the run layout.
-- `packages/cli/src/index.ts` — `loadSession` resolves `runId`+`sessionId`; `--run` on per-session commands; `runs` command; `list` scoped to a run.
+- `packages/cli/src/index.ts` — `loadTrace` resolves `runId`+`traceId`; `--run` on per-trace commands; `runs` command; `list` scoped to a run.
 
 **Create:**
 - `packages/cli/src/commands/runs.ts` — `formatRunsTable(runs)` pure formatter.
-- `packages/cli/src/commands/list.ts` — `formatSessionsTable(sessions)` pure formatter.
+- `packages/cli/src/commands/list.ts` — `formatTracesTable(traces)` pure formatter.
 - `packages/cli/test/commands/runs.test.ts`, `packages/cli/test/commands/list.test.ts` — formatter tests.
 - `packages/cli/test/integration.test.ts` — subprocess test of `runs` / `list` / `summary` against a fixture tree.
 
@@ -181,7 +181,7 @@ git commit -m "read: memory adapter listDirectories honours subPath"
 **Files:**
 - Modify: `packages/read/test/helpers.ts`
 
-This task has no test of its own — the helpers are exercised by Tasks 4 and 5. It updates the fixture builders so existing and new `read` tests can write the `<run-id>/<session-id>/` layout.
+This task has no test of its own — the helpers are exercised by Tasks 4 and 5. It updates the fixture builders so existing and new `read` tests can write the `<run-id>/<trace-id>/` layout.
 
 - [ ] **Step 1: Replace `helpers.ts` with run-aware builders**
 
@@ -190,15 +190,15 @@ Replace the entire contents of `packages/read/test/helpers.ts` with:
 ```ts
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
-import type { TraceEvent, SessionMeta, RunMeta } from '@introspection/types'
+import type { TraceEvent, TraceMeta, RunMeta } from '@introspection/types'
 
-export interface FixtureSessionOptions {
+export interface FixtureTraceOptions {
   id: string
   startedAt: number
   endedAt?: number
   label?: string
   project?: string
-  status?: SessionMeta['status']
+  status?: TraceMeta['status']
   events?: TraceEvent[]
   assets?: Array<{ path: string; content: string | Buffer }>
 }
@@ -210,19 +210,19 @@ export interface FixtureRunOptions {
   status?: RunMeta['status']
   branch?: string
   commit?: string
-  sessions?: FixtureSessionOptions[]
+  traces?: FixtureTraceOptions[]
 }
 
-/** Writes a session directory under a run directory, matching the on-disk layout. */
-export async function writeFixtureSession(
+/** Writes a trace directory under a run directory, matching the on-disk layout. */
+export async function writeFixtureTrace(
   dir: string,
   runId: string,
-  options: FixtureSessionOptions,
+  options: FixtureTraceOptions,
 ): Promise<void> {
-  const sessionDir = join(dir, runId, options.id)
-  await mkdir(join(sessionDir, 'assets'), { recursive: true })
+  const traceDir = join(dir, runId, options.id)
+  await mkdir(join(traceDir, 'assets'), { recursive: true })
 
-  const meta: SessionMeta = {
+  const meta: TraceMeta = {
     version: '2',
     id: options.id,
     startedAt: options.startedAt,
@@ -231,17 +231,17 @@ export async function writeFixtureSession(
     project: options.project,
     status: options.status,
   }
-  await writeFile(join(sessionDir, 'meta.json'), JSON.stringify(meta, null, 2))
+  await writeFile(join(traceDir, 'meta.json'), JSON.stringify(meta, null, 2))
 
   const ndjson = (options.events ?? []).map(event => JSON.stringify(event)).join('\n')
-  await writeFile(join(sessionDir, 'events.ndjson'), ndjson ? ndjson + '\n' : '')
+  await writeFile(join(traceDir, 'events.ndjson'), ndjson ? ndjson + '\n' : '')
 
   for (const asset of options.assets ?? []) {
-    await writeFile(join(sessionDir, asset.path), asset.content)
+    await writeFile(join(traceDir, asset.path), asset.content)
   }
 }
 
-/** Writes a run directory (RunMeta + its session sub-directories). */
+/** Writes a run directory (RunMeta + its trace sub-directories). */
 export async function writeFixtureRun(dir: string, options: FixtureRunOptions): Promise<void> {
   const runDir = join(dir, options.id)
   await mkdir(runDir, { recursive: true })
@@ -257,8 +257,8 @@ export async function writeFixtureRun(dir: string, options: FixtureRunOptions): 
   }
   await writeFile(join(runDir, 'meta.json'), JSON.stringify(meta, null, 2))
 
-  for (const session of options.sessions ?? []) {
-    await writeFixtureSession(dir, options.id, session)
+  for (const trace of options.traces ?? []) {
+    await writeFixtureTrace(dir, options.id, trace)
   }
 }
 
@@ -286,33 +286,33 @@ export function networkRequestEvent(id: string, timestamp: number, url: string):
 - [ ] **Step 2: Verify it compiles**
 
 Run: `cd packages/read && pnpm exec tsc --noEmit`
-Expected: FAIL — `list-sessions.test.ts` and `session-reader.test.ts` still call `writeFixtureSession(dir, {...})` with the old 2-arg signature. That is expected; Tasks 4 and 5 migrate those files. The helper file itself must show no errors — confirm the only errors are in those two test files.
+Expected: FAIL — `list-traces.test.ts` and `trace-reader.test.ts` still call `writeFixtureTrace(dir, {...})` with the old 2-arg signature. That is expected; Tasks 4 and 5 migrate those files. The helper file itself must show no errors — confirm the only errors are in those two test files.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add packages/read/test/helpers.ts
-git commit -m "read(test): run-aware fixture helpers (writeFixtureRun, nested writeFixtureSession)"
+git commit -m "read(test): run-aware fixture helpers (writeFixtureRun, nested writeFixtureTrace)"
 ```
 
 ---
 
-## Task 4: `read` — `RunSummary` + `listRuns`, `SessionSummary` + `listSessions(runId)`
+## Task 4: `read` — `RunSummary` + `listRuns`, `TraceSummary` + `listTraces(runId)`
 
 **Files:**
 - Modify: `packages/read/src/index.ts`
-- Test: `packages/read/test/list-sessions.test.ts` (migrated + extended)
+- Test: `packages/read/test/list-traces.test.ts` (migrated + extended)
 
-- [ ] **Step 1: Replace `list-sessions.test.ts` with run + session listing tests**
+- [ ] **Step 1: Replace `list-traces.test.ts` with run + trace listing tests**
 
-Replace the entire contents of `packages/read/test/list-sessions.test.ts` with:
+Replace the entire contents of `packages/read/test/list-traces.test.ts` with:
 
 ```ts
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { listRuns, listSessions } from '../src/index.js'
+import { listRuns, listTraces } from '../src/index.js'
 import { createNodeAdapter } from '../src/node.js'
 import { writeFixtureRun } from './helpers.js'
 
@@ -335,20 +335,20 @@ describe('listRuns', () => {
     expect(await listRuns(createNodeAdapter(join(dir, 'missing')))).toEqual([])
   })
 
-  it('reads runs, orders by startedAt descending, counts sessions', async () => {
+  it('reads runs, orders by startedAt descending, counts traces', async () => {
     await writeFixtureRun(dir, {
       id: 'old', startedAt: 100, endedAt: 150, status: 'passed', branch: 'main',
-      sessions: [{ id: 's1', startedAt: 110 }],
+      traces: [{ id: 's1', startedAt: 110 }],
     })
     await writeFixtureRun(dir, {
       id: 'new', startedAt: 300, status: 'failed',
-      sessions: [{ id: 's1', startedAt: 310 }, { id: 's2', startedAt: 320 }],
+      traces: [{ id: 's1', startedAt: 310 }, { id: 's2', startedAt: 320 }],
     })
 
     const runs = await listRuns(createNodeAdapter(dir))
     expect(runs.map(run => run.id)).toEqual(['new', 'old'])
-    expect(runs[0]).toMatchObject({ id: 'new', status: 'failed', sessionCount: 2 })
-    expect(runs[1]).toMatchObject({ id: 'old', status: 'passed', branch: 'main', sessionCount: 1 })
+    expect(runs[0]).toMatchObject({ id: 'new', status: 'failed', traceCount: 2 })
+    expect(runs[1]).toMatchObject({ id: 'old', status: 'passed', branch: 'main', traceCount: 1 })
   })
 
   it('skips runs with unreadable meta.json', async () => {
@@ -361,68 +361,68 @@ describe('listRuns', () => {
   })
 })
 
-describe('listSessions', () => {
-  it('returns sessions of a run, ordered by startedAt descending', async () => {
+describe('listTraces', () => {
+  it('returns traces of a run, ordered by startedAt descending', async () => {
     await writeFixtureRun(dir, {
       id: 'run', startedAt: 100,
-      sessions: [
+      traces: [
         { id: 'old', startedAt: 110, project: 'browser-mobile', status: 'passed' },
         { id: 'new', startedAt: 130, project: 'browser-desktop', status: 'failed' },
         { id: 'mid', startedAt: 120 },
       ],
     })
 
-    const sessions = await listSessions(createNodeAdapter(dir), 'run')
-    expect(sessions.map(s => s.id)).toEqual(['new', 'mid', 'old'])
-    expect(sessions[0]).toMatchObject({ id: 'new', project: 'browser-desktop', status: 'failed' })
+    const traces = await listTraces(createNodeAdapter(dir), 'run')
+    expect(traces.map(s => s.id)).toEqual(['new', 'mid', 'old'])
+    expect(traces[0]).toMatchObject({ id: 'new', project: 'browser-desktop', status: 'failed' })
   })
 
   it('computes duration when endedAt is present', async () => {
     await writeFixtureRun(dir, {
       id: 'run', startedAt: 100,
-      sessions: [
+      traces: [
         { id: 'done', startedAt: 100, endedAt: 450 },
         { id: 'open', startedAt: 500 },
       ],
     })
 
-    const sessions = await listSessions(createNodeAdapter(dir), 'run')
-    expect(sessions.find(s => s.id === 'done')!.duration).toBe(350)
-    expect(sessions.find(s => s.id === 'open')!.duration).toBeUndefined()
+    const traces = await listTraces(createNodeAdapter(dir), 'run')
+    expect(traces.find(s => s.id === 'done')!.duration).toBe(350)
+    expect(traces.find(s => s.id === 'open')!.duration).toBeUndefined()
   })
 
-  it('returns empty array for a run with no sessions', async () => {
+  it('returns empty array for a run with no traces', async () => {
     await writeFixtureRun(dir, { id: 'run', startedAt: 100 })
-    expect(await listSessions(createNodeAdapter(dir), 'run')).toEqual([])
+    expect(await listTraces(createNodeAdapter(dir), 'run')).toEqual([])
   })
 
-  it('skips sessions with unreadable meta.json', async () => {
-    await writeFixtureRun(dir, { id: 'run', startedAt: 100, sessions: [{ id: 'ok', startedAt: 110 }] })
+  it('skips traces with unreadable meta.json', async () => {
+    await writeFixtureRun(dir, { id: 'run', startedAt: 100, traces: [{ id: 'ok', startedAt: 110 }] })
     await mkdir(join(dir, 'run', 'broken'))
     await writeFile(join(dir, 'run', 'broken', 'meta.json'), 'not-json{')
 
-    const sessions = await listSessions(createNodeAdapter(dir), 'run')
-    expect(sessions.map(s => s.id)).toEqual(['ok'])
+    const traces = await listTraces(createNodeAdapter(dir), 'run')
+    expect(traces.map(s => s.id)).toEqual(['ok'])
   })
 })
 ```
 
-> Note: `listRuns` / `listSessions` here are the `/index.js` adapter-taking functions. The `/node` dir-taking wrappers are Task 6.
+> Note: `listRuns` / `listTraces` here are the `/index.js` adapter-taking functions. The `/node` dir-taking wrappers are Task 6.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd packages/read && pnpm exec vitest run test/list-sessions.test.ts`
-Expected: FAIL — `listRuns` is not exported; `listSessions` has the old `(adapter)` signature.
+Run: `cd packages/read && pnpm exec vitest run test/list-traces.test.ts`
+Expected: FAIL — `listRuns` is not exported; `listTraces` has the old `(adapter)` signature.
 
 - [ ] **Step 3: Implement in `packages/read/src/index.ts`**
 
-Add `RunMeta` and `SessionStatus` to the type import at the top of the file (the existing import from `@introspection/types`):
+Add `RunMeta` and `TraceStatus` to the type import at the top of the file (the existing import from `@introspection/types`):
 
 ```ts
-import type { TraceEvent, SessionReader, SessionMeta, RunMeta, SessionStatus, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter, PayloadRef } from '@introspection/types'
+import type { TraceEvent, TraceReader, TraceMeta, RunMeta, TraceStatus, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter, PayloadRef } from '@introspection/types'
 ```
 
-Replace the `SessionSummary` interface and the `listSessions` function with:
+Replace the `TraceSummary` interface and the `listTraces` function with:
 
 ```ts
 export interface RunSummary {
@@ -432,14 +432,14 @@ export interface RunSummary {
   status?: RunMeta['status']
   branch?: string
   commit?: string
-  sessionCount: number
+  traceCount: number
 }
 
-export interface SessionSummary {
+export interface TraceSummary {
   id: string
   label?: string
   project?: string
-  status?: SessionStatus
+  status?: TraceStatus
   startedAt: number
   endedAt?: number
   duration?: number
@@ -453,7 +453,7 @@ export async function listRuns(adapter: StorageAdapter): Promise<RunSummary[]> {
     runIds.map(async (id): Promise<RunSummary | null> => {
       try {
         const meta = JSON.parse(await adapter.readText(`${id}/meta.json`)) as RunMeta
-        const sessions = await adapter.listDirectories(id)
+        const traces = await adapter.listDirectories(id)
         return {
           id: meta.id,
           startedAt: meta.startedAt,
@@ -461,7 +461,7 @@ export async function listRuns(adapter: StorageAdapter): Promise<RunSummary[]> {
           status: meta.status,
           branch: meta.branch,
           commit: meta.commit,
-          sessionCount: sessions.length,
+          traceCount: traces.length,
         }
       } catch {
         return null // skip malformed runs
@@ -472,14 +472,14 @@ export async function listRuns(adapter: StorageAdapter): Promise<RunSummary[]> {
   return results.filter((r): r is RunSummary => r !== null).sort((a, b) => b.startedAt - a.startedAt)
 }
 
-export async function listSessions(adapter: StorageAdapter, runId: string): Promise<SessionSummary[]> {
-  const sessionIds = await adapter.listDirectories(runId)
-  if (sessionIds.length === 0) return []
+export async function listTraces(adapter: StorageAdapter, runId: string): Promise<TraceSummary[]> {
+  const traceIds = await adapter.listDirectories(runId)
+  if (traceIds.length === 0) return []
 
   const results = await Promise.all(
-    sessionIds.map(async (id): Promise<SessionSummary | null> => {
+    traceIds.map(async (id): Promise<TraceSummary | null> => {
       try {
-        const meta = JSON.parse(await adapter.readText(`${runId}/${id}/meta.json`)) as SessionMeta
+        const meta = JSON.parse(await adapter.readText(`${runId}/${id}/meta.json`)) as TraceMeta
         return {
           id: meta.id,
           label: meta.label,
@@ -490,113 +490,113 @@ export async function listSessions(adapter: StorageAdapter, runId: string): Prom
           duration: meta.endedAt ? meta.endedAt - meta.startedAt : undefined,
         }
       } catch {
-        return null // skip malformed sessions
+        return null // skip malformed traces
       }
     }),
   )
 
-  return results.filter((s): s is SessionSummary => s !== null).sort((a, b) => b.startedAt - a.startedAt)
+  return results.filter((s): s is TraceSummary => s !== null).sort((a, b) => b.startedAt - a.startedAt)
 }
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd packages/read && pnpm exec vitest run test/list-sessions.test.ts`
+Run: `cd packages/read && pnpm exec vitest run test/list-traces.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/read/src/index.ts packages/read/test/list-sessions.test.ts
-git commit -m "read: add RunSummary/listRuns; listSessions takes a runId"
+git add packages/read/src/index.ts packages/read/test/list-traces.test.ts
+git commit -m "read: add RunSummary/listRuns; listTraces takes a runId"
 ```
 
 ---
 
-## Task 5: `read` — hierarchy-aware `createSessionReader`
+## Task 5: `read` — hierarchy-aware `createTraceReader`
 
 **Files:**
 - Modify: `packages/read/src/index.ts`
-- Test: `packages/read/test/session-reader.test.ts` (migrated)
+- Test: `packages/read/test/trace-reader.test.ts` (migrated)
 
-- [ ] **Step 1: Replace `session-reader.test.ts` selection tests with hierarchy versions**
+- [ ] **Step 1: Replace `trace-reader.test.ts` selection tests with hierarchy versions**
 
-In `packages/read/test/session-reader.test.ts`, change the helper import line to:
+In `packages/read/test/trace-reader.test.ts`, change the helper import line to:
 
 ```ts
 import { writeFixtureRun, markEvent, networkRequestEvent } from './helpers.js'
 ```
 
-Then replace the `describe('createSessionReader — selection & meta', ...)` block's body so every `writeFixtureSession(dir, {...})` call becomes a `writeFixtureRun(dir, { ... sessions: [...] })` call. Concretely, replace the **first four** `it(...)` cases (selection + "throws when no sessions") with:
+Then replace the `describe('createTraceReader — selection & meta', ...)` block's body so every `writeFixtureTrace(dir, {...})` call becomes a `writeFixtureRun(dir, { ... traces: [...] })` call. Concretely, replace the **first four** `it(...)` cases (selection + "throws when no traces") with:
 
 ```ts
-  it('selects the latest session of the latest run when no ids are given', async () => {
-    await writeFixtureRun(dir, { id: 'run-old', startedAt: 100, sessions: [{ id: 's', startedAt: 110 }] })
+  it('selects the latest trace of the latest run when no ids are given', async () => {
+    await writeFixtureRun(dir, { id: 'run-old', startedAt: 100, traces: [{ id: 's', startedAt: 110 }] })
     await writeFixtureRun(dir, {
       id: 'run-new', startedAt: 500,
-      sessions: [{ id: 'early', startedAt: 510 }, { id: 'late', startedAt: 590 }],
+      traces: [{ id: 'early', startedAt: 510 }, { id: 'late', startedAt: 590 }],
     })
-    const reader = await createSessionReader(dir)
+    const reader = await createTraceReader(dir)
     expect(reader.id).toBe('late')
   })
 
-  it('selects a specific session within the latest run when sessionId is given', async () => {
+  it('selects a specific trace within the latest run when traceId is given', async () => {
     await writeFixtureRun(dir, {
       id: 'run', startedAt: 100,
-      sessions: [{ id: 'a', startedAt: 110 }, { id: 'b', startedAt: 120 }],
+      traces: [{ id: 'a', startedAt: 110 }, { id: 'b', startedAt: 120 }],
     })
-    const reader = await createSessionReader(dir, { sessionId: 'a' })
+    const reader = await createTraceReader(dir, { traceId: 'a' })
     expect(reader.id).toBe('a')
   })
 
-  it('selects a session within an explicitly named run', async () => {
-    await writeFixtureRun(dir, { id: 'run-1', startedAt: 100, sessions: [{ id: 'x', startedAt: 110 }] })
-    await writeFixtureRun(dir, { id: 'run-2', startedAt: 500, sessions: [{ id: 'y', startedAt: 510 }] })
-    const reader = await createSessionReader(dir, { runId: 'run-1' })
+  it('selects a trace within an explicitly named run', async () => {
+    await writeFixtureRun(dir, { id: 'run-1', startedAt: 100, traces: [{ id: 'x', startedAt: 110 }] })
+    await writeFixtureRun(dir, { id: 'run-2', startedAt: 500, traces: [{ id: 'y', startedAt: 510 }] })
+    const reader = await createTraceReader(dir, { runId: 'run-1' })
     expect(reader.id).toBe('x')
   })
 
   it('throws when no runs exist', async () => {
-    await expect(createSessionReader(dir)).rejects.toThrow(/No runs found/)
+    await expect(createTraceReader(dir)).rejects.toThrow(/No runs found/)
   })
 
-  it('throws when the named run has no sessions', async () => {
+  it('throws when the named run has no traces', async () => {
     await writeFixtureRun(dir, { id: 'empty', startedAt: 100 })
-    await expect(createSessionReader(dir, { runId: 'empty' })).rejects.toThrow(/No sessions in run/)
+    await expect(createTraceReader(dir, { runId: 'empty' })).rejects.toThrow(/No traces in run/)
   })
 ```
 
-For every **remaining** `it(...)` case in the file (the `meta`, `events`, `resolvePayload`, `watch` cases — whichever exist below), wrap each `writeFixtureSession(dir, { id: X, ... })` call as a single-session run: `writeFixtureRun(dir, { id: 'run', startedAt: <same startedAt>, sessions: [{ id: X, ... }] })`, and leave the `createSessionReader(dir)` / `createSessionReader(dir, { sessionId: X })` calls as-is (they resolve within that one run). The reader's `id` is still the session id, so existing `reader.id` / `reader.meta` assertions are unchanged.
+For every **remaining** `it(...)` case in the file (the `meta`, `events`, `resolvePayload`, `watch` cases — whichever exist below), wrap each `writeFixtureTrace(dir, { id: X, ... })` call as a single-trace run: `writeFixtureRun(dir, { id: 'run', startedAt: <same startedAt>, traces: [{ id: X, ... }] })`, and leave the `createTraceReader(dir)` / `createTraceReader(dir, { traceId: X })` calls as-is (they resolve within that one run). The reader's `id` is still the trace id, so existing `reader.id` / `reader.meta` assertions are unchanged.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd packages/read && pnpm exec vitest run test/session-reader.test.ts`
-Expected: FAIL — `createSessionReader` resolves a top-level dir as a session: it reads `<runId>/meta.json` (a `RunMeta`) as the session meta and looks for `<runId>/events.ndjson`, which does not exist.
+Run: `cd packages/read && pnpm exec vitest run test/trace-reader.test.ts`
+Expected: FAIL — `createTraceReader` resolves a top-level dir as a trace: it reads `<runId>/meta.json` (a `RunMeta`) as the trace meta and looks for `<runId>/events.ndjson`, which does not exist.
 
 - [ ] **Step 3: Implement in `packages/read/src/index.ts`**
 
-Replace the `CreateSessionReaderOptions` interface and the head of `createSessionReader` (down to and including the `loadEvents` call) with:
+Replace the `CreateTraceReaderOptions` interface and the head of `createTraceReader` (down to and including the `loadEvents` call) with:
 
 ```ts
-export interface CreateSessionReaderOptions {
+export interface CreateTraceReaderOptions {
   runId?: string
-  sessionId?: string
+  traceId?: string
   verbose?: boolean
 }
 
-export async function createSessionReader(adapter: StorageAdapter, options?: CreateSessionReaderOptions): Promise<SessionReader> {
-  const debug = createDebug('session-reader', options?.verbose ?? false)
+export async function createTraceReader(adapter: StorageAdapter, options?: CreateTraceReaderOptions): Promise<TraceReader> {
+  const debug = createDebug('trace-reader', options?.verbose ?? false)
 
   const runId = options?.runId ?? (await getLatestRunId(adapter))
   if (!runId) throw new Error('No runs found')
 
-  const id = options?.sessionId ?? (await getLatestSessionId(adapter, runId))
-  if (!id) throw new Error(`No sessions in run '${runId}'`)
+  const id = options?.traceId ?? (await getLatestTraceId(adapter, runId))
+  if (!id) throw new Error(`No traces in run '${runId}'`)
 
   const prefix = `${runId}/${id}`
 
   const metaRaw = await adapter.readText(`${prefix}/meta.json`)
-  const meta = JSON.parse(metaRaw) as SessionMeta
+  const meta = JSON.parse(metaRaw) as TraceMeta
 
   const initialEvents = await loadEvents(adapter, prefix)
   debug('loaded', initialEvents.length, 'events from', prefix)
@@ -608,7 +608,7 @@ In `resolvePayload`, change the asset path from `${id}/${ref.path}` to `${prefix
       const fullPath = `${prefix}/${ref.path}`
 ```
 
-Replace the `getLatestSessionId` helper and the `loadEvents` helper at the bottom of the file with:
+Replace the `getLatestTraceId` helper and the `loadEvents` helper at the bottom of the file with:
 
 ```ts
 async function getLatestRunId(adapter: StorageAdapter): Promise<string | null> {
@@ -629,12 +629,12 @@ async function getLatestRunId(adapter: StorageAdapter): Promise<string | null> {
   return metas[0].id
 }
 
-async function getLatestSessionId(adapter: StorageAdapter, runId: string): Promise<string | null> {
-  const sessionIds = await adapter.listDirectories(runId)
-  if (sessionIds.length === 0) return null
+async function getLatestTraceId(adapter: StorageAdapter, runId: string): Promise<string | null> {
+  const traceIds = await adapter.listDirectories(runId)
+  if (traceIds.length === 0) return null
 
   const metas = await Promise.all(
-    sessionIds.map(async id => {
+    traceIds.map(async id => {
       try {
         const meta = JSON.parse(await adapter.readText(`${runId}/${id}/meta.json`)) as { startedAt: number }
         return { id, startedAt: meta.startedAt }
@@ -647,8 +647,8 @@ async function getLatestSessionId(adapter: StorageAdapter, runId: string): Promi
   return metas[0].id
 }
 
-async function loadEvents(adapter: StorageAdapter, sessionPrefix: string): Promise<TraceEvent[]> {
-  const eventsRaw = await adapter.readText(`${sessionPrefix}/events.ndjson`)
+async function loadEvents(adapter: StorageAdapter, tracePrefix: string): Promise<TraceEvent[]> {
+  const eventsRaw = await adapter.readText(`${tracePrefix}/events.ndjson`)
   return eventsRaw
     .split('\n')
     .filter(line => line.trim())
@@ -659,13 +659,13 @@ async function loadEvents(adapter: StorageAdapter, sessionPrefix: string): Promi
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd packages/read && pnpm exec vitest run`
-Expected: PASS — all `read` tests (`node-adapter`, `memory`, `list-sessions`, `session-reader`, `match-event-type`). Then `pnpm exec tsc --noEmit` — Expected: PASS.
+Expected: PASS — all `read` tests (`node-adapter`, `memory`, `list-traces`, `trace-reader`, `match-event-type`). Then `pnpm exec tsc --noEmit` — Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/read/src/index.ts packages/read/test/session-reader.test.ts
-git commit -m "read: createSessionReader resolves a session within a run"
+git add packages/read/src/index.ts packages/read/test/trace-reader.test.ts
+git commit -m "read: createTraceReader resolves a trace within a run"
 ```
 
 ---
@@ -682,19 +682,19 @@ Append a new `describe` block to `packages/read/test/node-adapter.test.ts`:
 
 ```ts
 describe('node convenience wrappers', () => {
-  it('listRuns(dir) and listSessions(dir, runId) read the on-disk hierarchy', async () => {
+  it('listRuns(dir) and listTraces(dir, runId) read the on-disk hierarchy', async () => {
     const { writeFixtureRun } = await import('./helpers.js')
     await writeFixtureRun(dir, {
       id: 'run-1', startedAt: 200, status: 'passed',
-      sessions: [{ id: 'sess-a', startedAt: 210, project: 'p' }],
+      traces: [{ id: 'sess-a', startedAt: 210, project: 'p' }],
     })
-    const { listRuns, listSessions } = await import('../src/node.js')
+    const { listRuns, listTraces } = await import('../src/node.js')
     const runs = await listRuns(dir)
     expect(runs.map(r => r.id)).toEqual(['run-1'])
-    expect(runs[0].sessionCount).toBe(1)
-    const sessions = await listSessions(dir, 'run-1')
-    expect(sessions.map(s => s.id)).toEqual(['sess-a'])
-    expect(sessions[0].project).toBe('p')
+    expect(runs[0].traceCount).toBe(1)
+    const traces = await listTraces(dir, 'run-1')
+    expect(traces.map(s => s.id)).toEqual(['sess-a'])
+    expect(traces[0].project).toBe('p')
   })
 })
 ```
@@ -702,7 +702,7 @@ describe('node convenience wrappers', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd packages/read && pnpm exec vitest run test/node-adapter.test.ts`
-Expected: FAIL — `listRuns` is not exported from `../src/node.js`, and `listSessions` there has the old `(dir)` signature.
+Expected: FAIL — `listRuns` is not exported from `../src/node.js`, and `listTraces` there has the old `(dir)` signature.
 
 - [ ] **Step 3: Implement in `packages/read/src/node.ts`**
 
@@ -711,36 +711,36 @@ Update the import from `./index.js` to pull in the new functions and `RunSummary
 ```ts
 import {
   type StorageAdapter,
-  type SessionSummary,
+  type TraceSummary,
   type RunSummary,
-  createSessionReader as createSessionReaderFromAdapter,
+  createTraceReader as createTraceReaderFromAdapter,
   listRuns as listRunsFromAdapter,
-  listSessions as listSessionsFromAdapter,
+  listTraces as listTracesFromAdapter,
 } from './index.js'
 ```
 
 Update the re-export type line:
 
 ```ts
-export type { StorageAdapter, SessionSummary, RunSummary } from './index.js'
+export type { StorageAdapter, TraceSummary, RunSummary } from './index.js'
 ```
 
-Replace the `createSessionReader` and `listSessions` wrappers at the bottom of the file with:
+Replace the `createTraceReader` and `listTraces` wrappers at the bottom of the file with:
 
 ```ts
-export async function createSessionReader(
+export async function createTraceReader(
   dir: string,
-  options?: { runId?: string; sessionId?: string; verbose?: boolean },
-): Promise<SessionReader> {
-  return createSessionReaderFromAdapter(createNodeAdapter(dir), options)
+  options?: { runId?: string; traceId?: string; verbose?: boolean },
+): Promise<TraceReader> {
+  return createTraceReaderFromAdapter(createNodeAdapter(dir), options)
 }
 
 export async function listRuns(dir: string): Promise<RunSummary[]> {
   return listRunsFromAdapter(createNodeAdapter(dir))
 }
 
-export async function listSessions(dir: string, runId: string): Promise<SessionSummary[]> {
-  return listSessionsFromAdapter(createNodeAdapter(dir), runId)
+export async function listTraces(dir: string, runId: string): Promise<TraceSummary[]> {
+  return listTracesFromAdapter(createNodeAdapter(dir), runId)
 }
 ```
 
@@ -753,7 +753,7 @@ Expected: PASS / no type errors.
 
 ```bash
 git add packages/read/src/node.ts packages/read/test/node-adapter.test.ts
-git commit -m "read/node: add listRuns(dir) and listSessions(dir, runId) wrappers"
+git commit -m "read/node: add listRuns(dir) and listTraces(dir, runId) wrappers"
 ```
 
 ---
@@ -795,13 +795,13 @@ git commit -m "playwright: export resolveRunId"
 
 - [ ] **Step 1: Migrate the debug test to the run layout**
 
-In `packages/cli/test/commands/debug.test.ts`: `runDebug` will now return a `{ runId, sessionId }` object instead of a bare session-id string. Replace each assertion block that uses the return value and `listSessions`/`createSessionReader`. Specifically, change the import line:
+In `packages/cli/test/commands/debug.test.ts`: `runDebug` will now return a `{ runId, traceId }` object instead of a bare trace-id string. Replace each assertion block that uses the return value and `listTraces`/`createTraceReader`. Specifically, change the import line:
 
 ```ts
-import { createSessionReader, listRuns, listSessions } from '@introspection/read/node'
+import { createTraceReader, listRuns, listTraces } from '@introspection/read/node'
 ```
 
-And in the first test (`serves a local HTML file and records a session`), replace the body after the `runDebug({...})` call with:
+And in the first test (`serves a local HTML file and records a trace`), replace the body after the `runDebug({...})` call with:
 
 ```ts
     const result = await runDebug({
@@ -811,25 +811,25 @@ And in the first test (`serves a local HTML file and records a session`), replac
     })
 
     expect(result.runId).toBeDefined()
-    expect(result.sessionId).toBeDefined()
+    expect(result.traceId).toBeDefined()
 
-    // The run directory exists with a RunMeta and one session
+    // The run directory exists with a RunMeta and one trace
     const runs = await listRuns(tempDir)
     expect(runs.map(r => r.id)).toContain(result.runId)
-    const sessions = await listSessions(tempDir, result.runId)
-    expect(sessions.map(s => s.id)).toContain(result.sessionId)
+    const traces = await listTraces(tempDir, result.runId)
+    expect(traces.map(s => s.id)).toContain(result.traceId)
 
-    // The session reader resolves within the run
-    const reader = await createSessionReader(tempDir, { runId: result.runId, sessionId: result.sessionId })
-    expect(reader.id).toBe(result.sessionId)
+    // The trace reader resolves within the run
+    const reader = await createTraceReader(tempDir, { runId: result.runId, traceId: result.traceId })
+    expect(reader.id).toBe(result.traceId)
 ```
 
-For any other test in the file that calls `runDebug` and inspects its result, apply the same shape change (`const result = await runDebug(...)`, then use `result.runId` / `result.sessionId`).
+For any other test in the file that calls `runDebug` and inspects its result, apply the same shape change (`const result = await runDebug(...)`, then use `result.runId` / `result.traceId`).
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd packages/cli && pnpm exec vitest run test/commands/debug.test.ts`
-Expected: FAIL — `runDebug` still returns a string; `listRuns` import / `listSessions(dir, runId)` signature don't match yet.
+Expected: FAIL — `runDebug` still returns a string; `listRuns` import / `listTraces(dir, runId)` signature don't match yet.
 
 - [ ] **Step 3: Implement in `packages/cli/src/commands/debug.ts`**
 
@@ -842,7 +842,7 @@ import { resolveRunId } from '@introspection/playwright'
 import type { RunMeta } from '@introspection/types'
 ```
 
-Change `runDebug`'s return type and the capture block. Replace the `try { ... return handle.session.id } finally { ... }` region with:
+Change `runDebug`'s return type and the capture block. Replace the `try { ... return handle.trace.id } finally { ... }` region with:
 
 ```ts
   const runId = resolveRunId(process.env)
@@ -853,7 +853,7 @@ Change `runDebug`'s return type and the capture block. Replace the `try { ... re
   await writeFile(join(runDir, 'meta.json'), JSON.stringify(runMeta, null, 2))
 
   try {
-    // Attach introspection — the session lands at <runDir>/<session-id>/
+    // Attach introspection — the trace lands at <runDir>/<trace-id>/
     const handle = await attach(page, {
       outDir: runDir,
       plugins,
@@ -883,10 +883,10 @@ Change `runDebug`'s return type and the capture block. Replace the `try { ... re
       JSON.stringify({ ...runMeta, endedAt: Date.now() } satisfies RunMeta, null, 2),
     )
 
-    console.log(`\n✓ Session saved to: ${runId}/${handle.session.id}`)
-    console.log(`  Query with: introspect events --run ${runId} --session-id ${handle.session.id}`)
+    console.log(`\n✓ Trace saved to: ${runId}/${handle.trace.id}`)
+    console.log(`  Query with: introspect events --run ${runId} --trace-id ${handle.trace.id}`)
 
-    return { runId, sessionId: handle.session.id }
+    return { runId, traceId: handle.trace.id }
   } finally {
     await browser.close()
     if (serverInfo?.server) {
@@ -898,7 +898,7 @@ Change `runDebug`'s return type and the capture block. Replace the `try { ... re
 Change the function signature line from `export async function runDebug(opts: DebugOptions) {` to:
 
 ```ts
-export async function runDebug(opts: DebugOptions): Promise<{ runId: string; sessionId: string }> {
+export async function runDebug(opts: DebugOptions): Promise<{ runId: string; traceId: string }> {
 ```
 
 - [ ] **Step 4: Update the `debug` command's call site in `packages/cli/src/index.ts`**
@@ -914,7 +914,7 @@ Expected: PASS.
 
 ```bash
 git add packages/cli/src/commands/debug.ts packages/cli/test/commands/debug.test.ts
-git commit -m "cli: introspect debug produces a one-session run directory"
+git commit -m "cli: introspect debug produces a one-trace run directory"
 ```
 
 ---
@@ -934,12 +934,12 @@ import { formatRunsTable } from '../../src/commands/runs.js'
 import type { RunSummary } from '@introspection/read'
 
 const runs: RunSummary[] = [
-  { id: 'main_4821', startedAt: 1_700_000_000_000, endedAt: 1_700_000_060_000, status: 'failed', branch: 'main', sessionCount: 12 },
-  { id: '20260514-101500-ab12', startedAt: 1_699_900_000_000, status: 'passed', branch: 'feat-x', sessionCount: 3 },
+  { id: 'main_4821', startedAt: 1_700_000_000_000, endedAt: 1_700_000_060_000, status: 'failed', branch: 'main', traceCount: 12 },
+  { id: '20260514-101500-ab12', startedAt: 1_699_900_000_000, status: 'passed', branch: 'feat-x', traceCount: 3 },
 ]
 
 describe('formatRunsTable', () => {
-  it('renders one row per run with id, status, branch and session count', () => {
+  it('renders one row per run with id, status, branch and trace count', () => {
     const out = formatRunsTable(runs)
     expect(out).toContain('main_4821')
     expect(out).toContain('failed')
@@ -951,7 +951,7 @@ describe('formatRunsTable', () => {
   })
 
   it('handles a run with no status or branch', () => {
-    const out = formatRunsTable([{ id: 'r', startedAt: 1, sessionCount: 0 }])
+    const out = formatRunsTable([{ id: 'r', startedAt: 1, traceCount: 0 }])
     expect(out).toContain('r')
     expect(out).toContain('0')
   })
@@ -975,7 +975,7 @@ export function formatRunsTable(runs: RunSummary[]): string {
       const status = run.status ?? 'running'
       const branch = run.branch ?? '-'
       const started = new Date(run.startedAt).toISOString()
-      const count = `${run.sessionCount} session${run.sessionCount === 1 ? '' : 's'}`
+      const count = `${run.traceCount} trace${run.traceCount === 1 ? '' : 's'}`
       return `${run.id.padEnd(28)}  ${status.padEnd(8)}  ${branch.padEnd(16)}  ${started}  ${count}`
     })
     .join('\n')
@@ -996,7 +996,7 @@ git commit -m "cli: add formatRunsTable for the runs command"
 
 ---
 
-## Task 10: `introspect list` formatter — `formatSessionsTable`
+## Task 10: `introspect list` formatter — `formatTracesTable`
 
 **Files:**
 - Create: `packages/cli/src/commands/list.ts`, `packages/cli/test/commands/list.test.ts`
@@ -1007,17 +1007,17 @@ Create `packages/cli/test/commands/list.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest'
-import { formatSessionsTable } from '../../src/commands/list.js'
-import type { SessionSummary } from '@introspection/read'
+import { formatTracesTable } from '../../src/commands/list.js'
+import type { TraceSummary } from '@introspection/read'
 
-const sessions: SessionSummary[] = [
+const traces: TraceSummary[] = [
   { id: 'default__tabs-favorites', startedAt: 100, endedAt: 1100, project: 'browser-mobile', status: 'failed' },
   { id: 'default__player-offline', startedAt: 200, project: 'browser-desktop' },
 ]
 
-describe('formatSessionsTable', () => {
-  it('renders one row per session with id, project, status and duration', () => {
-    const out = formatSessionsTable(sessions)
+describe('formatTracesTable', () => {
+  it('renders one row per trace with id, project, status and duration', () => {
+    const out = formatTracesTable(traces)
     expect(out).toContain('default__tabs-favorites')
     expect(out).toContain('browser-mobile')
     expect(out).toContain('failed')
@@ -1027,7 +1027,7 @@ describe('formatSessionsTable', () => {
   })
 
   it('shows running/ongoing markers when status and endedAt are absent', () => {
-    const out = formatSessionsTable([{ id: 's', startedAt: 1 }])
+    const out = formatTracesTable([{ id: 's', startedAt: 1 }])
     expect(out).toContain('s')
     expect(out).toContain('ongoing')
   })
@@ -1042,16 +1042,16 @@ Expected: FAIL — `../../src/commands/list.js` does not exist.
 - [ ] **Step 3: Implement `packages/cli/src/commands/list.ts`**
 
 ```ts
-import type { SessionSummary } from '@introspection/read'
+import type { TraceSummary } from '@introspection/read'
 
-/** Renders a plain-text table of sessions within a run, newest first. */
-export function formatSessionsTable(sessions: SessionSummary[]): string {
-  return sessions
-    .map(session => {
-      const project = session.project ?? '-'
-      const status = session.status ?? 'running'
-      const duration = session.duration != null ? `${session.duration}ms` : 'ongoing'
-      return `${session.id.padEnd(40)}  ${project.padEnd(16)}  ${status.padEnd(10)}  ${duration}`
+/** Renders a plain-text table of traces within a run, newest first. */
+export function formatTracesTable(traces: TraceSummary[]): string {
+  return traces
+    .map(trace => {
+      const project = trace.project ?? '-'
+      const status = trace.status ?? 'running'
+      const duration = trace.duration != null ? `${trace.duration}ms` : 'ongoing'
+      return `${trace.id.padEnd(40)}  ${project.padEnd(16)}  ${status.padEnd(10)}  ${duration}`
     })
     .join('\n')
 }
@@ -1066,7 +1066,7 @@ Expected: PASS.
 
 ```bash
 git add packages/cli/src/commands/list.ts packages/cli/test/commands/list.test.ts
-git commit -m "cli: add formatSessionsTable for the list command"
+git commit -m "cli: add formatTracesTable for the list command"
 ```
 
 ---
@@ -1101,7 +1101,7 @@ let dir: string
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'introspect-cli-int-'))
 
-  // run-old (older), run-new (newer); run-new has two sessions
+  // run-old (older), run-new (newer); run-new has two traces
   await mkdir(join(dir, 'run-old', 'sess-o'), { recursive: true })
   await writeFile(join(dir, 'run-old', 'meta.json'), JSON.stringify({ version: '1', id: 'run-old', startedAt: 100, endedAt: 200, status: 'passed', branch: 'main' }))
   await writeFile(join(dir, 'run-old', 'sess-o', 'meta.json'), JSON.stringify({ version: '2', id: 'sess-o', startedAt: 110, endedAt: 190, status: 'passed', project: 'p' }))
@@ -1141,13 +1141,13 @@ describe('introspect CLI — hierarchy navigation', () => {
     expect(out).not.toContain('sess-early')
   })
 
-  it('summary with no flags resolves the latest session of the latest run', () => {
+  it('summary with no flags resolves the latest trace of the latest run', () => {
     const out = runCli(['summary', '--dir', dir])
     expect(out).toContain('sess-late')
   })
 
-  it('summary --run --session-id targets a specific session', () => {
-    const out = runCli(['summary', '--dir', dir, '--run', 'run-old', '--session-id', 'sess-o'])
+  it('summary --run --trace-id targets a specific trace', () => {
+    const out = runCli(['summary', '--dir', dir, '--run', 'run-old', '--trace-id', 'sess-o'])
     expect(out).toContain('sess-o')
   })
 })
@@ -1156,53 +1156,53 @@ describe('introspect CLI — hierarchy navigation', () => {
 - [ ] **Step 2: Build and run the test to verify it fails**
 
 Run: `cd packages/cli && pnpm build && pnpm exec vitest run test/integration.test.ts`
-Expected: FAIL — `introspect runs` is not a command; `list` lists top-level dirs as sessions; `summary` resolves wrongly.
+Expected: FAIL — `introspect runs` is not a command; `list` lists top-level dirs as traces; `summary` resolves wrongly.
 
 - [ ] **Step 3: Implement the wiring in `packages/cli/src/index.ts`**
 
 Change the `@introspection/read/node` import:
 
 ```ts
-import { createSessionReader, listRuns, listSessions } from '@introspection/read/node'
+import { createTraceReader, listRuns, listTraces } from '@introspection/read/node'
 ```
 
 Add the formatter imports near the other command imports:
 
 ```ts
 import { formatRunsTable } from './commands/runs.js'
-import { formatSessionsTable } from './commands/list.js'
+import { formatTracesTable } from './commands/list.js'
 ```
 
-Replace `loadSession` with a `runId`-aware version:
+Replace `loadTrace` with a `runId`-aware version:
 
 ```ts
-async function loadSession(opts: { run?: string; sessionId?: string; verbose?: boolean }) {
+async function loadTrace(opts: { run?: string; traceId?: string; verbose?: boolean }) {
   const dir = program.opts().dir as string
-  return createSessionReader(dir, { runId: opts.run, sessionId: opts.sessionId, verbose: opts.verbose })
+  return createTraceReader(dir, { runId: opts.run, traceId: opts.traceId, verbose: opts.verbose })
 }
 ```
 
-Add `.option('--run <id>')` to each per-session command — `summary`, `network`, `events`, `plugins`, and `payload`. For example, the `summary` command becomes:
+Add `.option('--run <id>')` to each per-trace command — `summary`, `network`, `events`, `plugins`, and `payload`. For example, the `summary` command becomes:
 
 ```ts
 program.command('summary')
   .option('--run <id>')
-  .option('--session-id <id>')
+  .option('--trace-id <id>')
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (opts) => {
-    const session = await loadSession(opts)
-    const events = await session.events.ls()
+    const trace = await loadTrace(opts)
+    const events = await trace.events.ls()
     const summary = {
-      id: session.id,
-      label: session.meta.label,
-      startedAt: session.meta.startedAt,
-      endedAt: session.meta.endedAt,
+      id: trace.id,
+      label: trace.meta.label,
+      startedAt: trace.meta.startedAt,
+      endedAt: trace.meta.endedAt,
     }
     console.log(buildSummary(summary, events))
   })
 ```
 
-Apply the same one-line `.option('--run <id>')` addition to `network`, `events`, `plugins`, and `payload` (each already has `--session-id`; insert `--run` directly above it). Their `.action` handlers already call `loadSession(opts)`, which now forwards `opts.run` — no further change to those handlers.
+Apply the same one-line `.option('--run <id>')` addition to `network`, `events`, `plugins`, and `payload` (each already has `--trace-id`; insert `--run` directly above it). Their `.action` handlers already call `loadTrace(opts)`, which now forwards `opts.run` — no further change to those handlers.
 
 Replace the entire `program.command('list')` block with the run-scoped version:
 
@@ -1217,7 +1217,7 @@ program.command('runs')
   })
 
 program.command('list')
-  .description('List sessions in a run')
+  .description('List traces in a run')
   .option('--run <id>', 'Run id (default: latest run)')
   .action(async (opts: { run?: string }) => {
     const dir = program.opts().dir as string
@@ -1227,9 +1227,9 @@ program.command('list')
     if (opts.run && !runs.some(r => r.id === opts.run)) {
       console.error(`Run '${opts.run}' not found in ${dir}`); process.exit(1)
     }
-    const sessions = await listSessions(dir, runId)
-    if (sessions.length === 0) { console.error(`No sessions in run '${runId}'`); process.exit(1) }
-    console.log(formatSessionsTable(sessions))
+    const traces = await listTraces(dir, runId)
+    if (traces.length === 0) { console.error(`No traces in run '${runId}'`); process.exit(1) }
+    console.log(formatTracesTable(traces))
   })
 ```
 
@@ -1258,18 +1258,18 @@ git commit -m "cli: add introspect runs, scope list to a run, --run selection"
 - `StorageAdapter.listDirectories(subPath?)` → Task 1. ✓
 - node + memory adapters implement it → Tasks 1, 2. ✓
 - `RunSummary` type; `listRuns` → Task 4. ✓
-- `SessionSummary` gains `project`/`status`; `listSessions(runId)` → Task 4. ✓
-- hierarchy-aware `createSessionReader`; `getLatestRunId` + `getLatestSessionId(runId)` → Task 5. ✓
-- `/node` wrappers `listRuns(dir)` / `listSessions(dir, runId)` → Task 6. ✓
+- `TraceSummary` gains `project`/`status`; `listTraces(runId)` → Task 4. ✓
+- hierarchy-aware `createTraceReader`; `getLatestRunId` + `getLatestTraceId(runId)` → Task 5. ✓
+- `/node` wrappers `listRuns(dir)` / `listTraces(dir, runId)` → Task 6. ✓
 - `introspect debug` produces a run directory → Tasks 7, 8. ✓
 - `introspect runs` command → Tasks 9, 11. ✓
 - `introspect list` scoped to a run → Tasks 10, 11. ✓
-- `--run` across per-session commands (`summary`/`network`/`events`/`plugins`/`payload`) → Task 11. ✓
+- `--run` across per-trace commands (`summary`/`network`/`events`/`plugins`/`payload`) → Task 11. ✓
 - Error handling — "No runs found" (Tasks 5, 11), malformed meta skipped (Tasks 4, 5), `--run` not found (Task 11), empty-run error (Tasks 5, 11). ✓
-- Migrating the existing flat-layout tests → folded into Tasks 4 (`list-sessions.test.ts`), 5 (`session-reader.test.ts`), 8 (`debug.test.ts`). ✓
+- Migrating the existing flat-layout tests → folded into Tasks 4 (`list-traces.test.ts`), 5 (`trace-reader.test.ts`), 8 (`debug.test.ts`). ✓
 
-> Spec note reconciled: the spec's Section 6 listed `assets` among the per-session commands; the CLI has no `assets` command — the real per-session set is `summary`/`network`/`events`/`plugins`/`payload`, which is what Task 11 wires.
+> Spec note reconciled: the spec's Section 6 listed `assets` among the per-trace commands; the CLI has no `assets` command — the real per-trace set is `summary`/`network`/`events`/`plugins`/`payload`, which is what Task 11 wires.
 
 **Placeholder scan:** none — every code step contains complete code; the one "apply the same change to N other commands" instruction (Task 11 Step 3) names each command explicitly and shows the exact one-line `.option` addition.
 
-**Type consistency:** `StorageAdapter.listDirectories(subPath?)` defined in Task 1, consumed in Tasks 4–6. `RunSummary` defined in Task 4, re-exported in Task 6, consumed in Tasks 9, 11. `SessionSummary` extended in Task 4, consumed in Tasks 6, 10, 11. `createSessionReader`'s `{ runId?, sessionId?, verbose? }` options defined in Task 5, wrapped in Task 6, called in Task 8 and via `loadSession` in Task 11. `runDebug` returns `{ runId, sessionId }` from Task 8 — the `debug` command in `index.ts` ignores the return value (confirmed in Task 8 Step 4), so no mismatch. `getLatestRunId` / `getLatestSessionId(adapter, runId)` defined and used only within `packages/read/src/index.ts` (Task 5).
+**Type consistency:** `StorageAdapter.listDirectories(subPath?)` defined in Task 1, consumed in Tasks 4–6. `RunSummary` defined in Task 4, re-exported in Task 6, consumed in Tasks 9, 11. `TraceSummary` extended in Task 4, consumed in Tasks 6, 10, 11. `createTraceReader`'s `{ runId?, traceId?, verbose? }` options defined in Task 5, wrapped in Task 6, called in Task 8 and via `loadTrace` in Task 11. `runDebug` returns `{ runId, traceId }` from Task 8 — the `debug` command in `index.ts` ignores the return value (confirmed in Task 8 Step 4), so no mismatch. `getLatestRunId` / `getLatestTraceId(adapter, runId)` defined and used only within `packages/read/src/index.ts` (Task 5).

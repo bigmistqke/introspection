@@ -7,7 +7,7 @@ export function formatRunsTable(runs: RunSummary[]): string {
       const status = run.status ?? 'running'
       const branch = run.branch ?? '-'
       const started = new Date(run.startedAt).toISOString()
-      const count = `${run.sessionCount} session${run.sessionCount === 1 ? '' : 's'}`
+      const count = `${run.traceCount} trace${run.traceCount === 1 ? '' : 's'}`
       return `${run.id.padEnd(28)}  ${status.padEnd(8)}  ${branch.padEnd(16)}  ${started}  ${count}`
     })
     .join('\n')

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import type { StorageAdapter, SessionSummary } from '@introspection/read'
+import type { StorageAdapter, TraceSummary } from '@introspection/read'
 import type { TraceEvent } from '@introspection/types'
-import { useSessionReader } from './hooks/useSessionReader.js'
+import { useTraceReader } from './hooks/useTraceReader.js'
 
 const COLORS: Record<string, string> = {
   'playwright.action': '#6c9cfc',
@@ -41,9 +41,9 @@ function formatEvent(event: TraceEvent): string {
   }
 }
 
-export function SessionCard({ adapter, summary }: { adapter: StorageAdapter; summary: SessionSummary }) {
+export function TraceCard({ adapter, summary }: { adapter: StorageAdapter; summary: TraceSummary }) {
   const [expanded, setExpanded] = useState(false)
-  const { events } = useSessionReader(adapter, summary.id)
+  const { events } = useTraceReader(adapter, summary.id)
 
   const result = events.find(event => event.type === 'playwright.result')
   const status = result?.type === 'playwright.result' ? (result.metadata.status ?? 'unknown') : 'unknown'

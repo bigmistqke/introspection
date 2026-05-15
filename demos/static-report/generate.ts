@@ -1,4 +1,4 @@
-import { createSessionReader, listRuns, listSessions } from '@introspection/read/node'
+import { createTraceReader, listRuns, listTraces } from '@introspection/read/node'
 import type { TraceEvent } from '@introspection/types'
 import { writeFileSync } from 'fs'
 import { resolve } from 'path'
@@ -43,7 +43,7 @@ function formatEvent(event: TraceEvent): string {
   }
 }
 
-function renderSession(sessionId: string, events: TraceEvent[]): string {
+function renderTrace(traceId: string, events: TraceEvent[]): string {
   const result = events.find(event => event.type === 'playwright.result')
   const status = result?.type === 'playwright.result' ? (result.metadata.status ?? 'unknown') : 'unknown'
   const statusColor = status === 'passed' ? '#8bc38b' : status === 'failed' ? '#fc6c6c' : '#fcb86c'
@@ -57,8 +57,8 @@ function renderSession(sessionId: string, events: TraceEvent[]): string {
       </tr>`
   }).join('\n')
 
-  return `    <div class="session">
-      <h2><span class="status" style="color: ${statusColor}">${status}</span> ${sessionId}</h2>
+  return `    <div class="trace">
+      <h2><span class="status" style="color: ${statusColor}">${status}</span> ${traceId}</h2>
       <table>
 ${rows}
       </table>
@@ -77,10 +77,10 @@ async function generate() {
   const sections: string[] = []
 
   for (const run of runs) {
-    for (const summary of await listSessions(resolvedDirectory, run.id)) {
-      const session = await createSessionReader(resolvedDirectory, { runId: run.id, sessionId: summary.id })
-      const events = await session.events.ls()
-      sections.push(renderSession(`${run.id}/${summary.id}`, events))
+    for (const summary of await listTraces(resolvedDirectory, run.id)) {
+      const trace = await createTraceReader(resolvedDirectory, { runId: run.id, traceId: summary.id })
+      const events = await trace.events.ls()
+      sections.push(renderTrace(`${run.id}/${summary.id}`, events))
     }
   }
 
@@ -93,8 +93,8 @@ async function generate() {
     * { margin: 0; box-sizing: border-box; }
     body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 24px; max-width: 1000px; margin: 0 auto; }
     h1 { font-size: 18px; color: #888; margin-bottom: 24px; }
-    .session { background: #111; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    .session h2 { font-size: 14px; margin-bottom: 12px; color: #ccc; }
+    .trace { background: #111; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .trace h2 { font-size: 14px; margin-bottom: 12px; color: #ccc; }
     .status { font-weight: 600; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     td { padding: 4px 8px; vertical-align: top; }
@@ -103,13 +103,13 @@ async function generate() {
   </style>
 </head>
 <body>
-  <h1>Introspection Report — ${sections.length} session${sections.length === 1 ? '' : 's'}</h1>
+  <h1>Introspection Report — ${sections.length} trace${sections.length === 1 ? '' : 's'}</h1>
 ${sections.join('\n')}
 </body>
 </html>`
 
   writeFileSync(outputPath, html)
-  console.log(`Report written to ${outputPath} (${sections.length} sessions)`)
+  console.log(`Report written to ${outputPath} (${sections.length} traces)`)
 }
 
 generate()

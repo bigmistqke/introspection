@@ -1,13 +1,13 @@
 import { createSignal, onCleanup, createEffect, on, type Accessor } from 'solid-js'
-import type { TraceEvent, SessionReader } from '@introspection/types'
+import type { TraceEvent, TraceReader } from '@introspection/types'
 
 /**
- * Connects an EventSource (SSE) to a SessionReader, pushing events as they arrive.
- * Automatically connects when the session becomes available.
+ * Connects an EventSource (SSE) to a TraceReader, pushing events as they arrive.
+ * Automatically connects when the trace becomes available.
  */
 export function useEventSource(
   getUrl: Accessor<string | null>,
-  getSession: Accessor<SessionReader | undefined>,
+  getTrace: Accessor<TraceReader | undefined>,
 ) {
   const [status, setStatus] = createSignal<'connecting' | 'connected' | 'done' | 'error'>('connecting')
   let source: EventSource | null = null
@@ -26,7 +26,7 @@ export function useEventSource(
 
     source.addEventListener('message', (message) => {
       const event = JSON.parse(message.data) as TraceEvent
-      getSession()?.events.push(event)
+      getTrace()?.events.push(event)
     })
 
     source.addEventListener('done', () => {
@@ -42,9 +42,9 @@ export function useEventSource(
     })
   }
 
-  // Auto-connect when session is available
-  createEffect(on(getSession, (session) => {
-    if (session) connect()
+  // Auto-connect when trace is available
+  createEffect(on(getTrace, (trace) => {
+    if (trace) connect()
   }))
 
   onCleanup(() => {

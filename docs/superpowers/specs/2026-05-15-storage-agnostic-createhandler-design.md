@@ -2,14 +2,14 @@
 
 Make `@introspection/serve`'s `createHandler` a generic transport that exposes
 any `StorageAdapter` over HTTP, so the HTTP-served `read` path can navigate
-the `<run-id>/<session-id>/` hierarchy established by Spec B. The handler
+the `<run-id>/<trace-id>/` hierarchy established by Spec B. The handler
 loses its filesystem and trace-vocabulary knowledge; `@introspection/read`
 does all interpretation on top — the same layering Spec B set up locally.
 
 > **Position.** This is **Spec C** of the remote-trace-CLI chain
 > (`2026-05-14-remote-trace-cli-design.md`, Sequencing): A ✓ → B ✓ → **C** →
 > D. Spec B made `read` hierarchy-aware locally; it also pushed the four
-> HTTP-served demos (vanilla-basic, wc-graph, react-session-list,
+> HTTP-served demos (vanilla-basic, wc-graph, react-trace-list,
 > solid-streaming) into a `test.skip` state because today's `createHandler`
 > is flat and can't serve the hierarchy. This spec lands the HTTP-side fix
 > and un-skips them.
@@ -18,15 +18,15 @@ does all interpretation on top — the same layering Spec B set up locally.
 
 `createHandler` today (`packages/serve/src/handler.ts`) is **sync**, does raw
 `fs` calls, and exposes a **semantic** vocabulary: `GET /` → top-level dirs,
-`GET /:session/meta.json`, `GET /:session/events.ndjson`,
-`GET /:session/events` (parsed JSON), `GET /:session/events?sse` (live SSE),
-`GET /:session/assets/...`. It is **flat**: `GET /<run>/<session>/meta.json`
-404s because the handler treats `<run>` as the session segment and the rest
+`GET /:trace/meta.json`, `GET /:trace/events.ndjson`,
+`GET /:trace/events` (parsed JSON), `GET /:trace/events?sse` (live SSE),
+`GET /:trace/assets/...`. It is **flat**: `GET /<run>/<trace>/meta.json`
+404s because the handler treats `<run>` as the trace segment and the rest
 matches no branch.
 
 `@introspection/read` (post-Spec B) reads via `StorageAdapter`'s four methods
 — `listDirectories(subPath?)`, `readText(path)`, `readBinary(path)`,
-`readJSON(path)` — across `<run>/<session>/...` paths. It needs an
+`readJSON(path)` — across `<run>/<trace>/...` paths. It needs an
 `HTTP`-backed `StorageAdapter` (`createFetchAdapter`) whose calls reach a
 handler that serves the same four operations against the same path space.
 
@@ -55,10 +55,10 @@ nothing more.
 - SSE / live-tailing leaves `@introspection/serve` entirely and moves into
   the solid-streaming demo as a separate Vite plugin
   (`demos/solid-streaming/scripts/vite-plugin-sse.ts`), serving
-  its own URL (`GET /_introspect/stream/<run>/<session>/events`). The
+  its own URL (`GET /_introspect/stream/<run>/<trace>/events`). The
   solid-streaming demo's `useEventSource` is updated to the new URL.
 - The four currently-skipped HTTP-demo tests are un-skipped, **and tightened
-  where they're weak**: the wc-graph and react-session-list tests today only
+  where they're weak**: the wc-graph and react-trace-list tests today only
   check UI elements render and "passed" against broken data; each must
   additionally verify a captured event surfaces in the rendered output.
 
@@ -107,8 +107,8 @@ Layering, parallel to Spec B:
 
 - **`@introspection/types`** — `StorageAdapter` (unchanged from Spec B).
 - **`@introspection/read`** — `createNodeAdapter`, `createMemoryReadAdapter`,
-  and the run/session interpretation layer (`listRuns`, `listSessions`,
-  `createSessionReader`). The traversal guard ships here, inside
+  and the run/trace interpretation layer (`listRuns`, `listTraces`,
+  `createTraceReader`). The traversal guard ships here, inside
   `createNodeAdapter`.
 - **`@introspection/serve`** — `createHandler({ adapter })`. Generic
   transport. No filesystem code outside what flows through the adapter. New
@@ -281,7 +281,7 @@ The solid-streaming demo gets its own Vite plugin —
 endpoint. URL shape, consistent with the verb-prefix style:
 
 ```
-GET /_introspect/stream/<runId>/<sessionId>/events
+GET /_introspect/stream/<runId>/<traceId>/events
 ```
 
 The plugin owns the `fs.watch` + position-tracking logic that today lives in
@@ -344,19 +344,19 @@ block in:
 
 - `demos/vanilla-basic/test/demo.spec.ts`
 - `demos/wc-graph/test/demo.spec.ts`
-- `demos/react-session-list/test/demo.spec.ts`
+- `demos/react-trace-list/test/demo.spec.ts`
 - `demos/solid-streaming/scripts/streaming.spec.ts`
 
-**Tighten the weak ones.** Today the wc-graph and react-session-list tests
+**Tighten the weak ones.** Today the wc-graph and react-trace-list tests
 only check that UI elements render — they "passed" while the data layer was
 silently broken. Each must additionally verify a captured event reaches the
 rendered output:
 
 - `wc-graph`: assert that the `<select>` contains an option for the just-
-  captured session id (not just that the select has at least one option).
-- `react-session-list`: assert that the page renders a session card for the
-  just-captured session id (not just that the body contains the word
-  "Sessions" — that string also appears in the "No sessions" path).
+  captured trace id (not just that the select has at least one option).
+- `react-trace-list`: assert that the page renders a trace card for the
+  just-captured trace id (not just that the body contains the word
+  "Traces" — that string also appears in the "No traces" path).
 
 The vanilla-basic and solid-streaming tests are already strict enough.
 

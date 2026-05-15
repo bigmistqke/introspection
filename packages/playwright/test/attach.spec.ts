@@ -23,16 +23,16 @@ async function readEvents(outDir: string) {
   return ndjson.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
 }
 
-test('creates session directory with meta.json and events.ndjson', async ({ page }) => {
+test('creates trace directory with meta.json and events.ndjson', async ({ page }) => {
   const handle = await attach(page, { outDir: dir, testTitle: 'my test', plugins: [] })
   await handle.detach()
   const entries = await readdir(dir)
   expect(entries.length).toBe(1)
-  const sessionDir = join(dir, entries[0])
-  const meta = JSON.parse(await readFile(join(sessionDir, 'meta.json'), 'utf-8'))
+  const traceDir = join(dir, entries[0])
+  const meta = JSON.parse(await readFile(join(traceDir, 'meta.json'), 'utf-8'))
   expect(meta.label).toBe('my test')
   expect(meta.endedAt).toBeDefined()
-  const ndjson = await readFile(join(sessionDir, 'events.ndjson'), 'utf-8')
+  const ndjson = await readFile(join(traceDir, 'events.ndjson'), 'utf-8')
   expect(typeof ndjson).toBe('string')
 })
 
@@ -119,7 +119,7 @@ test('plugin subscriptions survive navigation', async ({ page }) => {
   expect(subscribed.length).toBeGreaterThanOrEqual(2)
 })
 
-test('does not create a .socket file inside session directory', async ({ page }) => {
+test('does not create a .socket file inside trace directory', async ({ page }) => {
   const handle = await attach(page, { outDir: dir, plugins: [] })
   const entries = await readdir(dir)
   const socketPath = join(dir, entries[0], '.socket')
@@ -163,7 +163,7 @@ test('ctx.writeAsset writes file and returns PayloadRef asset variant', async ({
   expect(asset.path).toMatch(/\.json$/)
 })
 
-test('custom session ID is used as directory name', async ({ page }) => {
+test('custom trace ID is used as directory name', async ({ page }) => {
   const customId = 'browser-desktop--loading--prepare-page'
   const handle = await attach(page, { outDir: dir, id: customId, plugins: [] })
   await handle.detach()
@@ -173,7 +173,7 @@ test('custom session ID is used as directory name', async ({ page }) => {
   expect(meta.id).toBe(customId)
 })
 
-test('duplicate session ID throws an error', async ({ page }) => {
+test('duplicate trace ID throws an error', async ({ page }) => {
   const customId = 'duplicate-test'
   const handle1 = await attach(page, { outDir: dir, id: customId, plugins: [] })
   await handle1.detach()
@@ -200,11 +200,11 @@ test('bus "detach" handler is called and can write assets', async ({ page }) => 
   await handle.detach()
 
   expect(detachCalled).toBe(true)
-  // Verify the asset file was written to the session's assets directory
-  const sessionEntries = await readdir(dir)
-  const sessionDir = sessionEntries.find(entry => entry.length > 30)
-  expect(sessionDir).toBeDefined()
-  const assetFiles = await readdir(join(dir, sessionDir!, 'assets'))
+  // Verify the asset file was written to the trace's assets directory
+  const traceEntries = await readdir(dir)
+  const traceDir = traceEntries.find(entry => entry.length > 30)
+  expect(traceDir).toBeDefined()
+  const assetFiles = await readdir(join(dir, traceDir!, 'assets'))
   expect(assetFiles.some(f => f.endsWith('.json'))).toBe(true)
 })
 

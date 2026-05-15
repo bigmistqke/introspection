@@ -2,18 +2,18 @@ import { test, expect } from '@playwright/test'
 import { attachRun } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
 import { reactScanPlugin } from '@introspection/plugin-react-scan'
-import { createSessionReader } from '@introspection/read/node'
+import { createTraceReader } from '@introspection/read/node'
 import { join } from 'node:path'
 
 test('captures react renders from the demo', async ({ page }) => {
-  // Capture into a run directory (.introspect/<run-id>/<session-id>/)
+  // Capture into a run directory (.introspect/<run-id>/<trace-id>/)
   const handle = await attachRun(page, {
     plugins: [...defaults(), reactScanPlugin({ verbose: true })],
     testTitle: 'react-plugin-capture',
   })
 
   await handle.page.goto('/')
-  // Tighten: verify the captured session is rendered in the session list.
+  // Tighten: verify the captured trace is rendered in the trace list.
   // The app renders summary.label ?? summary.id; testTitle sets the label to
   // 'react-plugin-capture', so that's what appears in the DOM (not the UUID).
   const testTitle = 'react-plugin-capture'
@@ -21,9 +21,9 @@ test('captures react renders from the demo', async ({ page }) => {
 
   await handle.detach({ status: 'passed' })
 
-  const reader = await createSessionReader(join(process.cwd(), '.introspect'), {
+  const reader = await createTraceReader(join(process.cwd(), '.introspect'), {
     runId: handle.runId,
-    sessionId: handle.session.id,
+    traceId: handle.trace.id,
   })
   const events = await reader.events.ls()
 

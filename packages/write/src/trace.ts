@@ -1,13 +1,13 @@
 import { randomUUID } from 'crypto'
 import { dirname, isAbsolute, join } from 'path'
 import { mkdir, writeFile as fsWriteFile } from 'fs/promises'
-import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, PayloadAsset, IntrospectionReporter, ReporterContext } from '@introspection/types'
+import type { TraceWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, TraceMeta, WriteAssetOptions, PayloadAsset, IntrospectionReporter, ReporterContext } from '@introspection/types'
 import type { MemoryWriteAdapter } from './memory.js'
-import { initSessionDir, appendEvent, writeAsset, finalizeSession } from './session-writer.js'
+import { initTraceDir, appendEvent, writeAsset, finalizeTrace } from './trace-writer.js'
 import { createBus } from '@introspection/utils'
 import { createReporterRunner } from './reporter-lifecycle.js'
 
-export interface CreateSessionWriterOptions {
+export interface CreateTraceWriterOptions {
   outDir?: string
   id?: string
   label?: string
@@ -51,14 +51,14 @@ function createTracker() {
   return { track, flush }
 }
 
-export async function createSessionWriter(options: CreateSessionWriterOptions = {}): Promise<SessionWriter> {
+export async function createTraceWriter(options: CreateTraceWriterOptions = {}): Promise<TraceWriter> {
   const id = options.id ?? randomUUID()
   const outDir = options.outDir ?? '.introspect'
   const startedAt = Date.now()
   const adapter = options.adapter
   const reporters = options.reporters ?? []
 
-  const meta: SessionMeta = {
+  const meta: TraceMeta = {
     version: '2',
     id,
     startedAt,
@@ -71,7 +71,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
     await adapter.writeText(`${id}/meta.json`, JSON.stringify(meta, null, 2))
     await adapter.writeText(`${id}/events.ndjson`, '')
   } else {
-    await initSessionDir(outDir, {
+    await initTraceDir(outDir, {
       id,
       startedAt,
       label: options.label,
@@ -84,10 +84,10 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
   const queue = createWriteQueue()
   const tracker = createTracker()
 
-  const sessionDir = join(outDir, id)
+  const traceDir = join(outDir, id)
   const reporterCtx: ReporterContext = {
-    sessionId: id,
-    outDir: sessionDir,
+    traceId: id,
+    outDir: traceDir,
     runDir: outDir,
     meta,
     writeFile: async (target, content) => {
@@ -148,7 +148,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
       await tracker.flush()
       await queue.flush()
     },
-    async finalize(extras?: { status?: SessionMeta['status'] }) {
+    async finalize(extras?: { status?: TraceMeta['status'] }) {
       await bus.emit('detach', { trigger: 'detach', timestamp: timestamp() })
       await tracker.flush()
       await queue.flush()
@@ -157,7 +157,7 @@ export async function createSessionWriter(options: CreateSessionWriterOptions = 
       if (adapter) {
         await adapter.writeText(`${id}/meta.json`, JSON.stringify({ ...meta, endedAt: Date.now(), ...(extras?.status ? { status: extras.status } : {}) }, null, 2))
       } else {
-        await finalizeSession(outDir, id, Date.now(), extras)
+        await finalizeTrace(outDir, id, Date.now(), extras)
       }
     },
   }

@@ -1,7 +1,7 @@
-import type { TraceEvent, SessionReader, SessionMeta, RunMeta, SessionStatus, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter, PayloadRef } from '@introspection/types'
+import type { TraceEvent, TraceReader, TraceMeta, RunMeta, TraceStatus, EventsFilter, Watchable, WatchableWithFilter, StorageAdapter, PayloadRef } from '@introspection/types'
 import { createDebug } from '@introspection/utils'
 
-export type { SessionReader, EventsFilter, EventsAPI, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
+export type { TraceReader, EventsFilter, EventsAPI, Watchable, WatchableWithFilter, StorageAdapter } from '@introspection/types'
 export { createMemoryReadAdapter } from './memory.js'
 
 // ─── Type matching ───────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ export function matchEventType(pattern: string, eventType: string): boolean {
   return eventType === pattern
 }
 
-// ─── Run & session summaries ─────────────────────────────────────────────────
+// ─── Run & trace summaries ─────────────────────────────────────────────────
 
 export interface RunSummary {
   id: string
@@ -28,14 +28,14 @@ export interface RunSummary {
   status?: RunMeta['status']
   branch?: string
   commit?: string
-  sessionCount: number
+  traceCount: number
 }
 
-export interface SessionSummary {
+export interface TraceSummary {
   id: string
   label?: string
   project?: string
-  status?: SessionStatus
+  status?: TraceStatus
   startedAt: number
   endedAt?: number
   duration?: number
@@ -51,7 +51,7 @@ export async function listRuns(adapter: StorageAdapter): Promise<RunSummary[]> {
     runIds.map(async (id): Promise<RunSummary | null> => {
       try {
         const meta = JSON.parse(await adapter.readText(`${id}/meta.json`)) as RunMeta
-        const sessions = await adapter.listDirectories(id)
+        const traces = await adapter.listDirectories(id)
         return {
           id: meta.id,
           startedAt: meta.startedAt,
@@ -59,7 +59,7 @@ export async function listRuns(adapter: StorageAdapter): Promise<RunSummary[]> {
           status: meta.status,
           branch: meta.branch,
           commit: meta.commit,
-          sessionCount: sessions.length,
+          traceCount: traces.length,
         }
       } catch {
         return null // skip malformed runs
@@ -70,14 +70,14 @@ export async function listRuns(adapter: StorageAdapter): Promise<RunSummary[]> {
   return results.filter((r): r is RunSummary => r !== null).sort((a, b) => b.startedAt - a.startedAt)
 }
 
-export async function listSessions(adapter: StorageAdapter, runId: string): Promise<SessionSummary[]> {
-  const sessionIds = await adapter.listDirectories(runId)
-  if (sessionIds.length === 0) return []
+export async function listTraces(adapter: StorageAdapter, runId: string): Promise<TraceSummary[]> {
+  const traceIds = await adapter.listDirectories(runId)
+  if (traceIds.length === 0) return []
 
   const results = await Promise.all(
-    sessionIds.map(async (id): Promise<SessionSummary | null> => {
+    traceIds.map(async (id): Promise<TraceSummary | null> => {
       try {
-        const meta = JSON.parse(await adapter.readText(`${runId}/${id}/meta.json`)) as SessionMeta
+        const meta = JSON.parse(await adapter.readText(`${runId}/${id}/meta.json`)) as TraceMeta
         return {
           id: meta.id,
           label: meta.label,
@@ -88,33 +88,33 @@ export async function listSessions(adapter: StorageAdapter, runId: string): Prom
           duration: meta.endedAt ? meta.endedAt - meta.startedAt : undefined,
         }
       } catch {
-        return null // skip malformed sessions
+        return null // skip malformed traces
       }
     })
   )
 
-  return results.filter((s): s is SessionSummary => s !== null).sort((a, b) => b.startedAt - a.startedAt)
+  return results.filter((s): s is TraceSummary => s !== null).sort((a, b) => b.startedAt - a.startedAt)
 }
 
-export interface CreateSessionReaderOptions {
+export interface CreateTraceReaderOptions {
   runId?: string
-  sessionId?: string
+  traceId?: string
   verbose?: boolean
 }
 
-export async function createSessionReader(adapter: StorageAdapter, options?: CreateSessionReaderOptions): Promise<SessionReader> {
-  const debug = createDebug('session-reader', options?.verbose ?? false)
+export async function createTraceReader(adapter: StorageAdapter, options?: CreateTraceReaderOptions): Promise<TraceReader> {
+  const debug = createDebug('trace-reader', options?.verbose ?? false)
 
   const runId = options?.runId ?? (await getLatestRunId(adapter))
   if (!runId) throw new Error('No runs found')
 
-  const id = options?.sessionId ?? (await getLatestSessionId(adapter, runId))
-  if (!id) throw new Error(`No sessions in run '${runId}'`)
+  const id = options?.traceId ?? (await getLatestTraceId(adapter, runId))
+  if (!id) throw new Error(`No traces in run '${runId}'`)
 
   const prefix = `${runId}/${id}`
 
   const metaRaw = await adapter.readText(`${prefix}/meta.json`)
-  const meta = JSON.parse(metaRaw) as SessionMeta
+  const meta = JSON.parse(metaRaw) as TraceMeta
 
   const initialEvents = await loadEvents(adapter, prefix)
   debug('loaded', initialEvents.length, 'events from', prefix)
@@ -255,12 +255,12 @@ async function getLatestRunId(adapter: StorageAdapter): Promise<string | null> {
   return metas[0].id
 }
 
-async function getLatestSessionId(adapter: StorageAdapter, runId: string): Promise<string | null> {
-  const sessionIds = await adapter.listDirectories(runId)
-  if (sessionIds.length === 0) return null
+async function getLatestTraceId(adapter: StorageAdapter, runId: string): Promise<string | null> {
+  const traceIds = await adapter.listDirectories(runId)
+  if (traceIds.length === 0) return null
 
   const metas = await Promise.all(
-    sessionIds.map(async id => {
+    traceIds.map(async id => {
       try {
         const meta = JSON.parse(await adapter.readText(`${runId}/${id}/meta.json`)) as { startedAt: number }
         return { id, startedAt: meta.startedAt }
@@ -273,8 +273,8 @@ async function getLatestSessionId(adapter: StorageAdapter, runId: string): Promi
   return metas[0].id
 }
 
-async function loadEvents(adapter: StorageAdapter, sessionPrefix: string): Promise<TraceEvent[]> {
-  const eventsRaw = await adapter.readText(`${sessionPrefix}/events.ndjson`)
+async function loadEvents(adapter: StorageAdapter, tracePrefix: string): Promise<TraceEvent[]> {
+  const eventsRaw = await adapter.readText(`${tracePrefix}/events.ndjson`)
   return eventsRaw
     .split('\n')
     .filter(line => line.trim())

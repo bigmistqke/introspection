@@ -34,11 +34,11 @@ export function cdp(options?: CdpOptions): IntrospectionPlugin {
 
     async install(ctx: PluginContext): Promise<void> {
       debug('install: patching shared CDPSession')
-      const session = ctx.rawCdpSession
+      const trace = ctx.rawCdpTrace
 
       // CDPSession extends EventEmitter at runtime, but Playwright's public
       // type surface hides that — cast to an emit-bearing shape.
-      const emitter = session as unknown as {
+      const emitter = trace as unknown as {
         send: (method: string, params?: Record<string, unknown>) => Promise<unknown>
         emit: (method: string | symbol, ...args: unknown[]) => boolean
       }

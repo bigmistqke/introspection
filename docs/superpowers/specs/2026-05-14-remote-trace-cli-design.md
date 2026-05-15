@@ -3,9 +3,10 @@
 Lets the `introspect` CLI read traces served over HTTP, not just from local
 disk. Today the CLI only reads `--dir <local path>`; CI runs produce traces on
 a server, and debugging them means downloading artifacts first. This spec adds
-an HTTP-backed `StorageAdapter`, a `--url` flag, and a pluggable `resolveRun`
-discovery hook so a developer can point the CLI at a CI run without copying
-files locally.
+an HTTP-backed `StorageAdapter` and a `--url` flag so a developer can point
+the CLI at a CI run without copying files locally. Run selection on a remote
+server (pick a run by branch/commit/etc.) is handled by the run-selection
+flags that Spec B introduces — see "Run selection" below.
 
 > **Position.** This is one slice of the broader effort to migrate
 > `@rg/integration-tests` onto introspection (see the Reporter System design
@@ -15,8 +16,8 @@ files locally.
 
 ## Why
 
-`@introspection/read` is already adapter-based — `createSessionReader` and
-`listSessions` take a `StorageAdapter`, and every CLI command (`summary`,
+`@introspection/read` is already adapter-based — `createTraceReader` and
+`listTraces` take a `StorageAdapter`, and every CLI command (`summary`,
 `events`, `network`, `assets`, `plugins`, `list`) is built on top of that
 reader. `@introspection/serve` already defines an HTTP protocol for serving
 trace directories read-only (`createHandler` returns a Web-standard
@@ -31,9 +32,9 @@ the current `StorageAdapter` interface. This spec promotes and hardens it.
 **This adapter belongs in `@introspection/serve`, not `@introspection/read`.**
 It is not a generic "filesystem over HTTP" — `createHandler` does not serve
 arbitrary paths. It exposes a fixed, semantic endpoint vocabulary: `GET /` →
-session list, `GET /:session/meta.json`, `GET /:session/events.ndjson`,
-`GET /:session/events`, `GET /:session/events?sse`, `GET /:session/assets/...`.
-The HTTP adapter works only because `createSessionReader`'s access pattern
+trace list, `GET /:trace/meta.json`, `GET /:trace/events.ndjson`,
+`GET /:trace/events`, `GET /:trace/events?sse`, `GET /:trace/assets/...`.
+The HTTP adapter works only because `createTraceReader`'s access pattern
 happens to read exactly those paths. That makes the adapter a *client of
 serve's protocol*, sharing an unwritten contract (the exact endpoint set) with
 `createHandler`. Co-locating producer and consumer in one package is what
@@ -57,11 +58,9 @@ mounts `@introspection/serve` can be read by both a project's own viewer UI
 - The demos drop their local `fetch-adapter.ts` copy and import from
   `@introspection/serve/client`, so there is one implementation.
 - `introspect --url <baseUrl>` — a sibling to `--dir`, mutually exclusive,
-  building the HTTP adapter instead of the filesystem one.
-- `introspect --ci [ref]` plus an optional `resolveRun(ref)` hook in
-  `introspect.config.ts` — resolves a human ref (branch, PR, etc.) to a base
-  URL. Introspection ships the contract and a current-git-branch default for
-  the ref; it ships no built-in resolver implementation.
+  building the HTTP adapter instead of the filesystem one. `baseUrl` may also
+  come from `introspect.config.ts` so it doesn't have to be retyped every
+  invocation.
 
 **Out of scope:**
 
@@ -81,14 +80,14 @@ mounts `@introspection/serve` can be read by both a project's own viewer UI
 ## Sequencing
 
 This spec is the **last node in a four-spec chain** and must not be planned or
-implemented until the chain above it lands. A brainstorming + grill session on
+implemented until the chain above it lands. A brainstorming + grill trace on
 2026-05-14 decomposed the work:
 
 ```
-Spec A — Run/session hierarchy contract + writer-side metadata
+Spec A — Run/trace hierarchy contract + writer-side metadata
   · Largely already decomposed in the Playwright vision doc
     (2026-05-13-introspection-playwright-vision.md, sub-projects #3, #4, #6):
-    session meta.json gains `status`/`titlePath`/`runId`/etc.; tests.jsonl is
+    trace meta.json gains `status`/`titlePath`/`runId`/etc.; tests.jsonl is
     the run-level aggregation.
   · GAP found by the grill: nothing carries run-level *identity* (branch,
     commit, run timestamp, aggregate status) — `introspect runs` needs it,
@@ -97,10 +96,10 @@ Spec A — Run/session hierarchy contract + writer-side metadata
         │
         ▼
 Spec B — StorageAdapter hierarchy + read
-  · StorageAdapter grows listRuns() / listSessions(runId), returning rich
+  · StorageAdapter grows listRuns() / listTraces(runId), returning rich
     objects (id + status + identity metadata), not bare names.
   · node + memory adapters implement them; @introspection/read navigates the
-    two-level <run-id>/<session-id>/ hierarchy.
+    two-level <run-id>/<trace-id>/ hierarchy.
         │
         ▼
 Spec C — createHandler as a generic StorageAdapter-over-HTTP transport
@@ -114,10 +113,10 @@ Spec C — createHandler as a generic StorageAdapter-over-HTTP transport
     internally; demos/shared/introspectionServe likewise.
   · SSE leaves @introspection/serve entirely and moves into a
     solid-streaming-only Vite plugin (GET /__introspect/stream/<run>/
-    <session>/events).
+    <trace>/events).
   · Also fixes demos/shared/fetch-adapter.ts (listDirectories honours
     subPath; reads hit /file/...) and un-skips the four HTTP-demo tests,
-    tightening the weak ones (wc-graph + react-session-list).
+    tightening the weak ones (wc-graph + react-trace-list).
   · Full design: docs/superpowers/specs/2026-05-15-storage-agnostic-
     createhandler-design.md.
         │
@@ -126,22 +125,26 @@ Spec D — THIS SPEC (remote trace access for the CLI)
 ```
 
 **Why the chain, not just a runtime dependency.** "Seamless local *and*
-remote" makes the `introspect` CLI a generic consumer of a run/session
+remote" makes the `introspect` CLI a generic consumer of a run/trace
 hierarchy — and that hierarchy is the canonical layout *locally* too
-(`<run-id>/<session-id>/`), so it is not a remote-only concern. Specs B and C
+(`<run-id>/<trace-id>/`), so it is not a remote-only concern. Specs B and C
 settle `StorageAdapter`'s final shape (the hierarchy methods) and serve's
 structure; this spec's `createHttpReadAdapter` and `introspect runs` build
 directly on both. Building the client first means building against an
 interface and a package layout that are still moving.
 
 **This spec's own scope expands when its turn comes.** As written below it
-covers `createHttpReadAdapter` + `--url` + `--ci`/`resolveRun`. Spec D will
-additionally need: an `introspect runs` command, `createHttpReadAdapter`
-implementing the hierarchy methods (`listRuns`/`listSessions`), and run/session
-selection across every command — with `--ci`/`resolveRun` reframed as a thin
-convenience over `listRuns()` (filter to current branch, take latest) rather
-than a standalone project hook. The sections below predate the decomposition
-and will be revised at planning time.
+covers `createHttpReadAdapter` + `--url`. Spec D will additionally need: an
+`introspect runs` command, `createHttpReadAdapter` implementing the hierarchy
+methods (`listRuns`/`listTraces`), and run/trace selection across every
+command (default: latest run on current git branch, via `listRuns()` filtered
+by branch identity from Spec A). The sections below predate the decomposition
+and will be revised at planning time. An earlier draft proposed a `--ci [ref]`
+flag and a `resolveRun(ref)` hook in `introspect.config.ts` to map a human ref
+to a base URL; once Spec B exposes `listRuns()` with branch/commit identity,
+that resolution happens against the server's run list instead — under the
+assumption of a single stable trace `baseUrl` per project — so `--ci` and the
+hook are dropped.
 
 ## Architecture
 
@@ -182,7 +185,7 @@ import type { StorageAdapter } from '@introspection/types'
  * A StorageAdapter that reads trace data over HTTP from a server mounting
  * the @introspection/serve protocol.
  *
- * @param baseUrl - URL prefix where sessions are served
+ * @param baseUrl - URL prefix where traces are served
  *                  (e.g. https://ci.example/_introspect/<run-id>)
  */
 export function createHttpReadAdapter(baseUrl: string): StorageAdapter
@@ -206,52 +209,34 @@ Behaviour, per method:
 
 ## CLI surface
 
-`introspect` gains two ways to select a remote source, alongside the existing
+`introspect` gains one way to select a remote source, alongside the existing
 `--dir`:
 
 | Flag | Meaning |
 |---|---|
 | `--dir <path>` | Filesystem adapter. Default: `.introspect` in cwd. Unchanged. |
-| `--url <baseUrl>` | HTTP adapter pointed directly at `baseUrl`. |
-| `--ci [ref]` | Resolve `ref` to a base URL via the `resolveRun` config hook, then use the HTTP adapter. `ref` defaults to the current git branch. |
+| `--url <baseUrl>` | HTTP adapter pointed at `baseUrl`. May also be set as `baseUrl` in `introspect.config.ts`. |
 
-`--dir`, `--url`, and `--ci` are mutually exclusive; supplying more than one is
-an argument error. With none supplied, the default `--dir .introspect` applies
+`--dir` and `--url` are mutually exclusive; supplying both is an argument
+error. With neither supplied, the CLI uses `baseUrl` from
+`introspect.config.ts` if present, otherwise falls back to `--dir .introspect`
 as today.
 
-The adapter is constructed once at command startup; `loadSession` /
-`listSessions` receive it exactly as they receive the filesystem adapter now.
+The adapter is constructed once at command startup; `loadTrace` /
+`listTraces` receive it exactly as they receive the filesystem adapter now.
 No command implementation changes.
 
-## The `resolveRun` discovery hook
+## Run selection
 
-"Knowing the URL" is the genuinely project-specific part: a developer has a
-branch / PR / pipeline in hand, and the mapping from that to a trace URL
-depends on the project's CI and server conventions. Introspection must not bake
-in any one project's scheme.
-
-So `introspect.config.ts` may export an optional hook:
-
-```ts
-export function resolveRun(ref: string): string | Promise<string>
-```
-
-- Input `ref` — a human reference. The CLI passes whatever followed `--ci`, or
-  the current git branch when `--ci` was given bare.
-- Output — a base URL suitable for `createHttpReadAdapter`.
-
-The CLI flow for `--ci [ref]`:
-
-1. Determine `ref` (argument, or `git rev-parse --abbrev-ref HEAD`).
-2. Load `introspect.config.ts`. If it has no `resolveRun` export, error:
-   `--ci requires a resolveRun hook in introspect.config.ts`.
-3. `await resolveRun(ref)` → base URL → `createHttpReadAdapter(url)`.
-
-Introspection ships the **contract** and the git-branch default only — no
-built-in resolver. The introspection repo's own `introspect.config.ts` carries
-a minimal example `resolveRun` as executable documentation (it can resolve
-against a local fixture server or simply construct a URL from a template, with
-a comment pointing at the reference target).
+Once a remote server is selected (via `--url` or config `baseUrl`), there is
+still the question of *which* run on that server to read. That is the job of
+Spec B's `listRuns()` plus the run-selection flags that Spec D's planning-time
+revision introduces (`--run <id>` and similar) — not of a project-supplied
+URL-resolution hook. The default is "latest run on the current git branch",
+resolved by filtering `listRuns()` against the branch identity Spec A puts on
+each run. This whole section is deliberately under-specified here; it is
+called out so readers know where the old `--ci [ref]` / `resolveRun` shape
+went.
 
 ## Error handling
 
@@ -260,12 +245,9 @@ a comment pointing at the reference target).
   not silently produce empty output.
 - **`listDirectories` on a non-OK response** — *throws* rather than returning
   `[]`. Rationale: a developer running `introspect --url … list` against a
-  wrong URL must see "that URL is wrong", not "no sessions found". (The demo
+  wrong URL must see "that URL is wrong", not "no traces found". (The demo
   prototype returns `[]`; that is a demo affordance, not correct CLI
   behaviour. This is the resolved decision point.)
-- **`resolveRun` throws or returns a non-string** — the CLI reports the hook
-  failed, including the thrown message, and exits non-zero.
-- **Missing `resolveRun` with `--ci`** — the explicit error above.
 
 ## Testing
 
@@ -273,14 +255,13 @@ TDD throughout.
 
 - **`createHttpReadAdapter`** — tested in-process against
   `@introspection/serve`'s `createHandler` over a fixture trace directory: no
-  real network. The core assertion is *equivalence* — a `SessionReader` built
+  real network. The core assertion is *equivalence* — a `TraceReader` built
   on the HTTP adapter returns the same events / assets / meta as one built on
   the filesystem adapter reading the same fixture. Plus per-method error cases
   (404, 500, network rejection).
-- **CLI argument resolution** — `--dir` / `--url` / `--ci` selection and the
-  mutual-exclusion error, tested at the arg-parsing layer.
-- **`resolveRun`** — tested with a stub `introspect.config.ts`: ref defaulting
-  to git branch, the missing-hook error, the hook-throws error.
+- **CLI argument resolution** — `--dir` / `--url` selection (including config
+  `baseUrl` fallback) and the mutual-exclusion error, tested at the
+  arg-parsing layer.
 
 ## Reference target (illustration only — not built here)
 

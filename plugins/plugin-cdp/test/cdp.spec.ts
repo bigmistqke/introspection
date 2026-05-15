@@ -60,11 +60,11 @@ test('filter option excludes methods', async ({ page }) => {
   await handle.detach()
 
   const events = await readEvents(outDir)
-  const cdpTraceEvents = events.filter((event: { type: string }) =>
+  const cdpSessionEvents = events.filter((event: { type: string }) =>
     event.type === 'cdp.command' || event.type === 'cdp.event')
 
-  expect(cdpTraceEvents.length).toBeGreaterThan(0)
-  for (const event of cdpTraceEvents) {
+  expect(cdpSessionEvents.length).toBeGreaterThan(0)
+  for (const event of cdpSessionEvents) {
     expect(event.metadata.method).toMatch(/^Page\./)
   }
 })
@@ -89,7 +89,7 @@ test('captureResults: false omits result payloads', async ({ page }) => {
 
 test('captures command errors', async ({ page }) => {
   // Second plugin that intentionally issues a bad CDP command via the shared
-  // session, so the cdp plugin has a chance to capture a failure.
+  // trace, so the cdp plugin has a chance to capture a failure.
   const badCaller: IntrospectionPlugin = {
     name: 'bad-caller',
     async install(ctx: PluginContext) {

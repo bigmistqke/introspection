@@ -17,10 +17,10 @@ export interface DebugOptions {
   dir: string
 }
 
-export async function runDebug(opts: DebugOptions): Promise<{ runId: string; sessionId: string }> {
+export async function runDebug(opts: DebugOptions): Promise<{ runId: string; traceId: string }> {
   const debug = createDebug('introspect:debug', opts.verbose ?? false)
 
-  debug('Starting debug session', { url: opts.url, serve: opts.serve, verbose: opts.verbose })
+  debug('Starting debug trace', { url: opts.url, serve: opts.serve, verbose: opts.verbose })
 
   // Validate inputs
   if (!opts.url && !opts.serve) {
@@ -67,7 +67,7 @@ export async function runDebug(opts: DebugOptions): Promise<{ runId: string; ses
 
   try {
     // Attach introspection — attachRun creates <dir>/<run-id>/ and lands the
-    // session at <dir>/<run-id>/<session-id>/.
+    // trace at <dir>/<run-id>/<trace-id>/.
     const handle = await attachRun(page, {
       dir: opts.dir,
       plugins,
@@ -95,10 +95,10 @@ export async function runDebug(opts: DebugOptions): Promise<{ runId: string; ses
     await handle.flush()
     await handle.detach()
 
-    console.log(`\n✓ Session saved to: ${handle.runId}/${handle.session.id}`)
-    console.log(`  Query with: introspect events --run ${handle.runId} --session-id ${handle.session.id}`)
+    console.log(`\n✓ Trace saved to: ${handle.runId}/${handle.trace.id}`)
+    console.log(`  Query with: introspect events --run ${handle.runId} --trace-id ${handle.trace.id}`)
 
-    return { runId: handle.runId, sessionId: handle.session.id }
+    return { runId: handle.runId, traceId: handle.trace.id }
   } finally {
     await browser.close()
     if (serverInfo?.server) {

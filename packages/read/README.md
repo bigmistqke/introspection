@@ -13,30 +13,30 @@ pnpm add @introspection/read
 ### With the Node adapter
 
 ```ts
-import { createSessionReader, listSessions } from '@introspection/read/node'
+import { createTraceReader, listTraces } from '@introspection/read/node'
 
-const sessions = await listSessions('.introspect')
-const session = await createSessionReader('.introspect', sessions[0].id)
+const traces = await listTraces('.introspect')
+const trace = await createTraceReader('.introspect', traces[0].id)
 
-const allEvents = await session.events.ls()
-const jsErrors = await session.events.query({ type: 'js.error' })
-const assets = await session.assets.ls()
-const body = await session.assets.read('abc123.body.json')
+const allEvents = await trace.events.ls()
+const jsErrors = await trace.events.query({ type: 'js.error' })
+const assets = await trace.assets.ls()
+const body = await trace.assets.read('abc123.body.json')
 ```
 
 ### With a custom adapter
 
 ```ts
-import { createSessionReader, type StorageAdapter } from '@introspection/read'
+import { createTraceReader, type StorageAdapter } from '@introspection/read'
 
 const adapter: StorageAdapter = {
-  listDirectories: () => fetch('/api/sessions').then(r => r.json()),
+  listDirectories: () => fetch('/api/traces').then(r => r.json()),
   readText: (path) => fetch(`/data/${path}`).then(r => r.text()),
   fileSize: (path) => fetch(`/data/${path}`, { method: 'HEAD' })
     .then(r => Number(r.headers.get('content-length'))),
 }
 
-const session = await createSessionReader(adapter, 'session-id')
+const trace = await createTraceReader(adapter, 'trace-id')
 ```
 
 ## API
@@ -51,20 +51,20 @@ interface StorageAdapter {
 }
 ```
 
-All paths are relative to the adapter's base (e.g. `"session-id/meta.json"`).
+All paths are relative to the adapter's base (e.g. `"trace-id/meta.json"`).
 
-### `createSessionReader(adapter, sessionId?)`
+### `createTraceReader(adapter, traceId?)`
 
-Creates a `SessionReader` by loading trace data through the adapter.
+Creates a `TraceReader` by loading trace data through the adapter.
 
-### `listSessions(adapter)`
+### `listTraces(adapter)`
 
-Lists all sessions, sorted by most recent first. Returns `SessionSummary[]`.
+Lists all traces, sorted by most recent first. Returns `TraceSummary[]`.
 
-### `SessionReader`
+### `TraceReader`
 
 ```ts
-interface SessionReader {
+interface TraceReader {
   id: string
   events: EventsAPI
   assets: AssetsAPI
@@ -92,9 +92,9 @@ interface AssetsAPI {
 ### Node adapter (`@introspection/read/node`)
 
 ```ts
-import { createNodeAdapter, createSessionReader, listSessions } from '@introspection/read/node'
+import { createNodeAdapter, createTraceReader, listTraces } from '@introspection/read/node'
 ```
 
 - `createNodeAdapter(dir)` — creates a `StorageAdapter` backed by `fs`
-- `createSessionReader(dir, sessionId?)` — convenience wrapper
-- `listSessions(dir)` — convenience wrapper
+- `createTraceReader(dir, traceId?)` — convenience wrapper
+- `listTraces(dir)` — convenience wrapper

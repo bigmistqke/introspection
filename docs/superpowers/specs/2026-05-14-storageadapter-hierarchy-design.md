@@ -1,8 +1,8 @@
 # StorageAdapter Hierarchy + Hierarchy-Aware `read` — Design
 
 Make `@introspection/read` and the `introspect` CLI navigate the two-level
-`<run-id>/<session-id>/` trace layout that the `withIntrospect` work
-established on disk. Today `read` assumes a flat `<session>/` layout and is
+`<run-id>/<trace-id>/` trace layout that the `withIntrospect` work
+established on disk. Today `read` assumes a flat `<trace>/` layout and is
 semantically broken against real traces.
 
 > **Position.** This is **Spec B** of the remote-trace-CLI chain
@@ -16,14 +16,14 @@ semantically broken against real traces.
 ## Why
 
 The `withIntrospect` work changed the canonical on-disk layout from flat
-`<session>/` to two-level `<run-id>/<session-id>/`: a run directory holds a
-`RunMeta` `meta.json` and one sub-directory per test, each with a `SessionMeta`
+`<trace>/` to two-level `<run-id>/<trace-id>/`: a run directory holds a
+`RunMeta` `meta.json` and one sub-directory per test, each with a `TraceMeta`
 `meta.json` + `events.ndjson` + `assets/`.
 
-`@introspection/read` predates that. `listSessions(adapter)` calls
+`@introspection/read` predates that. `listTraces(adapter)` calls
 `adapter.listDirectories()` (top level) and parses each `<id>/meta.json` as a
-`SessionMeta` — so against a real trace it lists *run* directories and parses
-`RunMeta` as `SessionMeta`. `createSessionReader` picks a top-level dir and
+`TraceMeta` — so against a real trace it lists *run* directories and parses
+`RunMeta` as `TraceMeta`. `createTraceReader` picks a top-level dir and
 looks for `<id>/events.ndjson` — one level too high. The CLI, built on these,
 is broken against any trace produced by `withIntrospect`.
 
@@ -32,14 +32,14 @@ is broken against any trace produced by `withIntrospect`.
 **In scope:**
 
 - `StorageAdapter`: one interface change — `listDirectories(subPath?: string)`.
-- `@introspection/read`: `listRuns()`, `listSessions(runId)`, hierarchy-aware
-  `createSessionReader`; `RunSummary` type; `SessionSummary` gains
+- `@introspection/read`: `listRuns()`, `listTraces(runId)`, hierarchy-aware
+  `createTraceReader`; `RunSummary` type; `TraceSummary` gains
   `project` / `status`.
 - The node and memory adapters implement `listDirectories(subPath?)`.
-- `introspect debug` produces a run directory (a one-session run) so the
+- `introspect debug` produces a run directory (a one-trace run) so the
   single organizational model holds for every shipped producer.
 - The full local CLI: a new `introspect runs` command, `introspect list`
-  scoped to a run, and `--run` selection across the per-session commands.
+  scoped to a run, and `--run` selection across the per-trace commands.
 
 **Out of scope:**
 
@@ -49,18 +49,18 @@ is broken against any trace produced by `withIntrospect`.
 - The demo `fetch-adapter` — it still structurally satisfies the widened
   `StorageAdapter` type (a no-arg `listDirectories` is assignable to
   `listDirectories(subPath?)`); making it hierarchy-correct is Spec D's job.
-- Any change to the `attach()` / `session()` primitives. They remain
-  flat-session producers for ad-hoc/scripted use; only the *shipped*
+- Any change to the `attach()` / `trace()` primitives. They remain
+  flat-trace producers for ad-hoc/scripted use; only the *shipped*
   `introspect debug` command is updated to conform to the run model.
 
 ## Single organizational model
 
-There is exactly one on-disk shape: `<dir>/<run-id>/<session-id>/`. A run
-directory has a `RunMeta` `meta.json`; a session directory has a `SessionMeta`
-`meta.json`, `events.ndjson`, and `assets/`. `project` is a `SessionMeta` field
-and a filename prefix on `<session-id>` — **not** a directory level (decided in
+There is exactly one on-disk shape: `<dir>/<run-id>/<trace-id>/`. A run
+directory has a `RunMeta` `meta.json`; a trace directory has a `TraceMeta`
+`meta.json`, `events.ndjson`, and `assets/`. `project` is a `TraceMeta` field
+and a filename prefix on `<trace-id>` — **not** a directory level (decided in
 the `withIntrospect` brainstorm). So `read` navigates exactly two levels;
-"sessions for project X" is a filter on `listSessions(runId)`, not a directory
+"traces for project X" is a filter on `listTraces(runId)`, not a directory
 walk.
 
 ## Architecture
@@ -77,15 +77,15 @@ walk.
                   ▼
    @introspection/read   (hierarchy navigation, built on the adapter)
      listRuns(adapter)              → RunSummary[]
-     listSessions(adapter, runId)   → SessionSummary[]   (each carries .project)
-     createSessionReader(adapter, { runId?, sessionId? })
+     listTraces(adapter, runId)   → TraceSummary[]   (each carries .project)
+     createTraceReader(adapter, { runId?, traceId? })
                   │
                   ▼
    introspect CLI   (runs / list / summary / events / network / assets / plugins)
 ```
 
 Storage stays dumb (list directory names, read bytes); all interpretation —
-parsing `RunMeta` / `SessionMeta`, "latest" resolution, sorting — lives in
+parsing `RunMeta` / `TraceMeta`, "latest" resolution, sorting — lives in
 `read`.
 
 ## `StorageAdapter` change
@@ -118,21 +118,21 @@ export interface RunSummary {
   status?: 'passed' | 'failed'        // RunMeta.status (absent if teardown didn't run)
   branch?: string
   commit?: string
-  sessionCount: number
+  traceCount: number
 }
 
-export interface SessionSummary {
+export interface TraceSummary {
   id: string
   label?: string
-  project?: string                    // new — from SessionMeta.project
-  status?: SessionStatus              // new — from SessionMeta.status
+  project?: string                    // new — from TraceMeta.project
+  status?: TraceStatus              // new — from TraceMeta.status
   startedAt: number
   endedAt?: number
   duration?: number
 }
 ```
 
-`RunSummary` is new; `SessionSummary` gains `project` and `status`. Both stay
+`RunSummary` is new; `TraceSummary` gains `project` and `status`. Both stay
 in `@introspection/read` (not `@introspection/types`) — they are
 read-layer projections, not storage shapes.
 
@@ -140,26 +140,26 @@ read-layer projections, not storage shapes.
 
 - **`listRuns(adapter): Promise<RunSummary[]>`** — `adapter.listDirectories()`
   for run-dir names; for each, `readJSON('<runId>/meta.json')` as `RunMeta`
-  and `listDirectories(runId)` for the session count. Skips a run whose
+  and `listDirectories(runId)` for the trace count. Skips a run whose
   `meta.json` is missing or malformed. Sorted by `startedAt` descending.
 
-- **`listSessions(adapter, runId): Promise<SessionSummary[]>`** —
-  `adapter.listDirectories(runId)` for session-dir names; for each,
-  `readText('<runId>/<sessionId>/meta.json')` parsed as `SessionMeta`. Skips
-  malformed session metas. Sorted by `startedAt` descending.
+- **`listTraces(adapter, runId): Promise<TraceSummary[]>`** —
+  `adapter.listDirectories(runId)` for trace-dir names; for each,
+  `readText('<runId>/<traceId>/meta.json')` parsed as `TraceMeta`. Skips
+  malformed trace metas. Sorted by `startedAt` descending.
 
-- **`createSessionReader(adapter, { runId?, sessionId?, verbose? })`** —
+- **`createTraceReader(adapter, { runId?, traceId?, verbose? })`** —
   resolves `runId` (latest run by `RunMeta.startedAt` when omitted), then
-  `sessionId` (latest session in that run by `SessionMeta.startedAt` when
-  omitted), then reads `<runId>/<sessionId>/meta.json` and
-  `<runId>/<sessionId>/events.ndjson`. The reader's `resolvePayload` resolves
-  asset paths against `<runId>/<sessionId>/`.
+  `traceId` (latest trace in that run by `TraceMeta.startedAt` when
+  omitted), then reads `<runId>/<traceId>/meta.json` and
+  `<runId>/<traceId>/events.ndjson`. The reader's `resolvePayload` resolves
+  asset paths against `<runId>/<traceId>/`.
 
-  The current `getLatestSessionId(adapter)` helper splits into
-  `getLatestRunId(adapter)` and `getLatestSessionId(adapter, runId)`.
+  The current `getLatestTraceId(adapter)` helper splits into
+  `getLatestRunId(adapter)` and `getLatestTraceId(adapter, runId)`.
 
-> **Signature change.** `listSessions` gains a required `runId` argument and
-> `createSessionReader`'s options gain `runId`. This is a breaking change to
+> **Signature change.** `listTraces` gains a required `runId` argument and
+> `createTraceReader`'s options gain `runId`. This is a breaking change to
 > `@introspection/read`'s API; the in-repo consumers (the CLI, `/node`
 > wrappers) are updated in this spec. There are no other consumers.
 
@@ -172,57 +172,57 @@ read-layer projections, not storage shapes.
 - **memory** (`createMemoryReadAdapter`): `listDirectories(subPath?)` → of the
   store keys, take those under `subPath + '/'` (or all, when omitted) and
   collect the next path segment, de-duplicated.
-- **`/node` convenience wrappers**: `createSessionReader(dir, opts)` stays;
-  add `listRuns(dir)` and `listSessions(dir, runId)`; the old `listSessions(dir)`
+- **`/node` convenience wrappers**: `createTraceReader(dir, opts)` stays;
+  add `listRuns(dir)` and `listTraces(dir, runId)`; the old `listTraces(dir)`
   signature is replaced.
 
 ## `introspect debug` → produces a run
 
 `runDebug` (`packages/cli/src/commands/debug.ts`) currently does
-`attach(page, { outDir: opts.dir })`, yielding a flat `<dir>/<session>/`. It
+`attach(page, { outDir: opts.dir })`, yielding a flat `<dir>/<trace>/`. It
 changes to:
 
 1. Resolve a run-id — a timestamped id (the same scheme as the playwright
    side's `resolveRunId`: `<YYYYMMDD-HHmmss>-<random>`).
 2. `mkdir <dir>/<run-id>/` and write a minimal `RunMeta`
    (`{ version: '1', id, startedAt }`).
-3. `attach(page, { outDir: <dir>/<run-id> })` — the session lands at
-   `<dir>/<run-id>/<session-id>/`.
+3. `attach(page, { outDir: <dir>/<run-id> })` — the trace lands at
+   `<dir>/<run-id>/<trace-id>/`.
 4. On completion, update the `RunMeta` with `endedAt` and a `status` derived
-   from the session outcome.
-5. Print both ids: `Session saved to: <run-id>/<session-id>`, and the query
-   hint `introspect events --run <run-id> --session-id <session-id>`.
+   from the trace outcome.
+5. Print both ids: `Trace saved to: <run-id>/<trace-id>`, and the query
+   hint `introspect events --run <run-id> --trace-id <trace-id>`.
 
 Git detection is skipped for `debug` runs — they are ad-hoc, not CI builds.
 
 ## CLI
 
 `--dir` is unchanged (the `.introspect` root). One new flag, `--run <id>`,
-across the session-scoped commands; the existing `--session-id <id>` is kept
+across the trace-scoped commands; the existing `--trace-id <id>` is kept
 as-is (no rename).
 
 | Command | Behaviour |
 |---|---|
-| `introspect runs` | **New.** `listRuns(dir)` → a table: run id, status, branch, started, session count. |
-| `introspect list` | `listSessions(dir, runId)` where `runId` is `--run` or the latest run. Table: session id, project, status, duration. |
-| `summary` / `events` / `network` / `assets` / `plugins` | Gain `--run <id>`. `loadSession` becomes `createSessionReader(dir, { runId, sessionId })`; both resolve to "latest" when their flag is omitted. |
+| `introspect runs` | **New.** `listRuns(dir)` → a table: run id, status, branch, started, trace count. |
+| `introspect list` | `listTraces(dir, runId)` where `runId` is `--run` or the latest run. Table: trace id, project, status, duration. |
+| `summary` / `events` / `network` / `assets` / `plugins` | Gain `--run <id>`. `loadTrace` becomes `createTraceReader(dir, { runId, traceId })`; both resolve to "latest" when their flag is omitted. |
 | `debug` | Produces a run (above). |
 
 Zero-config use is preserved: `introspect summary` with no flags means "latest
-session of the latest run."
+trace of the latest run."
 
 ## Error handling
 
 - Empty `.introspect` / no run directories → `listRuns` returns `[]`; `runs`
-  and the session commands print a "No runs found" message and exit non-zero
-  (mirrors today's "No sessions found").
-- A `meta.json` that is missing or malformed (run- or session-level) → that
+  and the trace commands print a "No runs found" message and exit non-zero
+  (mirrors today's "No traces found").
+- A `meta.json` that is missing or malformed (run- or trace-level) → that
   entry is skipped in listings; preserves today's resilience.
 - `--run <id>` naming a directory that does not exist → `Run '<id>' not found`.
-- `--session-id <id>` not present in the resolved run → `Session '<id>' not
+- `--trace-id <id>` not present in the resolved run → `Trace '<id>' not
   found in run '<runId>'`.
-- A run directory with zero session sub-directories → `listRuns` reports it
-  with `sessionCount: 0`; `createSessionReader` against it throws `No sessions
+- A run directory with zero trace sub-directories → `listRuns` reports it
+  with `traceCount: 0`; `createTraceReader` against it throws `No traces
   in run '<id>'`.
 
 ## Testing
@@ -230,14 +230,14 @@ session of the latest run."
 - **Adapters** — `listDirectories(subPath?)` for node and memory: top-level
   listing, nested listing, omitted `subPath`, nonexistent `subPath`.
 - **`read`** — against a fixture `.introspect` tree with two runs of a few
-  sessions each: `listRuns` (shape, `sessionCount`, sort order, skipping a
-  malformed run meta), `listSessions(runId)` (shape incl. `project`/`status`,
-  sort order, skipping a malformed session meta), `createSessionReader`
-  resolution (explicit `runId`+`sessionId`; latest-run; latest-session-in-run;
+  traces each: `listRuns` (shape, `traceCount`, sort order, skipping a
+  malformed run meta), `listTraces(runId)` (shape incl. `project`/`status`,
+  sort order, skipping a malformed trace meta), `createTraceReader`
+  resolution (explicit `runId`+`traceId`; latest-run; latest-trace-in-run;
   the not-found and empty-run error cases).
 - **`introspect debug`** — the existing debug test, updated: asserts the
-  output is `<run-id>/<session-id>/` with a `RunMeta` at the run level and a
-  `SessionMeta` at the session level.
+  output is `<run-id>/<trace-id>/` with a `RunMeta` at the run level and a
+  `TraceMeta` at the trace level.
 - **CLI** — `introspect runs` output; `introspect list` with and without
-  `--run`; per-command `--run` / `--session-id` resolution including the
+  `--run`; per-command `--run` / `--trace-id` resolution including the
   not-found errors; zero-config "latest of latest" resolution.

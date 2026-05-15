@@ -2614,7 +2614,7 @@ The shared follow-up note `docs/superpowers/plans/2026-05-08-event-payload-size-
 
 ## How snapshots work
 
-Snapshots are queried server-side via CDP `IndexedDB.requestDatabaseNames` / `requestDatabase` (and, when `dataSnapshots: true`, `requestData`), so they include databases on disk from prior sessions. They're emitted automatically at install and whenever the introspection runtime fires `manual`, `js.error`, or `detach` on the bus — no API to call.
+Snapshots are queried server-side via CDP `IndexedDB.requestDatabaseNames` / `requestDatabase` (and, when `dataSnapshots: true`, `requestData`), so they include databases on disk from prior traces. They're emitted automatically at install and whenever the introspection runtime fires `manual`, `js.error`, or `detach` on the bus — no API to call.
 
 ## Caveats
 

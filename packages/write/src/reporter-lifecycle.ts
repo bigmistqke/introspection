@@ -1,4 +1,4 @@
-import type { IntrospectionReporter, ReporterContext, TraceEvent, SessionBus, TestEndInfo, TestStartInfo, PayloadAsset, TestStartEvent, TestEndEvent } from '@introspection/types'
+import type { IntrospectionReporter, ReporterContext, TraceEvent, TraceBus, TestEndInfo, TestStartInfo, PayloadAsset, TestStartEvent, TestEndEvent } from '@introspection/types'
 
 interface ActiveTest {
   info: TestStartInfo
@@ -31,7 +31,7 @@ function asEndStatus(raw: string): TestEndInfo['status'] {
 export function createReporterRunner(
   reporters: IntrospectionReporter[],
   ctx: ReporterContext,
-  bus: SessionBus,
+  bus: TraceBus,
 ): ReporterRunner {
   let active: ActiveTest | null = null
   const disabled = new Set<IntrospectionReporter>()
@@ -120,8 +120,8 @@ export function createReporterRunner(
   return {
     async start() {
       for (const reporter of reporters) {
-        if (!reporter.onSessionStart) continue
-        invoke(reporter, 'onSessionStart', () => reporter.onSessionStart!(ctx))
+        if (!reporter.onTraceStart) continue
+        invoke(reporter, 'onTraceStart', () => reporter.onTraceStart!(ctx))
       }
     },
     handleEvent(event) {
@@ -152,8 +152,8 @@ export function createReporterRunner(
         dispatchTestEnd(info)
       }
       for (const reporter of reporters) {
-        if (!reporter.onSessionEnd) continue
-        invoke(reporter, 'onSessionEnd', () => reporter.onSessionEnd!(ctx))
+        if (!reporter.onTraceEnd) continue
+        invoke(reporter, 'onTraceEnd', () => reporter.onTraceEnd!(ctx))
       }
     },
   }

@@ -6,7 +6,7 @@ export function slugify(input: string): string {
 }
 
 /**
- * The per-test session directory name: `<project>__<titlePath-slug>` with a
+ * The per-test trace directory name: `<project>__<titlePath-slug>` with a
  * `-<retry>` suffix on retries. Project is encoded as a filename prefix, not a
  * structural directory level — `ls <run-dir>/` still groups by project, the
  * tree stays two-level.

@@ -24,7 +24,7 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.37)
 
-  demos/react-session-list:
+  demos/react-trace-list:
     dependencies:
       '@introspection/demo-shared':
         specifier: workspace:*

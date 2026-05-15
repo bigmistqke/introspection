@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { listRuns, listSessions } from '../src/index.js'
+import { listRuns, listTraces } from '../src/index.js'
 import { createNodeAdapter } from '../src/node.js'
 import { writeFixtureRun } from './helpers.js'
 
@@ -25,20 +25,20 @@ describe('listRuns', () => {
     expect(await listRuns(createNodeAdapter(join(dir, 'missing')))).toEqual([])
   })
 
-  it('reads runs, orders by startedAt descending, counts sessions', async () => {
+  it('reads runs, orders by startedAt descending, counts traces', async () => {
     await writeFixtureRun(dir, {
       id: 'old', startedAt: 100, endedAt: 150, status: 'passed', branch: 'main',
-      sessions: [{ id: 's1', startedAt: 110 }],
+      traces: [{ id: 's1', startedAt: 110 }],
     })
     await writeFixtureRun(dir, {
       id: 'new', startedAt: 300, status: 'failed',
-      sessions: [{ id: 's1', startedAt: 310 }, { id: 's2', startedAt: 320 }],
+      traces: [{ id: 's1', startedAt: 310 }, { id: 's2', startedAt: 320 }],
     })
 
     const runs = await listRuns(createNodeAdapter(dir))
     expect(runs.map(run => run.id)).toEqual(['new', 'old'])
-    expect(runs[0]).toMatchObject({ id: 'new', status: 'failed', sessionCount: 2 })
-    expect(runs[1]).toMatchObject({ id: 'old', status: 'passed', branch: 'main', sessionCount: 1 })
+    expect(runs[0]).toMatchObject({ id: 'new', status: 'failed', traceCount: 2 })
+    expect(runs[1]).toMatchObject({ id: 'old', status: 'passed', branch: 'main', traceCount: 1 })
   })
 
   it('skips runs with unreadable meta.json', async () => {
@@ -51,47 +51,47 @@ describe('listRuns', () => {
   })
 })
 
-describe('listSessions', () => {
-  it('returns sessions of a run, ordered by startedAt descending', async () => {
+describe('listTraces', () => {
+  it('returns traces of a run, ordered by startedAt descending', async () => {
     await writeFixtureRun(dir, {
       id: 'run', startedAt: 100,
-      sessions: [
+      traces: [
         { id: 'old', startedAt: 110, project: 'browser-mobile', status: 'passed' },
         { id: 'new', startedAt: 130, project: 'browser-desktop', status: 'failed' },
         { id: 'mid', startedAt: 120 },
       ],
     })
 
-    const sessions = await listSessions(createNodeAdapter(dir), 'run')
-    expect(sessions.map(s => s.id)).toEqual(['new', 'mid', 'old'])
-    expect(sessions[0]).toMatchObject({ id: 'new', project: 'browser-desktop', status: 'failed' })
+    const traces = await listTraces(createNodeAdapter(dir), 'run')
+    expect(traces.map(s => s.id)).toEqual(['new', 'mid', 'old'])
+    expect(traces[0]).toMatchObject({ id: 'new', project: 'browser-desktop', status: 'failed' })
   })
 
   it('computes duration when endedAt is present', async () => {
     await writeFixtureRun(dir, {
       id: 'run', startedAt: 100,
-      sessions: [
+      traces: [
         { id: 'done', startedAt: 100, endedAt: 450 },
         { id: 'open', startedAt: 500 },
       ],
     })
 
-    const sessions = await listSessions(createNodeAdapter(dir), 'run')
-    expect(sessions.find(s => s.id === 'done')!.duration).toBe(350)
-    expect(sessions.find(s => s.id === 'open')!.duration).toBeUndefined()
+    const traces = await listTraces(createNodeAdapter(dir), 'run')
+    expect(traces.find(s => s.id === 'done')!.duration).toBe(350)
+    expect(traces.find(s => s.id === 'open')!.duration).toBeUndefined()
   })
 
-  it('returns empty array for a run with no sessions', async () => {
+  it('returns empty array for a run with no traces', async () => {
     await writeFixtureRun(dir, { id: 'run', startedAt: 100 })
-    expect(await listSessions(createNodeAdapter(dir), 'run')).toEqual([])
+    expect(await listTraces(createNodeAdapter(dir), 'run')).toEqual([])
   })
 
-  it('skips sessions with unreadable meta.json', async () => {
-    await writeFixtureRun(dir, { id: 'run', startedAt: 100, sessions: [{ id: 'ok', startedAt: 110 }] })
+  it('skips traces with unreadable meta.json', async () => {
+    await writeFixtureRun(dir, { id: 'run', startedAt: 100, traces: [{ id: 'ok', startedAt: 110 }] })
     await mkdir(join(dir, 'run', 'broken'))
     await writeFile(join(dir, 'run', 'broken', 'meta.json'), 'not-json{')
 
-    const sessions = await listSessions(createNodeAdapter(dir), 'run')
-    expect(sessions.map(s => s.id)).toEqual(['ok'])
+    const traces = await listTraces(createNodeAdapter(dir), 'run')
+    expect(traces.map(s => s.id)).toEqual(['ok'])
   })
 })

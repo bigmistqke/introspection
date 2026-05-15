@@ -7,8 +7,8 @@
     * { margin: 0; box-sizing: border-box; }
     body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 24px; max-width: 1000px; margin: 0 auto; }
     h1 { font-size: 18px; color: #888; margin-bottom: 24px; }
-    .session { background: #111; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    .session h2 { font-size: 14px; margin-bottom: 12px; color: #ccc; }
+    .trace { background: #111; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .trace h2 { font-size: 14px; margin-bottom: 12px; color: #ccc; }
     .status { font-weight: 600; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     td { padding: 4px 8px; vertical-align: top; }
@@ -17,62 +17,182 @@
   </style>
 </head>
 <body>
-  <h1>Introspection Report — 2 sessions</h1>
-    <div class="session">
-      <h2><span class="status" style="color: #8bc38b">passed</span> c4d57fb7-9071-484f-bb1a-9288cde58b22</h2>
+  <h1>Introspection Report — 5 traces</h1>
+    <div class="trace">
+      <h2><span class="status" style="color: #8bc38b">passed</span> 20260515-121937-1730/540f3cf6-e974-4d36-a471-52e3024a3614</h2>
       <table>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">204ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">25ms</td>
         <td style="color: #888; font-weight: 500">page.attach</td>
         <td style="color: #999"></td>
       </tr>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">205ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">25ms</td>
         <td style="color: #6c9cfc; font-weight: 500">playwright.action</td>
         <td style="color: #999">goto("http://localhost/fixture")</td>
       </tr>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">211ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">28ms</td>
         <td style="color: #8bc38b; font-weight: 500">network.request</td>
         <td style="color: #999">GET http://localhost/fixture</td>
       </tr>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">217ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">34ms</td>
         <td style="color: #59a359; font-weight: 500">network.response</td>
         <td style="color: #999">200 http://localhost/fixture</td>
       </tr>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">225ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">38ms</td>
         <td style="color: #c084fc; font-weight: 500">playwright.result</td>
         <td style="color: #999">passed</td>
       </tr>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">225ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">38ms</td>
         <td style="color: #888; font-weight: 500">page.detach</td>
         <td style="color: #999"></td>
       </tr>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">228ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">41ms</td>
         <td style="color: #888; font-weight: 500">network.response.body</td>
         <td style="color: #999"></td>
       </tr>
       </table>
     </div>
-    <div class="session">
-      <h2><span class="status" style="color: #8bc38b">passed</span> 8b587bd3-6b3e-40a7-8ee3-38e236d77971</h2>
+    <div class="trace">
+      <h2><span class="status" style="color: #8bc38b">passed</span> 20260515-121705-5093/99f16baa-3757-4131-a576-ba25568651b5</h2>
       <table>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">30ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">33ms</td>
         <td style="color: #888; font-weight: 500">page.attach</td>
         <td style="color: #999"></td>
       </tr>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">30ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">34ms</td>
         <td style="color: #6c9cfc; font-weight: 500">playwright.action</td>
         <td style="color: #999">goto("http://localhost/fixture")</td>
       </tr>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">32ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">38ms</td>
+        <td style="color: #8bc38b; font-weight: 500">network.request</td>
+        <td style="color: #999">GET http://localhost/fixture</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">54ms</td>
+        <td style="color: #59a359; font-weight: 500">network.response</td>
+        <td style="color: #999">200 http://localhost/fixture</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">75ms</td>
+        <td style="color: #c084fc; font-weight: 500">playwright.result</td>
+        <td style="color: #999">passed</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">75ms</td>
+        <td style="color: #888; font-weight: 500">page.detach</td>
+        <td style="color: #999"></td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">85ms</td>
+        <td style="color: #888; font-weight: 500">network.response.body</td>
+        <td style="color: #999"></td>
+      </tr>
+      </table>
+    </div>
+    <div class="trace">
+      <h2><span class="status" style="color: #8bc38b">passed</span> 20260514-175538-7b5e/2843579e-6eea-4897-af7d-12214c4853db</h2>
+      <table>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">47ms</td>
+        <td style="color: #888; font-weight: 500">page.attach</td>
+        <td style="color: #999"></td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">47ms</td>
+        <td style="color: #6c9cfc; font-weight: 500">playwright.action</td>
+        <td style="color: #999">goto("http://localhost/fixture")</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">50ms</td>
+        <td style="color: #8bc38b; font-weight: 500">network.request</td>
+        <td style="color: #999">GET http://localhost/fixture</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">59ms</td>
+        <td style="color: #59a359; font-weight: 500">network.response</td>
+        <td style="color: #999">200 http://localhost/fixture</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">104ms</td>
+        <td style="color: #c084fc; font-weight: 500">playwright.result</td>
+        <td style="color: #999">passed</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">104ms</td>
+        <td style="color: #888; font-weight: 500">page.detach</td>
+        <td style="color: #999"></td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">107ms</td>
+        <td style="color: #888; font-weight: 500">network.response.body</td>
+        <td style="color: #999"></td>
+      </tr>
+      </table>
+    </div>
+    <div class="trace">
+      <h2><span class="status" style="color: #8bc38b">passed</span> 20260514-175134-85cb/e2892428-4c3c-4b1d-874e-85b3f38731c2</h2>
+      <table>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">50ms</td>
+        <td style="color: #888; font-weight: 500">page.attach</td>
+        <td style="color: #999"></td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">51ms</td>
+        <td style="color: #6c9cfc; font-weight: 500">playwright.action</td>
+        <td style="color: #999">goto("http://localhost/fixture")</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">54ms</td>
+        <td style="color: #8bc38b; font-weight: 500">network.request</td>
+        <td style="color: #999">GET http://localhost/fixture</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">68ms</td>
+        <td style="color: #59a359; font-weight: 500">network.response</td>
+        <td style="color: #999">200 http://localhost/fixture</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">110ms</td>
+        <td style="color: #c084fc; font-weight: 500">playwright.result</td>
+        <td style="color: #999">passed</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">110ms</td>
+        <td style="color: #888; font-weight: 500">page.detach</td>
+        <td style="color: #999"></td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">114ms</td>
+        <td style="color: #888; font-weight: 500">network.response.body</td>
+        <td style="color: #999"></td>
+      </tr>
+      </table>
+    </div>
+    <div class="trace">
+      <h2><span class="status" style="color: #8bc38b">passed</span> 20260514-174917-7ca9/0e7becef-6e87-4118-a330-0deac25f6aa9</h2>
+      <table>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">29ms</td>
+        <td style="color: #888; font-weight: 500">page.attach</td>
+        <td style="color: #999"></td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">29ms</td>
+        <td style="color: #6c9cfc; font-weight: 500">playwright.action</td>
+        <td style="color: #999">goto("http://localhost/fixture")</td>
+      </tr>
+      <tr>
+        <td style="color: #666; font-variant-numeric: tabular-nums">34ms</td>
         <td style="color: #8bc38b; font-weight: 500">network.request</td>
         <td style="color: #999">GET http://localhost/fixture</td>
       </tr>
@@ -82,17 +202,17 @@
         <td style="color: #999">200 http://localhost/fixture</td>
       </tr>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">42ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">43ms</td>
         <td style="color: #c084fc; font-weight: 500">playwright.result</td>
         <td style="color: #999">passed</td>
       </tr>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">42ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">43ms</td>
         <td style="color: #888; font-weight: 500">page.detach</td>
         <td style="color: #999"></td>
       </tr>
       <tr>
-        <td style="color: #666; font-variant-numeric: tabular-nums">44ms</td>
+        <td style="color: #666; font-variant-numeric: tabular-nums">45ms</td>
         <td style="color: #888; font-weight: 500">network.response.body</td>
         <td style="color: #999"></td>
       </tr>

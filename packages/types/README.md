@@ -17,8 +17,8 @@ Shared TypeScript types for the introspection system. Used by all packages.
   - [BusPayloadMap and BusTrigger](#buspayloadmap-and-bustrigger)
   - [PluginContext](#plugincontext)
   - [WatchHandle](#watchhandle)
-- [Session format](#session-format)
-  - [SessionMeta](#sessionmeta)
+- [Trace format](#trace-format)
+  - [TraceMeta](#tracemeta)
   - [TraceFile](#tracefile)
 - [IntrospectHandle](#introspecthandle)
 
@@ -201,7 +201,7 @@ type BusTrigger = keyof BusPayloadMap
 
 ### `PluginContext`
 
-Passed to `plugin.install()`. Provides access to the page, CDP session, event bus, and session writer.
+Passed to `plugin.install()`. Provides access to the page, CDP trace, event bus, and trace writer.
 
 ```ts
 interface PluginContext {
@@ -216,7 +216,7 @@ interface PluginContext {
     content: string | Buffer
     ext?: string
   }): Promise<AssetRef>   // returns asset reference
-  timestamp(): number   // ms since session start
+  timestamp(): number   // ms since trace start
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
   bus: {
     on<T extends BusTrigger>(trigger: T, handler: (payload: BusPayloadMap[T]) => void | Promise<void>): void
@@ -229,7 +229,7 @@ interface PluginContext {
 
 `cdpSession.on()` subscribes to raw CDP events (e.g. `Network.requestWillBeSent`) from within `install()`. This is how built-in plugins like `network()` and `jsError()` wire themselves up.
 
-`bus` provides a typed async event bus scoped to the session. `bus.on()` registers a handler. `bus.emit()` runs all registered handlers concurrently and resolves only after all settle. Use `bus.on('manual', ...)` to react to `handle.snapshot()` calls, `bus.on('detach', ...)` for teardown capture, and `bus.on('js.error', ...)` (augmented by `jsError()`) for error captures.
+`bus` provides a typed async event bus scoped to the trace. `bus.on()` registers a handler. `bus.emit()` runs all registered handlers concurrently and resolves only after all settle. Use `bus.on('manual', ...)` to react to `handle.snapshot()` calls, `bus.on('detach', ...)` for teardown capture, and `bus.on('js.error', ...)` (augmented by `jsError()`) for error captures.
 
 ### `WatchHandle`
 
@@ -241,16 +241,16 @@ interface WatchHandle {
 
 ---
 
-## Session format
+## Trace format
 
-### `SessionMeta`
+### `TraceMeta`
 
 ```ts
-interface SessionMeta {
+interface TraceMeta {
   version: '2'
   id: string
   startedAt: number    // unix ms
-  endedAt?: number     // unix ms; set when session ends
+  endedAt?: number     // unix ms; set when trace ends
   label?: string
   plugins?: PluginMeta[]
 }
@@ -265,12 +265,12 @@ interface PluginMeta {
 
 ### `TraceFile`
 
-Logical representation of a full session as read by the CLI.
+Logical representation of a full trace as read by the CLI.
 
 ```ts
 interface TraceFile {
   version: '2'
-  session: Omit<SessionMeta, 'version'>
+  trace: Omit<TraceMeta, 'version'>
   events: TraceEvent[]
   snapshots: Snapshot[]
 }
@@ -287,7 +287,7 @@ interface IntrospectHandle extends AssetWriter {
   page: Page                                           // proxy-wrapped Page
   emit(event: EmitInput): Promise<void>               // emit a trace event
   snapshot(): Promise<void>                            // capture DOM and scope snapshot
-  detach(result?: DetachResult): Promise<void>         // finalize session and detach CDP
+  detach(result?: DetachResult): Promise<void>         // finalize trace and detach CDP
 }
 
 interface DetachResult {

@@ -7,11 +7,11 @@ import { formatPlugins } from './commands/plugins.js'
 import { runDebug } from './commands/debug.js'
 import { runPayloadCommand } from './commands/payload.js'
 import { formatRunsTable } from './commands/runs.js'
-import { formatSessionsTable } from './commands/list.js'
+import { formatTracesTable } from './commands/list.js'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { listSkills, detectPlatform, getInstallRoot, installSkills } from './commands/skills.js'
-import { createSessionReader, listRuns, listSessions } from '@introspection/read/node'
+import { createTraceReader, listRuns, listTraces } from '@introspection/read/node'
 import { serve } from '@introspection/serve/node'
 
 const BUNDLED_SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url))
@@ -20,9 +20,9 @@ const program = new Command()
 program.name('introspect').description('Query Playwright test introspection traces').version('0.1.0')
   .option('--dir <path>', 'Trace output directory', resolve('.introspect'))
 
-async function loadSession(opts: { run?: string; sessionId?: string; verbose?: boolean }) {
+async function loadTrace(opts: { run?: string; traceId?: string; verbose?: boolean }) {
   const dir = program.opts().dir as string
-  return createSessionReader(dir, { runId: opts.run, sessionId: opts.sessionId, verbose: opts.verbose })
+  return createTraceReader(dir, { runId: opts.run, traceId: opts.traceId, verbose: opts.verbose })
 }
 
 program
@@ -39,29 +39,29 @@ program
 
 program.command('summary')
   .option('--run <id>')
-  .option('--session-id <id>')
+  .option('--trace-id <id>')
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (opts) => {
-    const session = await loadSession(opts)
-    const events = await session.events.ls()
+    const trace = await loadTrace(opts)
+    const events = await trace.events.ls()
     const summary = {
-      id: session.id,
-      label: session.meta.label,
-      startedAt: session.meta.startedAt,
-      endedAt: session.meta.endedAt,
+      id: trace.id,
+      label: trace.meta.label,
+      startedAt: trace.meta.startedAt,
+      endedAt: trace.meta.endedAt,
     }
     console.log(buildSummary(summary, events))
   })
 
 program.command('network')
   .option('--run <id>')
-  .option('--session-id <id>')
+  .option('--trace-id <id>')
   .option('--failed')
   .option('--url <pattern>')
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (opts) => {
-    const session = await loadSession(opts)
-    const events = await session.events.ls()
+    const trace = await loadTrace(opts)
+    const events = await trace.events.ls()
     console.log(formatNetworkTable(events, opts))
   })
 
@@ -76,7 +76,7 @@ program.command('runs')
   })
 
 program.command('list')
-  .description('List sessions in a run')
+  .description('List traces in a run')
   .option('--run <id>', 'Run id (default: latest run)')
   .action(async (opts: { run?: string }) => {
     const dir = program.opts().dir as string
@@ -86,19 +86,19 @@ program.command('list')
       console.error(`Run '${opts.run}' not found in ${dir}`); process.exit(1)
     }
     const runId = opts.run ?? runs[0].id
-    const sessions = await listSessions(dir, runId)
-    if (sessions.length === 0) { console.error(`No sessions in run '${runId}'`); process.exit(1) }
-    console.log(formatSessionsTable(sessions))
+    const traces = await listTraces(dir, runId)
+    if (traces.length === 0) { console.error(`No traces in run '${runId}'`); process.exit(1) }
+    console.log(formatTracesTable(traces))
   })
 
 program.command('plugins')
-  .description('Show plugin metadata for a session')
+  .description('Show plugin metadata for a trace')
   .option('--run <id>')
-  .option('--session-id <id>')
+  .option('--trace-id <id>')
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (opts) => {
-    const session = await loadSession(opts)
-    console.log(formatPlugins(session.meta))
+    const trace = await loadTrace(opts)
+    console.log(formatPlugins(trace.meta))
   })
 
 const skillsCmd = program.command('skills').description('Manage AI skills for this project')
@@ -161,7 +161,7 @@ program
   .command('events')
   .description('Filter and transform trace events')
   .option('--run <id>')
-  .option('--session-id <id>')
+  .option('--trace-id <id>')
   .option('--filter <expr>', 'Boolean predicate per event (event), e.g. \'event.metadata.status >= 400\'')
   .option('--format <fmt>', 'Output format: text (default) or json')
   .option('--type <patterns>', 'Comma-separated event types. Supports prefix: "network.*"')
@@ -176,16 +176,16 @@ program
   )
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (opts) => {
-    let session
+    let trace
     try {
-      session = await loadSession(opts)
+      trace = await loadTrace(opts)
     } catch (error) {
       console.error(String(error))
       process.exit(1)
     }
     try {
-      const events = await session.events.ls()
-      const out = await formatEvents(events, opts, session)
+      const events = await trace.events.ls()
+      const out = await formatEvents(events, opts, trace)
       if (out) console.log(out)
     } catch (error) {
       console.error(`Error: ${(error as Error).message}`)
@@ -198,18 +198,18 @@ program.command('payload')
   .argument('<event-id>')
   .argument('<name>')
   .option('--run <id>')
-  .option('--session-id <id>')
+  .option('--trace-id <id>')
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (eventId: string, name: string, opts) => {
-    let session
+    let trace
     try {
-      session = await loadSession(opts)
+      trace = await loadTrace(opts)
     } catch (error) {
       console.error(String(error))
       process.exit(1)
     }
     try {
-      await runPayloadCommand({ eventId, name }, session, process.stdout)
+      await runPayloadCommand({ eventId, name }, trace, process.stdout)
     } catch (error) {
       console.error(`Error: ${(error as Error).message}`)
       process.exit(1)

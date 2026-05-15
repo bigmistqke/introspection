@@ -16,7 +16,7 @@
     "demos:solid-streaming": "pnpm --filter @introspection/demo-solid-streaming dev",
     "demos:solid-streaming:test": "pnpm --filter @introspection/demo-solid-streaming test",
     "demos:wc-graph": "pnpm --filter @introspection/demo-wc-graph dev",
-    "demos:react-session-list": "pnpm --filter @introspection/demo-react-session-list dev"
+    "demos:react-trace-list": "pnpm --filter @introspection/demo-react-trace-list dev"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

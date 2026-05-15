@@ -12,9 +12,9 @@ export interface IntrospectionServeSSEOptions {
  * Demo-local Vite plugin: serves Server-Sent Events tailing of `events.ndjson`
  * for the solid-streaming demo. Mounted alongside `introspectionServe()`.
  *
- *   GET <prefix>/<runId>/<sessionId>/events
+ *   GET <prefix>/<runId>/<traceId>/events
  *
- * Sends every existing line of `<runId>/<sessionId>/events.ndjson` as an SSE
+ * Sends every existing line of `<runId>/<traceId>/events.ndjson` as an SSE
  * `data:` frame, then watches the file and sends new lines as they're written.
  * This logic used to live in @introspection/serve's createHandler; it moved
  * here when createHandler became a generic StorageAdapter transport (no
@@ -39,12 +39,12 @@ export function introspectionServeSSE(options?: IntrospectionServeSSEOptions): P
         if (!url.startsWith(prefix + '/')) return next()
 
         const tail = url.slice(prefix.length + 1)
-        // Match: <runId>/<sessionId>/events
+        // Match: <runId>/<traceId>/events
         const match = tail.match(/^([^/]+)\/([^/]+)\/events(?:\?.*)?$/)
         if (!match) return next()
-        const [, runId, sessionId] = match
+        const [, runId, traceId] = match
 
-        const eventsPath = join(resolvedDirectory, runId, sessionId, 'events.ndjson')
+        const eventsPath = join(resolvedDirectory, runId, traceId, 'events.ndjson')
         if (!existsSync(eventsPath)) {
           res.writeHead(404)
           res.end('Not found')

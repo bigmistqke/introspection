@@ -1,8 +1,8 @@
 # @introspection
 
-Introspection is a Playwright-integrated tracing framework. A session records a stream of typed trace events — network requests and responses, JS errors with scope locals, DOM snapshots, Playwright actions — and their associated assets to disk as NDJSON. **Plugins are the unit of feature capture**, each subscribing to Chrome DevTools Protocol (CDP) events or page state.
+Introspection is a Playwright-integrated tracing framework. A trace records a stream of typed trace events — network requests and responses, JS errors with scope locals, DOM snapshots, Playwright actions — and their associated assets to disk as NDJSON. **Plugins are the unit of feature capture**, each subscribing to Chrome DevTools Protocol (CDP) events or page state.
 
-When an end-to-end test fails, the usual debugging loop is: read the error, guess what the app was doing, add more logs or breakpoints, re-run. With a trace on disk, you can query the recorded session instead of re-running the test.
+When an end-to-end test fails, the usual debugging loop is: read the error, guess what the app was doing, add more logs or breakpoints, re-run. With a trace on disk, you can query the recorded trace instead of re-running the test.
 
 Introspection is built primarily for AI-assisted debugging — the trace gives a model the full execution context to reason about — but the same trace is queryable by humans too, via the [`introspect`](packages/cli/README.md) CLI or programmatically through [`@introspection/read`](packages/read/README.md).
 
@@ -15,14 +15,14 @@ Introspection is built primarily for AI-assisted debugging — the trace gives a
 - [Plugins](#plugins)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
-- [Session format](#session-format)
+- [Trace format](#trace-format)
 - [Continuous releases](#continuous-releases)
 
 ---
 
 ## How it works
 
-`attach(page, { plugins })` opens a CDP session alongside the Playwright test. Plugins contribute to the event stream by subscribing to CDP events and/or injecting scripts in the browser.
+`attach(page, { plugins })` opens a CDP trace alongside the Playwright test. Plugins contribute to the event stream by subscribing to CDP events and/or injecting scripts in the browser.
 
 ---
 
@@ -33,9 +33,9 @@ Introspection is built primarily for AI-assisted debugging — the trace gives a
 | [`introspect`](packages/cli/README.md)                       | CLI for querying traces: summary, events, list, plugins             |
 | [`@introspection/playwright`](packages/playwright/README.md) | Attach tracing to a Playwright page — the main integration point    |
 | [`@introspection/read`](packages/read/README.md)             | Programmatic access to traces — adapter-based, environment-agnostic |
-| [`@introspection/write`](packages/write/)                    | Session recording — creates sessions, appends events, writes assets |
+| [`@introspection/write`](packages/write/)                    | Trace recording — creates traces, appends events, writes assets |
 | [`@introspection/utils`](packages/utils/)                    | Shared utilities: CDP normalizers, event bus, debug, snapshot       |
-| [`@introspection/types`](packages/types/README.md)           | Shared TypeScript types for events, plugins, and session format     |
+| [`@introspection/types`](packages/types/README.md)           | Shared TypeScript types for events, plugins, and trace format     |
 
 ## Plugins
 
@@ -85,7 +85,7 @@ test("checkout flow", async ({ page }) => {
 });
 ```
 
-After the test runs, query the session:
+After the test runs, query the trace:
 
 ```bash
 introspect summary
@@ -102,13 +102,13 @@ introspect events --type network.response --filter 'event.metadata.status >= 400
 
 ---
 
-## Session format
+## Trace format
 
-Each test produces a session directory:
+Each test produces a trace directory:
 
 ```
 .introspect/
-  <session-id>/
+  <trace-id>/
     meta.json        ← id, startedAt, endedAt, label
     events.ndjson    ← one JSON event per line
     assets/          ← response bodies, DOM snapshots, plugin captures

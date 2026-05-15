@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { createSessionWriter } from '../src/index.js'
+import { createTraceWriter } from '../src/index.js'
 import type { IntrospectionReporter, ReporterContext, TestStartInfo, TestEndInfo } from '@introspection/types'
 
 let outDir: string
@@ -22,22 +22,22 @@ describe('reporter lifecycle', () => {
       name: 'capture',
       onEvent(event) { seen.push(event.type) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [reporter] })
     await writer.emit({ type: 'mark', metadata: { label: 'a' } })
     await writer.emit({ type: 'mark', metadata: { label: 'b' } })
     await writer.flush()
     expect(seen).toEqual(['mark', 'mark'])
   })
 
-  it('calls onSessionStart exactly once with a populated context', async () => {
+  it('calls onTraceStart exactly once with a populated context', async () => {
     const calls: ReporterContext[] = []
     const reporter: IntrospectionReporter = {
       name: 'capture',
-      onSessionStart(ctx) { calls.push(ctx) },
+      onTraceStart(ctx) { calls.push(ctx) },
     }
-    await createSessionWriter({ outDir, id: 'sess', reporters: [reporter] })
+    await createTraceWriter({ outDir, id: 'sess', reporters: [reporter] })
     expect(calls).toHaveLength(1)
-    expect(calls[0]!.sessionId).toBe('sess')
+    expect(calls[0]!.traceId).toBe('sess')
     expect(calls[0]!.outDir).toBe(join(outDir, 'sess'))
     expect(calls[0]!.runDir).toBe(outDir)
     expect(calls[0]!.meta.id).toBe('sess')
@@ -49,7 +49,7 @@ describe('reporter lifecycle', () => {
       name: 'capture',
       onTestStart(info) { seen.push(info) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [reporter] })
     await writer.emit({ type: 'test.start', metadata: { label: 'logs in', titlePath: ['auth', 'logs in'] } })
     await writer.flush()
     expect(seen).toHaveLength(1)
@@ -65,7 +65,7 @@ describe('reporter lifecycle', () => {
       name: 'capture',
       onTestEnd(info) { seen.push(info) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [reporter] })
     await writer.emit({ type: 'test.start', metadata: { label: 't', titlePath: ['t'] } })
     await writer.emit({ type: 'mark', metadata: { label: 'a' } })
     await writer.emit({
@@ -84,10 +84,10 @@ describe('reporter lifecycle', () => {
     expect(info.assets[0]!.path).toBe('s/assets/x.json')
   })
 
-  it('calls onSessionEnd exactly once when finalize() runs', async () => {
+  it('calls onTraceEnd exactly once when finalize() runs', async () => {
     let count = 0
-    const reporter: IntrospectionReporter = { name: 'capture', onSessionEnd() { count++ } }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    const reporter: IntrospectionReporter = { name: 'capture', onTraceEnd() { count++ } }
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [reporter] })
     await writer.finalize()
     expect(count).toBe(1)
   })
@@ -100,7 +100,7 @@ describe('reporter lifecycle', () => {
       onTestEnd(info) { seen.push(info) },
       onEvent(event) { events.push(event.type) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [reporter] })
     await writer.emit({ type: 'mark', metadata: { label: 'outside' } })
     await writer.flush()
     expect(seen).toHaveLength(0)
@@ -122,7 +122,7 @@ describe('reporter lifecycle', () => {
       name: 'good',
       onEvent(event) { goodEvents.push(event.type) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [bad, good] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [bad, good] })
     writer.bus.on('introspect:warning', (w) => { warnings.push(w.error.reporterName ?? '') })
     await writer.emit({ type: 'mark', metadata: { label: 'a' } })
     await writer.emit({ type: 'mark', metadata: { label: 'b' } })
@@ -148,7 +148,7 @@ describe('reporter lifecycle', () => {
       name: 'good',
       onEvent(event) { goodEvents.push(event.type) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's-async-reject', reporters: [bad, good] })
+    const writer = await createTraceWriter({ outDir, id: 's-async-reject', reporters: [bad, good] })
     writer.bus.on('introspect:warning', (w) => { warnings.push(w.error.reporterName ?? '') })
     await writer.emit({ type: 'mark', metadata: { label: 'a' } })
     await writer.flush()
@@ -162,7 +162,7 @@ describe('reporter lifecycle', () => {
 
   it('emits an introspect:warning when test.end arrives without a matching test.start', async () => {
     const warnings: Array<{ source: string; message: string }> = []
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [] })
     writer.bus.on('introspect:warning', (w) => { warnings.push({ source: w.error.source, message: w.error.message }) })
     await writer.emit({ type: 'test.end', metadata: { label: 't', titlePath: ['t'], status: 'passed' } })
     await writer.flush()
@@ -182,7 +182,7 @@ describe('reporter lifecycle', () => {
         seen.push(event.type)
       },
     }
-    const writer = await createSessionWriter({ outDir, id: 's-async', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 's-async', reporters: [reporter] })
     await writer.emit({ type: 'mark', metadata: { label: 'm' } })
     // Crucial: if flush() does NOT wait for tracked work, `seen` will still be empty here.
     await writer.flush()
@@ -191,13 +191,13 @@ describe('reporter lifecycle', () => {
 
   it('synthesizes an interrupted onTestEnd for a test still in flight when finalize runs', async () => {
     const seen: TestEndInfo[] = []
-    const sessionEnds: number[] = []
+    const traceEnds: number[] = []
     const reporter: IntrospectionReporter = {
       name: 'capture',
       onTestEnd(info) { seen.push(info) },
-      onSessionEnd() { sessionEnds.push(Date.now()) },
+      onTraceEnd() { traceEnds.push(Date.now()) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's-interrupt', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 's-interrupt', reporters: [reporter] })
     await writer.emit({ type: 'test.start', metadata: { label: 'in-flight', titlePath: ['suite', 'in-flight'] } })
     await writer.emit({ type: 'mark', metadata: { label: 'a' } })
     // No test.end — finalize while the test is still open.
@@ -210,8 +210,8 @@ describe('reporter lifecycle', () => {
     expect(info.titlePath).toEqual(['suite', 'in-flight'])
     expect(info.events.map(e => e.type)).toEqual(['test.start', 'mark'])
     expect(typeof info.endedAt).toBe('number')
-    // onSessionEnd still runs, and after the synthesized onTestEnd.
-    expect(sessionEnds).toHaveLength(1)
+    // onTraceEnd still runs, and after the synthesized onTestEnd.
+    expect(traceEnds).toHaveLength(1)
   })
 
   it('does not synthesize an interrupted onTestEnd when no test is in flight', async () => {
@@ -220,7 +220,7 @@ describe('reporter lifecycle', () => {
       name: 'capture',
       onTestEnd(info) { seen.push(info) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's-clean', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 's-clean', reporters: [reporter] })
     await writer.emit({ type: 'test.start', metadata: { label: 't', titlePath: ['t'] } })
     await writer.emit({ type: 'test.end', metadata: { label: 't', titlePath: ['t'], status: 'passed', duration: 5 } })
     await writer.finalize()

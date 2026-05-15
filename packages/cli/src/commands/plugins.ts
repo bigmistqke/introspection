@@ -1,13 +1,13 @@
-import type { SessionMeta } from '../types.js'
+import type { TraceMeta } from '../types.js'
 
-export function formatPlugins(session: SessionMeta): string {
-  if (!session.plugins?.length) {
-    return '(No plugin metadata recorded in this session)'
+export function formatPlugins(trace: TraceMeta): string {
+  if (!trace.plugins?.length) {
+    return '(No plugin metadata recorded in this trace)'
   }
 
   const sections: string[] = []
 
-  for (const plugin of session.plugins) {
+  for (const plugin of trace.plugins) {
     const lines: string[] = []
     const header = plugin.description
       ? `${plugin.name} — ${plugin.description}`

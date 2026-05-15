@@ -9,7 +9,7 @@ test('renders event graph visualization', async ({ page }) => {
     body: '<html><head><title>Test Fixture</title></head><body><button id="test-btn">Click me</button></body></html>',
   }))
 
-  // Capture into a run directory (.introspect/<run-id>/<session-id>/)
+  // Capture into a run directory (.introspect/<run-id>/<trace-id>/)
   const handle = await attachRun(page, {
     plugins: [...defaults()],
   })
@@ -31,14 +31,14 @@ test('renders event graph visualization', async ({ page }) => {
   const canvas = eventGraph.locator('canvas')
   await expect(canvas).toBeVisible()
 
-  // Verify the select for session selection exists and has options
+  // Verify the select for trace selection exists and has options
   const selectElement = page.locator('select')
   await expect(selectElement).toBeVisible()
   const options = selectElement.locator('option')
   expect(await options.count()).toBeGreaterThan(0)
 
-  // Tighten: verify the captured session id is actually surfaced
-  const captured = handle.session.id
+  // Tighten: verify the captured trace id is actually surfaced
+  const captured = handle.trace.id
   const optionTexts = await options.allTextContents()
   expect(optionTexts.some(t => t.includes(captured))).toBe(true)
 })

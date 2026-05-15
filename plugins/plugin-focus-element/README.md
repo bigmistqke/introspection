@@ -1,6 +1,6 @@
 # @introspection/plugin-focus-element
 
-Tracks focus changes during a Playwright session — every `focusin`, every `.focus()` call, including shadow DOM and same-origin iframes.
+Tracks focus changes during a Playwright trace — every `focusin`, every `.focus()` call, including shadow DOM and same-origin iframes.
 
 ## Install
 

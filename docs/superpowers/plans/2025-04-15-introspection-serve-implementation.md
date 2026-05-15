@@ -137,7 +137,7 @@ export interface NodeServeOptions extends ServeOptions {
   host?: string
 }
 
-export interface SessionMeta {
+export interface TraceMeta {
   id: string
   label?: string
   startedAt?: number
@@ -153,7 +153,7 @@ export interface ErrorResponse {
 ```ts
 import type { ErrorResponse } from './types.js'
 
-export const ERROR_SESSION_NOT_FOUND: ErrorResponse = { error: 'Session not found' }
+export const ERROR_SESSION_NOT_FOUND: ErrorResponse = { error: 'Trace not found' }
 export const ERROR_ASSET_NOT_FOUND: ErrorResponse = { error: 'Asset not found' }
 export const ERROR_STREAMING_NOT_ENABLED: ErrorResponse = { 
   error: 'Streaming not enabled. Set streaming: true in options.' 
@@ -186,7 +186,7 @@ git commit -m "feat(serve): add types and error utilities"
 ```ts
 import { existsSync, readdirSync, readFileSync, statSync, createReadStream } from 'fs'
 import { resolve, join } from 'path'
-import type { ServeOptions, SessionMeta } from './types.js'
+import type { ServeOptions, TraceMeta } from './types.js'
 import type { Readable } from 'stream'
 import { errorResponse, ERROR_SESSION_NOT_FOUND, ERROR_ASSET_NOT_FOUND, ERROR_STREAMING_NOT_ENABLED } from './errors.js'
 
@@ -209,57 +209,57 @@ export function createHandler(options: ServeOptions) {
 
     const path = url.slice(prefix.length)
 
-    // GET / - list sessions
+    // GET / - list traces
     if (path === '' || path === '/') {
       if (!existsSync(resolvedDirectory)) {
         return new Response('[]', { headers: { 'Content-Type': 'application/json' } })
       }
       const entries = readdirSync(resolvedDirectory, { withFileTypes: true })
-      const sessions = entries.filter(entry => entry.isDirectory()).map(entry => entry.name)
-      return new Response(JSON.stringify(sessions), {
+      const traces = entries.filter(entry => entry.isDirectory()).map(entry => entry.name)
+      return new Response(JSON.stringify(traces), {
         headers: { 'Content-Type': 'application/json' },
       })
     }
 
-    // Parse sessionId and remainder
+    // Parse traceId and remainder
     const segments = path.split('/').filter(Boolean)
-    const sessionId = segments[0]
+    const traceId = segments[0]
     const remainder = segments.slice(1).join('/')
 
-    if (!sessionId) {
-      return errorResponse(400, { error: 'Missing session ID' })
+    if (!traceId) {
+      return errorResponse(400, { error: 'Missing trace ID' })
     }
 
-    const sessionDir = join(resolvedDirectory, sessionId)
+    const traceDir = join(resolvedDirectory, traceId)
 
-    // Security: ensure sessionDir is under resolvedDirectory
-    const resolvedSessionDir = resolve(sessionDir)
-    if (!resolvedSessionDir.startsWith(resolvedDirectory)) {
+    // Security: ensure traceDir is under resolvedDirectory
+    const resolvedTraceDir = resolve(traceDir)
+    if (!resolvedTraceDir.startsWith(resolvedDirectory)) {
       return errorResponse(403, { error: 'Forbidden' })
     }
 
-    if (!existsSync(sessionDir)) {
+    if (!existsSync(traceDir)) {
       return errorResponse(404, ERROR_SESSION_NOT_FOUND)
     }
 
-    // GET /:session/meta.json
+    // GET /:trace/meta.json
     if (remainder === 'meta.json') {
-      const metaPath = join(sessionDir, 'meta.json')
+      const metaPath = join(traceDir, 'meta.json')
       if (!existsSync(metaPath)) {
-        const meta: SessionMeta = { id: sessionId }
+        const meta: TraceMeta = { id: traceId }
         return new Response(JSON.stringify(meta), {
           headers: { 'Content-Type': 'application/json' },
         })
       }
       const meta = JSON.parse(readFileSync(metaPath, 'utf-8'))
-      return new Response(JSON.stringify({ ...meta, id: sessionId }), {
+      return new Response(JSON.stringify({ ...meta, id: traceId }), {
         headers: { 'Content-Type': 'application/json' },
       })
     }
 
-    // GET /:session/events.ndjson
+    // GET /:trace/events.ndjson
     if (remainder === 'events.ndjson') {
-      const eventsPath = join(sessionDir, 'events.ndjson')
+      const eventsPath = join(traceDir, 'events.ndjson')
       if (!existsSync(eventsPath)) {
         return new Response('', { headers: { 'Content-Type': 'application/x-ndjson' } })
       }
@@ -274,9 +274,9 @@ export function createHandler(options: ServeOptions) {
       })
     }
 
-    // GET /:session/events (SSE endpoint - streaming only)
+    // GET /:trace/events (SSE endpoint - streaming only)
     if (remainder === 'events' && streaming) {
-      const eventsPath = join(sessionDir, 'events.ndjson')
+      const eventsPath = join(traceDir, 'events.ndjson')
       if (!existsSync(eventsPath)) {
         return new Response('', { 
           headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } 
@@ -314,12 +314,12 @@ export function createHandler(options: ServeOptions) {
       return errorResponse(400, ERROR_STREAMING_NOT_ENABLED)
     }
 
-    // GET /:session/assets/:path
+    // GET /:trace/assets/:path
     if (remainder.startsWith('assets/')) {
-      const assetPath = join(sessionDir, remainder)
+      const assetPath = join(traceDir, remainder)
       const resolvedAssetPath = resolve(assetPath)
       
-      if (!resolvedAssetPath.startsWith(resolvedSessionDir)) {
+      if (!resolvedAssetPath.startsWith(resolvedTraceDir)) {
         return errorResponse(403, { error: 'Forbidden' })
       }
       
@@ -360,7 +360,7 @@ git commit -m "feat(serve): add handler factory"
 
 ```ts
 export { createHandler, type ServeOptions } from './handler.js'
-export { type SessionMeta, type NodeServeOptions, type ErrorResponse } from './types.js'
+export { type TraceMeta, type NodeServeOptions, type ErrorResponse } from './types.js'
 export { 
   errorResponse, 
   ERROR_SESSION_NOT_FOUND, 
@@ -485,9 +485,9 @@ git commit -m "feat(serve): add serve function and CLI"
 
 First create test fixtures:
 ```bash
-mkdir -p packages/serve/src/__tests__/fixtures/.introspect/session-1
-echo '{"id":"session-1","label":"Test Session","startedAt":1234567890}' > packages/serve/src/__tests__/fixtures/.introspect/session-1/meta.json
-echo '{"type":"test","timestamp":100,"metadata":{}}' > packages/serve/src/__tests__/fixtures/.introspect/session-1/events.ndjson
+mkdir -p packages/serve/src/__tests__/fixtures/.introspect/trace-1
+echo '{"id":"trace-1","label":"Test Trace","startedAt":1234567890}' > packages/serve/src/__tests__/fixtures/.introspect/trace-1/meta.json
+echo '{"type":"test","timestamp":100,"metadata":{}}' > packages/serve/src/__tests__/fixtures/.introspect/trace-1/events.ndjson
 ```
 
 - [ ] **Step 2: Write handler tests**
@@ -500,7 +500,7 @@ import { resolve } from 'path'
 const fixturesDir = resolve(__dirname, '../fixtures')
 
 describe('createHandler', () => {
-  it('lists sessions', () => {
+  it('lists traces', () => {
     const handler = createHandler({ directory: fixturesDir })
     const response = handler({ url: '/_introspect/' })
     expect(response).not.toBeNull()
@@ -515,14 +515,14 @@ describe('createHandler', () => {
     expect(response!.status).toBe(200)
   })
 
-  it('returns session meta', () => {
+  it('returns trace meta', () => {
     const handler = createHandler({ directory: fixturesDir })
-    const response = handler({ url: '/_introspect/session-1/meta.json' })
+    const response = handler({ url: '/_introspect/trace-1/meta.json' })
     expect(response).not.toBeNull()
     expect(response!.status).toBe(200)
   })
 
-  it('returns 404 for missing session', () => {
+  it('returns 404 for missing trace', () => {
     const handler = createHandler({ directory: fixturesDir })
     const response = handler({ url: '/_introspect/nonexistent/meta.json' })
     expect(response).not.toBeNull()
@@ -531,7 +531,7 @@ describe('createHandler', () => {
 
   it('returns events ndjson', () => {
     const handler = createHandler({ directory: fixturesDir })
-    const response = handler({ url: '/_introspect/session-1/events.ndjson' })
+    const response = handler({ url: '/_introspect/trace-1/events.ndjson' })
     expect(response).not.toBeNull()
     expect(response!.status).toBe(200)
     expect(response!.headers.get('content-type')).toBe('application/x-ndjson')
@@ -539,7 +539,7 @@ describe('createHandler', () => {
 
   it('returns 400 for streaming endpoint without streaming enabled', () => {
     const handler = createHandler({ directory: fixturesDir, streaming: false })
-    const response = handler({ url: '/_introspect/session-1/events' })
+    const response = handler({ url: '/_introspect/trace-1/events' })
     expect(response).not.toBeNull()
     expect(response!.status).toBe(400)
   })
@@ -660,6 +660,6 @@ git commit -m "refactor(demos): use @introspection/serve in vite-plugin"
 **Plan complete.** Two execution options:
 
 1. **Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
-2. **Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
+2. **Inline Execution** - Execute tasks in this trace using executing-plans, batch execution with checkpoints
 
 Which approach?

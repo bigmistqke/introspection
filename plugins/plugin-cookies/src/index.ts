@@ -26,7 +26,7 @@ interface CdpCookie {
   size: number
   httpOnly: boolean
   secure: boolean
-  session: boolean
+  trace: boolean
   sameSite?: 'Strict' | 'Lax' | 'None'
   partitionKey?: string
 }
@@ -315,7 +315,7 @@ export function cookies(options?: CookiesOptions): IntrospectionPlugin {
             httpOnly: c.httpOnly,
             secure: c.secure,
           }
-          if (c.expires > 0 && !c.session) entry.expires = c.expires
+          if (c.expires > 0 && !c.trace) entry.expires = c.expires
           if (c.sameSite) entry.sameSite = c.sameSite
           if (c.partitionKey) entry.partitionKey = c.partitionKey
           filtered.push(entry)

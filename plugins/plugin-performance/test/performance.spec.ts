@@ -6,18 +6,18 @@ import { performance } from '../dist/index.js'
 import { attach } from '@introspection/playwright'
 import type { IntrospectHandle } from '@introspection/types'
 
-async function makeSession(page: Page, options?: Parameters<typeof performance>[0]) {
+async function makeTrace(page: Page, options?: Parameters<typeof performance>[0]) {
   const outDir = await mkdtemp(join(tmpdir(), 'introspect-perf-'))
   const plugin = performance(options)
   const handle = await attach(page, { outDir, plugins: [plugin] })
   return { outDir, handle }
 }
 
-async function endSession(handle: IntrospectHandle, outDir: string) {
+async function endTrace(handle: IntrospectHandle, outDir: string) {
   await handle.detach()
   try {
-    const [sessionId] = await readdir(outDir)
-    const raw = await readFile(join(outDir, sessionId, 'events.ndjson'), 'utf-8')
+    const [traceId] = await readdir(outDir)
+    const raw = await readFile(join(outDir, traceId, 'events.ndjson'), 'utf-8')
     return raw.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
   } finally {
     await rm(outDir, { recursive: true, force: true })
@@ -33,11 +33,11 @@ test('emits perf.cwv event with metric lcp on navigation', async ({ page }) => {
     })
   )
 
-  const { outDir, handle } = await makeSession(page)
+  const { outDir, handle } = await makeTrace(page)
   await handle.page.goto('http://localhost:9999/')
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  const events = await endSession(handle, outDir)
+  const events = await endTrace(handle, outDir)
   const lcpEvents = events.filter(
     (event: { type: string; metadata: { metric: string } }) =>
       event.type === 'perf.cwv' && event.metadata.metric === 'lcp'
@@ -65,11 +65,11 @@ test('emits perf.layout-shift events when layout shifts occur', async ({ page })
     })
   )
 
-  const { outDir, handle } = await makeSession(page)
+  const { outDir, handle } = await makeTrace(page)
   await handle.page.goto('http://localhost:9999/')
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  const events = await endSession(handle, outDir)
+  const events = await endTrace(handle, outDir)
   const shiftEvents = events.filter((event: { type: string }) => event.type === 'perf.layout-shift')
 
   expect(shiftEvents.length).toBeGreaterThanOrEqual(1)
@@ -87,12 +87,12 @@ test('emits perf.cwv event with metric inp on user interaction', async ({ page }
     })
   )
 
-  const { outDir, handle } = await makeSession(page)
+  const { outDir, handle } = await makeTrace(page)
   await handle.page.goto('http://localhost:9999/')
   await handle.page.click('#btn')
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  const events = await endSession(handle, outDir)
+  const events = await endTrace(handle, outDir)
   const inpEvents = events.filter(
     (event: { type: string; metadata: { metric: string } }) =>
       event.type === 'perf.cwv' && event.metadata.metric === 'inp'
@@ -116,11 +116,11 @@ test('emits perf.resource events for loaded resources', async ({ page }) => {
     }
   })
 
-  const { outDir, handle } = await makeSession(page)
+  const { outDir, handle } = await makeTrace(page)
   await handle.page.goto('http://localhost:9999/')
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  const events = await endSession(handle, outDir)
+  const events = await endTrace(handle, outDir)
   const resourceEvents = events.filter((event: { type: string }) => event.type === 'perf.resource')
 
   expect(resourceEvents.length).toBeGreaterThanOrEqual(1)
@@ -142,11 +142,11 @@ test('suppresses perf.resource events when resources option is false', async ({ 
     })
   )
 
-  const { outDir, handle } = await makeSession(page, { resources: false })
+  const { outDir, handle } = await makeTrace(page, { resources: false })
   await handle.page.goto('http://localhost:9999/')
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  const events = await endSession(handle, outDir)
+  const events = await endTrace(handle, outDir)
   const resourceEvents = events.filter((event: { type: string }) => event.type === 'perf.resource')
   expect(resourceEvents.length).toBe(0)
 })
@@ -163,11 +163,11 @@ test('emits perf.long-task events for tasks exceeding 50ms', async ({ page }) =>
     })
   )
 
-  const { outDir, handle } = await makeSession(page)
+  const { outDir, handle } = await makeTrace(page)
   await handle.page.goto('http://localhost:9999/')
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  const events = await endSession(handle, outDir)
+  const events = await endTrace(handle, outDir)
   const longTaskEvents = events.filter((event: { type: string }) => event.type === 'perf.long-task')
 
   expect(longTaskEvents.length).toBeGreaterThanOrEqual(1)
@@ -187,11 +187,11 @@ test('suppresses perf.long-task events when longTasks option is false', async ({
     })
   )
 
-  const { outDir, handle } = await makeSession(page, { longTasks: false })
+  const { outDir, handle } = await makeTrace(page, { longTasks: false })
   await handle.page.goto('http://localhost:9999/')
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  const events = await endSession(handle, outDir)
+  const events = await endTrace(handle, outDir)
   const longTaskEvents = events.filter((event: { type: string }) => event.type === 'perf.long-task')
   expect(longTaskEvents.length).toBe(0)
 })
@@ -212,11 +212,11 @@ test('emits perf.cwv event with metric cls for layout shifts without recent inpu
     })
   )
 
-  const { outDir, handle } = await makeSession(page)
+  const { outDir, handle } = await makeTrace(page)
   await handle.page.goto('http://localhost:9999/')
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  const events = await endSession(handle, outDir)
+  const events = await endTrace(handle, outDir)
   const clsEvents = events.filter(
     (event: { type: string; metadata: { metric: string } }) =>
       event.type === 'perf.cwv' && event.metadata.metric === 'cls'
@@ -236,13 +236,13 @@ test('re-captures events after navigation', async ({ page }) => {
     })
   )
 
-  const { outDir, handle } = await makeSession(page)
+  const { outDir, handle } = await makeTrace(page)
   await handle.page.goto('http://localhost:9999/')
   await new Promise(resolve => setTimeout(resolve, 300))
   await handle.page.goto('http://localhost:9999/other')
   await new Promise(resolve => setTimeout(resolve, 300))
 
-  const events = await endSession(handle, outDir)
+  const events = await endTrace(handle, outDir)
   const paintEvents = events.filter((event: { type: string }) => event.type === 'perf.paint')
 
   // Should have paint events from both navigations
@@ -258,11 +258,11 @@ test('emits perf.paint events for FP and FCP on navigation', async ({ page }) =>
     })
   )
 
-  const { outDir, handle } = await makeSession(page)
+  const { outDir, handle } = await makeTrace(page)
   await handle.page.goto('http://localhost:9999/')
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  const events = await endSession(handle, outDir)
+  const events = await endTrace(handle, outDir)
   const paintEvents = events.filter((event: { type: string }) => event.type === 'perf.paint')
 
   expect(paintEvents.length).toBeGreaterThanOrEqual(1)

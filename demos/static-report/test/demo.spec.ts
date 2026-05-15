@@ -7,7 +7,7 @@ import { readFileSync } from 'fs'
 import { resolve } from 'path'
 
 test('generates HTML report from trace', async () => {
-  // Create a session using introspection
+  // Create a trace using introspection
   const browser = await chromium.launch()
   const page = await browser.newPage()
 

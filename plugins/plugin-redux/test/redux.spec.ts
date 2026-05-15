@@ -128,8 +128,8 @@ test('zustand + react: emits redux.snapshot on store creation via devtools middl
   expect(ref).toMatchObject({ kind: 'asset', format: 'json' })
 
   const entries = await readdir(outDir)
-  const sessionDir = join(outDir, entries[0])
-  const state = JSON.parse(await readFile(join(sessionDir, (ref as PayloadAsset).path), 'utf-8'))
+  const traceDir = join(outDir, entries[0])
+  const state = JSON.parse(await readFile(join(traceDir, (ref as PayloadAsset).path), 'utf-8'))
   expect(state).toHaveProperty('count')
   expect(state).toHaveProperty('items')
 })
@@ -151,8 +151,8 @@ test('valtio + react: emits redux.snapshot on store creation via devtools', asyn
   expect(ref).toMatchObject({ kind: 'asset', format: 'json' })
 
   const entries = await readdir(outDir)
-  const sessionDir = join(outDir, entries[0])
-  const state = JSON.parse(await readFile(join(sessionDir, (ref as PayloadAsset).path), 'utf-8'))
+  const traceDir = join(outDir, entries[0])
+  const state = JSON.parse(await readFile(join(traceDir, (ref as PayloadAsset).path), 'utf-8'))
   expect(state).toHaveProperty('count')
   expect(state).toHaveProperty('items')
 })
@@ -168,14 +168,14 @@ test('snapshots store state and dispatches compute diffs', async ({ page }) => {
   await handle.detach()
 
   const entries = await readdir(outDir)
-  const sessionDir = join(outDir, entries[0])
+  const traceDir = join(outDir, entries[0])
   const events = await readEvents(outDir)
 
   const snapshotEvent = events.find((e: any) => e.type === 'redux.snapshot')
   expect(snapshotEvent).toBeDefined()
   const ref = snapshotEvent.payloads!.state
   expect(ref).toMatchObject({ kind: 'asset', format: 'json' })
-  const initialState = JSON.parse(await readFile(join(sessionDir, (ref as PayloadAsset).path), 'utf-8'))
+  const initialState = JSON.parse(await readFile(join(traceDir, (ref as PayloadAsset).path), 'utf-8'))
   expect(initialState.count).toBe(0)
 
   const incrementEvent = events.find(

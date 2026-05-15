@@ -1,7 +1,7 @@
 import { execFileSync } from 'child_process'
 import { readFile, writeFile, readdir } from 'fs/promises'
 import { join } from 'path'
-import type { RunMeta, RunStatus, SessionMeta, SessionStatus } from '@introspection/types'
+import type { RunMeta, RunStatus, TraceMeta, TraceStatus } from '@introspection/types'
 
 const FAILING: ReadonlySet<string> = new Set(['failed', 'timedOut', 'interrupted', 'crashed'])
 
@@ -31,19 +31,19 @@ export async function readRunMeta(runDir: string): Promise<RunMeta> {
   return JSON.parse(await readFile(join(runDir, 'meta.json'), 'utf-8')) as RunMeta
 }
 
-export interface ScannedSession {
+export interface ScannedTrace {
   dir: string
-  status: SessionStatus | undefined
+  status: TraceStatus | undefined
 }
 
 /** Reads `status` from every `<runDir>/<dir>/meta.json`, skipping the run's own meta.json. */
-export async function scanSessionMetas(runDir: string): Promise<ScannedSession[]> {
+export async function scanTraceMetas(runDir: string): Promise<ScannedTrace[]> {
   const entries = await readdir(runDir, { withFileTypes: true })
   const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name)
   return Promise.all(
-    dirs.map(async (dir): Promise<ScannedSession> => {
+    dirs.map(async (dir): Promise<ScannedTrace> => {
       try {
-        const meta = JSON.parse(await readFile(join(runDir, dir, 'meta.json'), 'utf-8')) as SessionMeta
+        const meta = JSON.parse(await readFile(join(runDir, dir, 'meta.json'), 'utf-8')) as TraceMeta
         return { dir, status: meta.status }
       } catch {
         return { dir, status: undefined }

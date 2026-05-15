@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship a plugin that emits `focus.changed` events for every focus transition during a Playwright session — covering shadow DOM, same-origin iframes, programmatic vs unknown causes (with stack trace for programmatic calls), and a per-plugin `origins` filter.
+**Goal:** Ship a plugin that emits `focus.changed` events for every focus transition during a Playwright trace — covering shadow DOM, same-origin iframes, programmatic vs unknown causes (with stack trace for programmatic calls), and a per-plugin `origins` filter.
 
 **Architecture:** Browser-side script injected via Playwright's `addInitScript` (no CDP). Listens to `focusin` on `document` (with a narrow `focusout` fallback for "focus leaves document"), walks `activeElement` through shadow roots, patches `HTMLElement.prototype.focus`/`.blur` to capture programmatic call sites synchronously. Each frame instance emits independently and tags sub-frame events with `origin: location.origin`. Built as IIFE via `tsup` (mirrors `plugin-performance`).
 
@@ -1197,7 +1197,7 @@ git commit -m "plugin-focus-element: regression test for modal focus trap"
 ```markdown
 # @introspection/plugin-focus-element
 
-Tracks focus changes during a Playwright session — every `focusin`, every `.focus()` call, including shadow DOM and same-origin iframes.
+Tracks focus changes during a Playwright trace — every `focusin`, every `.focus()` call, including shadow DOM and same-origin iframes.
 
 ## Install
 

@@ -1,17 +1,17 @@
 import { readdir, readFile } from 'fs/promises'
 import { join, resolve, sep } from 'path'
-import type { SessionReader } from '@introspection/types'
+import type { TraceReader } from '@introspection/types'
 import {
   type StorageAdapter,
-  type SessionSummary,
+  type TraceSummary,
   type RunSummary,
-  createSessionReader as createSessionReaderFromAdapter,
+  createTraceReader as createTraceReaderFromAdapter,
   listRuns as listRunsFromAdapter,
-  listSessions as listSessionsFromAdapter,
+  listTraces as listTracesFromAdapter,
 } from './index.js'
 
-export type { StorageAdapter, SessionSummary, RunSummary } from './index.js'
-export type { SessionReader, EventsFilter, EventsAPI } from '@introspection/types'
+export type { StorageAdapter, TraceSummary, RunSummary } from './index.js'
+export type { TraceReader, EventsFilter, EventsAPI } from '@introspection/types'
 
 export class TraversalError extends Error {
   override readonly name = 'TraversalError'
@@ -51,17 +51,17 @@ export function createNodeAdapter(dir: string): StorageAdapter {
   }
 }
 
-export async function createSessionReader(
+export async function createTraceReader(
   dir: string,
-  options?: { runId?: string; sessionId?: string; verbose?: boolean },
-): Promise<SessionReader> {
-  return createSessionReaderFromAdapter(createNodeAdapter(dir), options)
+  options?: { runId?: string; traceId?: string; verbose?: boolean },
+): Promise<TraceReader> {
+  return createTraceReaderFromAdapter(createNodeAdapter(dir), options)
 }
 
 export async function listRuns(dir: string): Promise<RunSummary[]> {
   return listRunsFromAdapter(createNodeAdapter(dir))
 }
 
-export async function listSessions(dir: string, runId: string): Promise<SessionSummary[]> {
-  return listSessionsFromAdapter(createNodeAdapter(dir), runId)
+export async function listTraces(dir: string, runId: string): Promise<TraceSummary[]> {
+  return listTracesFromAdapter(createNodeAdapter(dir), runId)
 }

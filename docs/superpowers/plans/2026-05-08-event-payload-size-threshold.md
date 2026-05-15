@@ -19,7 +19,7 @@ Add a generic helper on `PluginContext` that handles the cutoff:
 ```ts
 // strawman
 const ref = await ctx.emitPayload(value, {
-  inlineUnder: 32_000,  // bytes; default from session config
+  inlineUnder: 32_000,  // bytes; default from trace config
   kind: 'json',
 })
 // ref is either { inline: value } or { assets: [assetRef] }
@@ -32,7 +32,7 @@ const payload = await ctx.emitPayload(snapshot)
 await ctx.emit({ type: 'webStorage.snapshot', ...payload })
 ```
 
-The session-level default lives in `attach()` config so users can tune it once for the whole trace (e.g. raise it for offline analysis, lower it for CI artifact size).
+The trace-level default lives in `attach()` config so users can tune it once for the whole trace (e.g. raise it for offline analysis, lower it for CI artifact size).
 
 Open questions:
 - Does the event schema need to express "this field may be inline or assetized"? Probably a discriminated union per event type, or a convention that `metadata.payload` and `assets[0]` are mutually exclusive for the same logical value.

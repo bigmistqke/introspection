@@ -78,7 +78,7 @@ Framework-agnostic browser facilities capturable via CDP or injected code.
 ### Media
 
 - **Video/audio playback** — `HTMLMediaElement` events (`play`, `pause`, `seeking`, `stalled`, `error`, `ended`) with `currentTime` / `networkState`.
-- **Media Session API** — metadata the app sets (title, artist, artwork).
+- **Media Trace API** — metadata the app sets (title, artist, artwork).
 - **WebRTC** — peer connection state, ICE candidates, data channel messages, track events.
 - **Web Audio** — AudioContext state transitions, node graph changes, audio errors.
 
@@ -117,7 +117,7 @@ Heavier captures beyond the event stream.
 The two-phase emit (`network.response` always, `network.response.body` when `Network.loadingFinished` fires) leaves several classes of responses without a body event.
 
 - **Streaming responses (SSE, long-polling, chunked-no-end)** — `Network.getResponseBody` isn't usable. Listen to `Network.dataReceived` + `Network.streamResourceContent`; emit `network.response.body.chunk` with sequence numbers, linked via `initiator`. Backpressure: cap chunk emission (first N bytes / N chunks) and mark `truncated: true`.
-- **Routed requests (`route.fulfill` / `Fetch.fulfillRequest`)** — body supplied at Fetch layer, `Network.getResponseBody` returns "No data found." Either enable `Fetch` on a second CDP session (Playwright already uses Fetch for routing on the primary), or hook into Playwright's `page.route` / `response.body()` directly. Latter couples plugin-network to Playwright.
+- **Routed requests (`route.fulfill` / `Fetch.fulfillRequest`)** — body supplied at Fetch layer, `Network.getResponseBody` returns "No data found." Either enable `Fetch` on a second CDP trace (Playwright already uses Fetch for routing on the primary), or hook into Playwright's `page.route` / `response.body()` directly. Latter couples plugin-network to Playwright.
 - **Cached responses (304, disk cache hits)** — sometimes `loadingFinished` fires with no retrievable body. Detect via `fromDiskCache` / `fromServiceWorker` / `fromPrefetchCache`; emit `network.response.body` with `metadata: { fromCache: true }` and no asset.
 - **Unread bodies (fetch without consume)** — if the page does `fetch(url)` and never reads the body, Chromium may keep the stream open and never fire `loadingFinished`. Hit us in our own tests. Mitigations: treat as streaming (emit what we have), document that user code must consume bodies, or page-side wrapper around `fetch` / `XHR` that forces a read.
 - **WebSocket upgrades (HTTP 101)** — currently emits `network.response` with status 101 and no body event (correct). A companion `plugin-websocket` could pick up from there, listening to frame events and linking via `initiator`.
@@ -182,18 +182,18 @@ The two-phase emit (`network.response` always, `network.response.body` when `Net
 
 - **Vite plugin for fixture-aware tracing** — `@introspection/vite` middleware auto-injects the browser-side machinery into every served page. Removes the `attach()` step for ad-hoc debugging; generic HTTP middleware for non-Vite servers.
 - **`debug` duration / auto-exit** — `--duration 5s` flag for non-interactive capture ("run this page for 5s and give me the trace").
-- **Auto-reattach watch mode** — `introspect debug <url> --watch --watch-files 'src/**/*.ts'` re-runs capture on source change, writing a fresh session each time. Fixture dev, intermittent-bug chasing.
+- **Auto-reattach watch mode** — `introspect debug <url> --watch --watch-files 'src/**/*.ts'` re-runs capture on source change, writing a fresh trace each time. Fixture dev, intermittent-bug chasing.
 - **Live mode dashboard** — `introspect watch` tails `events.ndjson` in real time. Structured and filterable tail-f.
 
 ### CLI sugar
 
 - **Error-first sugar commands** — `introspect errors`, `introspect last-error`, `--with-console` (surrounding console), `--with-stack` (debugger scope at throw). Typed shortcuts for `events --type js.error`.
-- **Interactive REPL** — `introspect repl [session-id]` loads a session in memory and exposes the existing subcommands without per-command CLI overhead.
+- **Interactive REPL** — `introspect repl [trace-id]` loads a trace in memory and exposes the existing subcommands without per-command CLI overhead.
 - **`introspect perf` aggregate query** — summary of slowest network requests, longest JS tasks, largest DOM snapshots, layout-shift totals. Derived from existing events; no new capture.
 - **Structured export formats** — beyond HAR: `--format junit` (CI fails if trace has errors), `--format html` (self-contained report), `--format console` (markdown summary for PRs).
-- **`introspect summary` header disambiguation** — show each session's start time / test label / duration so "latest session" is unambiguously the run the dev just finished. Reduces the `rm -rf .introspect/` reflex between runs.
+- **`introspect summary` header disambiguation** — show each trace's start time / test label / duration so "latest trace" is unambiguously the run the dev just finished. Reduces the `rm -rf .introspect/` reflex between runs.
 - **`introspect init`** — interactive setup wizard. Detects framework and test runner; installs `@introspection/playwright`; writes a minimal `playwright.config.ts` fixture.
-- **`introspect doctor`** — validates setup. `@introspection/playwright` installed? Traces being written? Session directory healthy?
+- **`introspect doctor`** — validates setup. `@introspection/playwright` installed? Traces being written? Trace directory healthy?
 
 ### Plugin testing
 
@@ -222,7 +222,7 @@ The two-phase emit (`network.response` always, `network.response.body` when `Net
 Hot paths catch-and-swallow errors aggressively enough that real bugs look like "just nothing captured." Consider a structured `introspect.warning` event when these fall through, so readers can distinguish "feature didn't exist" from "it broke."
 
 - **CDP command failures** — `packages/playwright/src/attach.ts` has `.catch(() => {})` around subscription re-apply, unwatch, and `cdp.detach()`. Transient CDP disconnect after navigation silently loses all plugin subscriptions.
-- **Write queue swallowed errors** — `packages/write/src/session.ts` turns write failures into `Promise.resolve()`. `ENOSPC`/`EACCES` during `appendEvent` disappears; `session.flush()` returns "successfully."
+- **Write queue swallowed errors** — `packages/write/src/trace.ts` turns write failures into `Promise.resolve()`. `ENOSPC`/`EACCES` during `appendEvent` disappears; `trace.flush()` returns "successfully."
 - **Plugin push parse errors** — `packages/playwright/src/attach.ts` push bridge: `catch { /* malformed push — ignore */ }`. A plugin emitting bad JSON produces no events with no clue why.
 - **Redux serialisation** — `plugin-redux/src/index.ts` silently drops `stateBefore` / `stateAfter` / `payload` if `JSON.stringify` throws (circular refs, BigInt, etc.).
 - **Debugger scope collection** — `plugin-debugger/src/index.ts` silently skips scopes where `Runtime.getProperties` fails, so partial capture looks identical to full capture.
@@ -231,15 +231,15 @@ Hot paths catch-and-swallow errors aggressively enough that real bugs look like 
 
 ## Hard limits and backpressure
 
-Several plugins buffer or emit data with no upper bound. Fine for small tests, hazardous for long/complex sessions.
+Several plugins buffer or emit data with no upper bound. Fine for small tests, hazardous for long/complex traces.
 
 - **Debugger scope truncation is hardcoded** — `plugin-debugger` caps at 5 frames / 3 scopes per frame / 20 properties per scope with no options.
-- **No asset size limit** — `packages/write/src/session-writer.ts` writes any buffer to disk. A 1GB response-body asset blows up the session directory.
+- **No asset size limit** — `packages/write/src/trace-writer.ts` writes any buffer to disk. A 1GB response-body asset blows up the trace directory.
 - **Console args unbounded** — `plugin-console` concats args without limits; `console.log(hugeObject)` produces a multi-megabyte event.
 - **WebGL event firehose** — `plugin-webgl` pushes every uniform/draw call synchronously via `__introspect_push__`. A shader doing thousands of draws per frame DoSes the event stream.
 - **`summariseBody` with huge JSON** — `packages/utils/src/summarise-body.ts` does `JSON.parse(raw)` without a size check; 100MB of valid JSON hangs the main thread.
 
-Shared primitive worth considering: `maxAssetSize` / `maxEventBytes` in `CreateSessionWriterOptions`, with a standard `metadata: { truncated: true; reason: string }` marker on overflowing events.
+Shared primitive worth considering: `maxAssetSize` / `maxEventBytes` in `CreateTraceWriterOptions`, with a standard `metadata: { truncated: true; reason: string }` marker on overflowing events.
 
 ---
 
@@ -253,10 +253,10 @@ Shared primitive worth considering: `maxAssetSize` / `maxEventBytes` in `CreateS
 
 ## Reader / CLI gaps
 
-- **No `--follow` / live-tail mode.** CLI queries a session at invocation time; no way to stream events as they arrive. Painful for long tests. (Complementary to the "Live mode dashboard" bullet above.)
+- **No `--follow` / live-tail mode.** CLI queries a trace at invocation time; no way to stream events as they arrive. Painful for long tests. (Complementary to the "Live mode dashboard" bullet above.)
 - **No `pageId` filter.** `attach()` stamps `pageId` on every event, but `EventsFilter` doesn't accept it and the CLI has no `--page` flag. Multi-context tests produce a merged unsortable stream.
 - **Invalid `--filter` syntax is silent.** `packages/cli/src/commands/events.ts` runs the filter in a sandbox and treats thrown errors as "false." Typo → zero matches with no indication why.
-- **`getLatestSessionId` race.** Session-resolution reads all session metas to pick the newest. A currently-writing session can produce a partial `meta.json`; worst case: CLI/reader picks a *different* session than the test thinks it's in.
+- **`getLatestTraceId` race.** Trace-resolution reads all trace metas to pick the newest. A currently-writing trace can produce a partial `meta.json`; worst case: CLI/reader picks a *different* trace than the test thinks it's in.
 - **NDJSON line-split on `\n`.** Windows traces with `\r\n` produce empty lines (currently filtered, but fragile).
 - **CLI's `formatTimeline` hardcodes per-plugin event shapes.** `packages/cli/src/commands/events.ts` has if/else branches for `network.*`, `js.error`, `console`, `mark`, `playwright.action`, `browser.navigate` — every other event (e.g. `focus.changed`) renders as bare `[time] type`. Coupling the CLI to plugin internals violates the "read side runs anywhere" boundary. Designed fix: plugins declare `formatEvent?(event): string | null`, framework persists result into `event.summary`, CLI reads `event.summary ?? event.type`. See `docs/superpowers/plans/2026-05-08-plugin-event-formatters.md`. Surfaced while dogfooding `plugin-focus-element` (2026-05-08).
 
@@ -274,7 +274,7 @@ Shared primitive worth considering: `maxAssetSize` / `maxEventBytes` in `CreateS
 
 ## Protocol / Architecture
 
-- **Live query cache in `TraceReader`.** Every CLI query reloads and re-parses the full `events.ndjson` from disk. For large sessions this is wasteful on repeated queries. A simple mtime-based cache would make rapid successive queries cheap.
+- **Live query cache in `TraceReader`.** Every CLI query reloads and re-parses the full `events.ndjson` from disk. For large traces this is wasteful on repeated queries. A simple mtime-based cache would make rapid successive queries cheap.
   - *Why not a Unix domain socket server?* We had one (`eval-socket.ts`), removed it. IPC overhead, persistent server tied to test-runner lifetime, serialised concurrent reads that don't actually conflict (ndjson is append-only). For a dev tool with infrequent queries the reload-per-query cost is negligible. If the cache lands and latency still matters, reconsider.
 - **Bidirectional plugin events.** Node → browser RPCs. Let the test process ask the browser "give me the current Redux state" on demand, not just on error. Needs a browser-side agent and a protocol on top of core.
 - **Trace compression.** gzip trace files. For long tests with high-frequency events (WebGL frames, Redux actions), traces can be large.
@@ -308,7 +308,7 @@ Shared primitive worth considering: `maxAssetSize` / `maxEventBytes` in `CreateS
 ### Problem
 
 Introspection is currently tightly coupled to Playwright's implementation:
-- Direct usage of Playwright APIs (CDP session, page events, etc.)
+- Direct usage of Playwright APIs (CDP trace, page events, etc.)
 - No abstraction over the browser connection layer
 - Hard to swap implementations (BiDi, MCP, etc.) without refactoring
 
@@ -484,7 +484,7 @@ Phase 3 (Future):
 ### Timeline Estimate
 
 - Define interface + Playwright adapter: ~1-2 days
-- Update session to use adapter: ~0.5 day
+- Update trace to use adapter: ~0.5 day
 - Verify plugins handle capabilities: ~0.5 day
 
 **Total**: ~2-3 days
@@ -530,8 +530,8 @@ Until this is sorted, **adding a new event type means updating `formatTimeline` 
 ## Ideas that don't fit neatly
 
 - **Trace as test** — `introspect assert 'events.filter(e => e.type === "js.error").length === 0'` — exit non-zero if the expression is falsy. Assertions against the trace, not just the app.
-- **Replay** — feed a trace back to a fresh browser session to reproduce the exact event sequence. Time-travel debugging as a CLI command.
-- **Plugin hot-reload** — swap plugin config during a running test session without restarting the runner.
+- **Replay** — feed a trace back to a fresh browser trace to reproduce the exact event sequence. Time-travel debugging as a CLI command.
+- **Plugin hot-reload** — swap plugin config during a running test trace without restarting the runner.
 - **Multi-page / iframe tracking** — attach to multiple pages / frames in the same test. Events tagged with `pageId`.
 - **Electron support** — attach to Electron's main and renderer processes separately.
 - **React Native / Expo** — Metro bundler plugin, CDP over USB / ADB.

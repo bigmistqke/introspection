@@ -16,13 +16,13 @@ afterEach(async () => {
 
 describe('createNodeAdapter', () => {
   it('listDirectories returns subdirectory names only', async () => {
-    await mkdir(join(dir, 'session-a'))
-    await mkdir(join(dir, 'session-b'))
-    await writeFile(join(dir, 'not-a-session'), 'ignored')
+    await mkdir(join(dir, 'trace-a'))
+    await mkdir(join(dir, 'trace-b'))
+    await writeFile(join(dir, 'not-a-trace'), 'ignored')
 
     const adapter = createNodeAdapter(dir)
     const directories = await adapter.listDirectories()
-    expect(directories.sort()).toEqual(['session-a', 'session-b'])
+    expect(directories.sort()).toEqual(['trace-a', 'trace-b'])
   })
 
   it('listDirectories returns [] when the directory does not exist', async () => {
@@ -60,19 +60,19 @@ describe('createNodeAdapter', () => {
 })
 
 describe('node convenience wrappers', () => {
-  it('listRuns(dir) and listSessions(dir, runId) read the on-disk hierarchy', async () => {
+  it('listRuns(dir) and listTraces(dir, runId) read the on-disk hierarchy', async () => {
     const { writeFixtureRun } = await import('./helpers.js')
     await writeFixtureRun(dir, {
       id: 'run-1', startedAt: 200, status: 'passed',
-      sessions: [{ id: 'sess-a', startedAt: 210, project: 'p' }],
+      traces: [{ id: 'sess-a', startedAt: 210, project: 'p' }],
     })
-    const { listRuns, listSessions } = await import('../src/node.js')
+    const { listRuns, listTraces } = await import('../src/node.js')
     const runs = await listRuns(dir)
     expect(runs.map(r => r.id)).toEqual(['run-1'])
-    expect(runs[0].sessionCount).toBe(1)
-    const sessions = await listSessions(dir, 'run-1')
-    expect(sessions.map(s => s.id)).toEqual(['sess-a'])
-    expect(sessions[0].project).toBe('p')
+    expect(runs[0].traceCount).toBe(1)
+    const traces = await listTraces(dir, 'run-1')
+    expect(traces.map(s => s.id)).toEqual(['sess-a'])
+    expect(traces[0].project).toBe('p')
   })
 })
 

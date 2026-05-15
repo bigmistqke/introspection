@@ -1,6 +1,6 @@
 import type { Snapshot, ScopeFrame } from '@introspection/types'
 
-interface CdpSession {
+interface CdpTrace {
   send(method: string, parameters?: Record<string, unknown>): Promise<unknown>
 }
 
@@ -13,7 +13,7 @@ interface CallFrame {
 }
 
 interface TakeSnapshotOptions {
-  cdpSession: CdpSession
+  cdpSession: CdpTrace
   trigger: Snapshot['trigger']
   url: string
   callFrames?: CallFrame[]

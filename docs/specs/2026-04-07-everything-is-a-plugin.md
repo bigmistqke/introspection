@@ -96,7 +96,7 @@ export interface PluginContext {
 
 `cdpSession.on()` lets plugins subscribe to raw CDP events (e.g. `Network.requestWillBeSent`) without needing `attach()` to wire them up in advance.
 
-`bus` provides a lightweight async event bus scoped to the session. `bus.emit()` is async and resolves only after all registered handlers for that trigger have settled (see decision 7).
+`bus` provides a lightweight async event bus scoped to the trace. `bus.emit()` is async and resolves only after all registered handlers for that trigger have settled (see decision 7).
 
 `BusPayloadMap` is an interface — it supports TypeScript declaration merging. The core library declares the built-in triggers (`'manual'`, `'detach'`). Built-in plugins like `jsErrors()` augment it from within the package. External plugins augment it from their own packages:
 
@@ -119,9 +119,9 @@ This replaces the previous pattern of `attach()` iterating `plugin.capture('manu
 
 ### 7. `handle.detach()` emits `'detach'` on the bus
 
-When `handle.detach()` is called, it emits `'detach'` on the bus before finalizing the session. `bus.emit()` is async and resolves only after all handlers settle (`Promise.allSettled`). This replaces the current `pending` set drain mechanism.
+When `handle.detach()` is called, it emits `'detach'` on the bus before finalizing the trace. `bus.emit()` is async and resolves only after all handlers settle (`Promise.allSettled`). This replaces the current `pending` set drain mechanism.
 
-The `pending` set currently exists to ensure that in-flight async operations started from CDP event handlers (e.g. scope collection during `Debugger.paused`) complete before the session is finalized. The bus `'detach'` emit provides the same guarantee, but in a way that is visible and hookable by plugins.
+The `pending` set currently exists to ensure that in-flight async operations started from CDP event handlers (e.g. scope collection during `Debugger.paused`) complete before the trace is finalized. The bus `'detach'` emit provides the same guarantee, but in a way that is visible and hookable by plugins.
 
 ### 8. `opts.pauseOnExceptions` is removed from `AttachOptions`
 
@@ -357,7 +357,7 @@ const myPlugin: IntrospectionPlugin = {
 }
 ```
 
-The `'detach'` trigger works the same way. Register `ctx.bus.on('detach', ...)` for any teardown capture that must complete before the session is finalized.
+The `'detach'` trigger works the same way. Register `ctx.bus.on('detach', ...)` for any teardown capture that must complete before the trace is finalized.
 
 ### Custom plugin authors: subscribing to CDP events
 
@@ -378,7 +378,7 @@ async install(ctx) {
 ## What Stays the Same
 
 - The `IntrospectHandle` interface (`page`, `mark()`, `snapshot()`, `detach()`) is unchanged.
-- The trace event format (`TraceEvent`, all event types, `TraceFile`, `SessionMeta`) is unchanged.
+- The trace event format (`TraceEvent`, all event types, `TraceFile`, `TraceMeta`) is unchanged.
 - The `Snapshot` type and snapshot file format are unchanged.
 - The `addSubscription()` / `WatchHandle` protocol for browser-side subscriptions is unchanged.
 - The `PluginRegistry` mechanics (subscription tracking, re-application after navigation) are unchanged.

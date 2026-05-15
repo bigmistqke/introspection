@@ -1,4 +1,4 @@
-import { createSessionReader, listRuns, listSessions } from '@introspection/read'
+import { createTraceReader, listRuns, listTraces } from '@introspection/read'
 import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
 import type { TraceEvent } from '@introspection/types'
 
@@ -16,7 +16,7 @@ const COLORS: Record<string, string> = {
 const adapter = createFetchAdapter('/__introspect')
 const timelineElement = document.getElementById('timeline')!
 const detailElement = document.getElementById('detail')!
-const selectElement = document.getElementById('session-select') as HTMLSelectElement
+const selectElement = document.getElementById('trace-select') as HTMLSelectElement
 
 function formatEvent(event: TraceEvent): string {
   switch (event.type) {
@@ -73,23 +73,23 @@ function renderDetail(event: TraceEvent) {
   `
 }
 
-async function loadSession(sessionId: string) {
-  const session = await createSessionReader(adapter, { sessionId })
-  const events = await session.events.ls()
+async function loadTrace(traceId: string) {
+  const trace = await createTraceReader(adapter, { traceId })
+  const events = await trace.events.ls()
   renderTimeline(events)
   detailElement.innerHTML = '<span class="empty">Select an event</span>'
 }
 
-// Demo: show the latest run's sessions.
+// Demo: show the latest run's traces.
 const runs = await listRuns(adapter)
-const sessions = runs.length > 0 ? await listSessions(adapter, runs[0].id) : []
-if (sessions.length === 0) {
-  timelineElement.innerHTML = '<span class="error">No sessions found in .introspect/</span>'
-  selectElement.innerHTML = '<option value="">No sessions</option>'
+const traces = runs.length > 0 ? await listTraces(adapter, runs[0].id) : []
+if (traces.length === 0) {
+  timelineElement.innerHTML = '<span class="error">No traces found in .introspect/</span>'
+  selectElement.innerHTML = '<option value="">No traces</option>'
 } else {
-  selectElement.innerHTML = sessions
-    .map(session => `<option value="${session.id}">${session.label ?? session.id}</option>`)
+  selectElement.innerHTML = traces
+    .map(trace => `<option value="${trace.id}">${trace.label ?? trace.id}</option>`)
     .join('')
-  selectElement.addEventListener('change', () => loadSession(selectElement.value))
-  loadSession(sessions[0].id)
+  selectElement.addEventListener('change', () => loadTrace(selectElement.value))
+  loadTrace(traces[0].id)
 }

@@ -16,12 +16,12 @@ describe('IntrospectError', () => {
 
 describe('CdpError', () => {
   it('prefixes method and extends IntrospectError', () => {
-    const err = new CdpError('Runtime.evaluate', 'session closed')
+    const err = new CdpError('Runtime.evaluate', 'trace closed')
     expect(err).toBeInstanceOf(IntrospectError)
     expect(err).toBeInstanceOf(CdpError)
     expect(err.source).toBe('cdp')
     expect(err.method).toBe('Runtime.evaluate')
-    expect(err.message).toBe('CDP Runtime.evaluate: session closed')
+    expect(err.message).toBe('CDP Runtime.evaluate: trace closed')
     expect(err.name).toBe('CdpError')
   })
 })

@@ -4,7 +4,7 @@
 
 **Goal:** Make `@introspection/serve`'s `createHandler` a generic `StorageAdapter`-over-HTTP transport (verb-prefix URLs `/dirs/` and `/file/`, no trace vocabulary, async, no SSE), with traversal protection pushed down into `createNodeAdapter`, the demo `fetch-adapter` rewritten against the new wire protocol, SSE relocated into a solid-streaming-only Vite plugin, and the four HTTP-served demo tests un-skipped (with the two weak ones tightened).
 
-**Architecture:** `createHandler({ adapter })` exposes any `StorageAdapter` over HTTP as two verbs: `GET <prefix>/dirs/<subPath>` calls `adapter.listDirectories(subPath)`, `GET <prefix>/file/<path>` calls `adapter.readBinary(path)`. The handler holds no filesystem code; `serve()` and the demo `introspectionServe` Vite plugin keep their `{ directory }` convenience by building a node adapter internally. Traversal protection lives in `createNodeAdapter` (defense in depth — throws `TraversalError` on escape, handler maps to `403`). `readJSON`/`readText` parse client-side via the bytes returned from `/file/`. SSE leaves `@introspection/serve` and moves into the solid-streaming demo as its own Vite plugin serving `/_introspect/stream/<run>/<session>/events`.
+**Architecture:** `createHandler({ adapter })` exposes any `StorageAdapter` over HTTP as two verbs: `GET <prefix>/dirs/<subPath>` calls `adapter.listDirectories(subPath)`, `GET <prefix>/file/<path>` calls `adapter.readBinary(path)`. The handler holds no filesystem code; `serve()` and the demo `introspectionServe` Vite plugin keep their `{ directory }` convenience by building a node adapter internally. Traversal protection lives in `createNodeAdapter` (defense in depth — throws `TraversalError` on escape, handler maps to `403`). `readJSON`/`readText` parse client-side via the bytes returned from `/file/`. SSE leaves `@introspection/serve` and moves into the solid-streaming demo as its own Vite plugin serving `/_introspect/stream/<run>/<trace>/events`.
 
 **Tech Stack:** TypeScript (NodeNext), pnpm workspace, tsup (build), vitest (unit tests in `@introspection/serve`, `@introspection/read`, `demos/shared`), Playwright Test (demo `*.spec.ts`).
 
@@ -19,8 +19,8 @@
 - `packages/read/src/index.ts` — re-exports `TraversalError` so `@introspection/serve` can import it.
 - `packages/read/test/node-adapter.test.ts` — adds traversal cases.
 - `packages/serve/src/handler.ts` — complete rewrite: generic transport, async, two verbs, no SSE, no semantic endpoints.
-- `packages/serve/src/types.ts` — `ServeOptions` becomes `{ adapter, prefix? }`; drop `SessionMeta`; keep `NodeServeOptions` adjusted.
-- `packages/serve/src/index.ts` — re-export shape changes (no more `SessionMeta`, no `ERROR_SESSION_NOT_FOUND`/`ERROR_ASSET_NOT_FOUND`).
+- `packages/serve/src/types.ts` — `ServeOptions` becomes `{ adapter, prefix? }`; drop `TraceMeta`; keep `NodeServeOptions` adjusted.
+- `packages/serve/src/index.ts` — re-export shape changes (no more `TraceMeta`, no `ERROR_SESSION_NOT_FOUND`/`ERROR_ASSET_NOT_FOUND`).
 - `packages/serve/src/errors.ts` — simplifies to a single `errorResponse(status, body)` helper.
 - `packages/serve/src/node.ts` — `serve()` builds a node adapter and the new handler.
 - `packages/serve/src/__tests__/handler.test.ts` — rewritten against a stub `StorageAdapter`.
@@ -31,14 +31,14 @@
 - `demos/shared/package.json` — adds vitest as a dev-dep and a `test` script.
 - `demos/shared/vitest.config.ts` — new (minimal).
 - `demos/solid-streaming/vite.config.ts` — adds the new SSE plugin alongside `introspectionServe()`.
-- `demos/solid-streaming/src/App.tsx` — switches from "let `read` resolve latest" to explicit `listRuns` → pick latest → `listSessions(runId)` → pick latest, so the SSE URL can be built with the actual `runId`.
+- `demos/solid-streaming/src/App.tsx` — switches from "let `read` resolve latest" to explicit `listRuns` → pick latest → `listTraces(runId)` → pick latest, so the SSE URL can be built with the actual `runId`.
 - `demos/solid-streaming/scripts/streaming.spec.ts` — un-skip; the test today is already strict.
 - `demos/vanilla-basic/test/demo.spec.ts` — un-skip; the test today is already strict.
 - `demos/wc-graph/test/demo.spec.ts` — un-skip **and tighten**.
-- `demos/react-session-list/test/demo.spec.ts` — un-skip **and tighten**.
+- `demos/react-trace-list/test/demo.spec.ts` — un-skip **and tighten**.
 
 **Create:**
-- `demos/solid-streaming/scripts/vite-plugin-sse.ts` — solid-streaming-only Vite plugin serving `GET /<prefix>/stream/<run>/<session>/events` with `fs.watch`-based SSE tailing of `events.ndjson`. Owns the live-tail logic that today lives in `packages/serve/src/handler.ts`.
+- `demos/solid-streaming/scripts/vite-plugin-sse.ts` — solid-streaming-only Vite plugin serving `GET /<prefix>/stream/<run>/<trace>/events` with `fs.watch`-based SSE tailing of `events.ndjson`. Owns the live-tail logic that today lives in `packages/serve/src/handler.ts`.
 - `demos/shared/test/fetch-adapter.test.ts` (listed under Modify-set above; created here).
 - `demos/shared/vitest.config.ts` (same).
 
@@ -121,18 +121,18 @@ Replace the contents of `packages/read/src/node.ts` with:
 ```ts
 import { readdir, readFile } from 'fs/promises'
 import { join, resolve, sep } from 'path'
-import type { SessionReader } from '@introspection/types'
+import type { TraceReader } from '@introspection/types'
 import {
   type StorageAdapter,
-  type SessionSummary,
+  type TraceSummary,
   type RunSummary,
-  createSessionReader as createSessionReaderFromAdapter,
+  createTraceReader as createTraceReaderFromAdapter,
   listRuns as listRunsFromAdapter,
-  listSessions as listSessionsFromAdapter,
+  listTraces as listTracesFromAdapter,
 } from './index.js'
 
-export type { StorageAdapter, SessionSummary, RunSummary } from './index.js'
-export type { SessionReader, EventsFilter, EventsAPI } from '@introspection/types'
+export type { StorageAdapter, TraceSummary, RunSummary } from './index.js'
+export type { TraceReader, EventsFilter, EventsAPI } from '@introspection/types'
 
 export class TraversalError extends Error {
   override readonly name = 'TraversalError'
@@ -172,19 +172,19 @@ export function createNodeAdapter(dir: string): StorageAdapter {
   }
 }
 
-export async function createSessionReader(
+export async function createTraceReader(
   dir: string,
-  options?: { runId?: string; sessionId?: string; verbose?: boolean },
-): Promise<SessionReader> {
-  return createSessionReaderFromAdapter(createNodeAdapter(dir), options)
+  options?: { runId?: string; traceId?: string; verbose?: boolean },
+): Promise<TraceReader> {
+  return createTraceReaderFromAdapter(createNodeAdapter(dir), options)
 }
 
 export async function listRuns(dir: string): Promise<RunSummary[]> {
   return listRunsFromAdapter(createNodeAdapter(dir))
 }
 
-export async function listSessions(dir: string, runId: string): Promise<SessionSummary[]> {
-  return listSessionsFromAdapter(createNodeAdapter(dir), runId)
+export async function listTraces(dir: string, runId: string): Promise<TraceSummary[]> {
+  return listTracesFromAdapter(createNodeAdapter(dir), runId)
 }
 ```
 
@@ -926,9 +926,9 @@ export interface IntrospectionServeSSEOptions {
  * Demo-local Vite plugin: serves Server-Sent Events tailing of `events.ndjson`
  * for the solid-streaming demo. Mounted alongside `introspectionServe()`.
  *
- *   GET <prefix>/<runId>/<sessionId>/events
+ *   GET <prefix>/<runId>/<traceId>/events
  *
- * Sends every existing line of `<runId>/<sessionId>/events.ndjson` as an SSE
+ * Sends every existing line of `<runId>/<traceId>/events.ndjson` as an SSE
  * `data:` frame, then watches the file and sends new lines as they're written.
  * This logic used to live in @introspection/serve's createHandler; it moved
  * here when createHandler became a generic StorageAdapter transport (no
@@ -953,12 +953,12 @@ export function introspectionServeSSE(options?: IntrospectionServeSSEOptions): P
         if (!url.startsWith(prefix + '/')) return next()
 
         const tail = url.slice(prefix.length + 1)
-        // Match: <runId>/<sessionId>/events
+        // Match: <runId>/<traceId>/events
         const match = tail.match(/^([^/]+)\/([^/]+)\/events(?:\?.*)?$/)
         if (!match) return next()
-        const [, runId, sessionId] = match
+        const [, runId, traceId] = match
 
-        const eventsPath = join(resolvedDirectory, runId, sessionId, 'events.ndjson')
+        const eventsPath = join(resolvedDirectory, runId, traceId, 'events.ndjson')
         if (!existsSync(eventsPath)) {
           res.writeHead(404)
           res.end('Not found')
@@ -1044,27 +1044,27 @@ export default defineConfig({
 
 - [ ] **Step 2: Update `App.tsx` to resolve runId explicitly and build the new SSE URL**
 
-In `demos/solid-streaming/src/App.tsx`, change the imports and the session/URL resolution.
+In `demos/solid-streaming/src/App.tsx`, change the imports and the trace/URL resolution.
 
-Locate the existing import line `import { createSessionReader } from "@introspection/read";` and replace it with:
+Locate the existing import line `import { createTraceReader } from "@introspection/read";` and replace it with:
 
 ```tsx
-import { createSessionReader, listRuns, listSessions } from "@introspection/read";
+import { createTraceReader, listRuns, listTraces } from "@introspection/read";
 ```
 
-Locate the existing `createSessionReader(adapter, { verbose: VERBOSE })` call (around line 53 today) and replace the surrounding block that resolves the session so the app tracks `runId` alongside `sessionId`. Replace the block that assigns the session promise/signal with:
+Locate the existing `createTraceReader(adapter, { verbose: VERBOSE })` call (around line 53 today) and replace the surrounding block that resolves the trace so the app tracks `runId` alongside `traceId`. Replace the block that assigns the trace promise/signal with:
 
 ```tsx
-// Resolve latest run + latest session up front so we have runId for the SSE URL.
-const sessionContext = (async () => {
+// Resolve latest run + latest trace up front so we have runId for the SSE URL.
+const traceContext = (async () => {
   const runs = await listRuns(adapter);
   if (runs.length === 0) return null;
   const runId = runs[0].id;
-  const sessions = await listSessions(adapter, runId);
-  if (sessions.length === 0) return null;
-  const sessionId = sessions[0].id;
-  const reader = await createSessionReader(adapter, { runId, sessionId, verbose: VERBOSE });
-  return { runId, sessionId, reader };
+  const traces = await listTraces(adapter, runId);
+  if (traces.length === 0) return null;
+  const traceId = traces[0].id;
+  const reader = await createTraceReader(adapter, { runId, traceId, verbose: VERBOSE });
+  return { runId, traceId, reader };
 })();
 ```
 
@@ -1072,14 +1072,14 @@ const sessionContext = (async () => {
 
 ```tsx
 const { status } = useEventSource(
-  () => props.session ? `/__introspect/stream/${props.runId}/${props.session.id}/events` : null,
-  () => props.session,
+  () => props.trace ? `/__introspect/stream/${props.runId}/${props.trace.id}/events` : null,
+  () => props.trace,
 );
 ```
 
-Wherever the component reads `props.session`, surface the new `props.runId` from the resolved context. This is a small structural edit; do it by making the consuming component accept `runId: string | undefined` alongside the existing `session` prop, sourced from `sessionContext`.
+Wherever the component reads `props.trace`, surface the new `props.runId` from the resolved context. This is a small structural edit; do it by making the consuming component accept `runId: string | undefined` alongside the existing `trace` prop, sourced from `traceContext`.
 
-> The exact prop-plumbing depends on the current `App.tsx` structure; the principle is: resolve `{ runId, sessionId, reader }` up front, then thread `runId` through to wherever the SSE URL is built.
+> The exact prop-plumbing depends on the current `App.tsx` structure; the principle is: resolve `{ runId, traceId, reader }` up front, then thread `runId` through to wherever the SSE URL is built.
 
 - [ ] **Step 3: Typecheck**
 
@@ -1098,7 +1098,7 @@ git commit -m "demos/solid-streaming: mount the SSE plugin and use the new /stre
 ## Task 8: Un-skip and tighten the four HTTP-demo tests
 
 **Files:**
-- Modify: `demos/vanilla-basic/test/demo.spec.ts`, `demos/wc-graph/test/demo.spec.ts`, `demos/react-session-list/test/demo.spec.ts`, `demos/solid-streaming/scripts/streaming.spec.ts`
+- Modify: `demos/vanilla-basic/test/demo.spec.ts`, `demos/wc-graph/test/demo.spec.ts`, `demos/react-trace-list/test/demo.spec.ts`, `demos/solid-streaming/scripts/streaming.spec.ts`
 
 - [ ] **Step 1: Un-skip `demos/vanilla-basic/test/demo.spec.ts`**
 
@@ -1106,25 +1106,25 @@ Remove the `// SKIPPED: blocked on Spec C` comment block (lines just above the t
 
 - [ ] **Step 2: Un-skip and **tighten** `demos/wc-graph/test/demo.spec.ts`**
 
-Remove the `// SKIPPED: blocked on Spec C` comment block, change `test.skip(` → `test(`. **Tighten** the assertions: today the test only checks that the `<select>` has at least one option; add an assertion that the captured session's id appears as an option. After the existing `expect(await options.count()).toBeGreaterThan(0)` line, append:
+Remove the `// SKIPPED: blocked on Spec C` comment block, change `test.skip(` → `test(`. **Tighten** the assertions: today the test only checks that the `<select>` has at least one option; add an assertion that the captured trace's id appears as an option. After the existing `expect(await options.count()).toBeGreaterThan(0)` line, append:
 
 ```ts
-  // Tighten: verify the captured session id is actually surfaced
-  const captured = handle.session.id
+  // Tighten: verify the captured trace id is actually surfaced
+  const captured = handle.trace.id
   const optionTexts = await options.allTextContents()
   expect(optionTexts.some(t => t.includes(captured))).toBe(true)
 ```
 
-- [ ] **Step 3: Un-skip and **tighten** `demos/react-session-list/test/demo.spec.ts`**
+- [ ] **Step 3: Un-skip and **tighten** `demos/react-trace-list/test/demo.spec.ts`**
 
-Remove the `// SKIPPED: blocked on Spec C` comment block, change `test.skip(` → `test(`. **Tighten:** the current `expect(page.locator('body')).toContainText(/Sessions|No sessions/, ...)` matches both the success and the empty paths. Replace that line with:
+Remove the `// SKIPPED: blocked on Spec C` comment block, change `test.skip(` → `test(`. **Tighten:** the current `expect(page.locator('body')).toContainText(/Traces|No traces/, ...)` matches both the success and the empty paths. Replace that line with:
 
 ```ts
-  // Tighten: verify the captured session id is actually rendered (not "No sessions")
-  await expect(page.locator('body')).toContainText(handle.session.id, { timeout: 10000 })
+  // Tighten: verify the captured trace id is actually rendered (not "No traces")
+  await expect(page.locator('body')).toContainText(handle.trace.id, { timeout: 10000 })
 ```
 
-(`handle` is the `attachRun` return; `handle.session.id` is the captured session's id.)
+(`handle` is the `attachRun` return; `handle.trace.id` is the captured trace's id.)
 
 - [ ] **Step 4: Un-skip `demos/solid-streaming/scripts/streaming.spec.ts`**
 
@@ -1138,7 +1138,7 @@ Expected: build succeeds.
 - [ ] **Step 6: Run the demo tests**
 
 Run: `pnpm exec turbo test --filter './demos/**'`
-Expected: PASS — all 5 demo `#test` tasks (static-report, vanilla-basic, wc-graph, react-session-list, solid-streaming).
+Expected: PASS — all 5 demo `#test` tasks (static-report, vanilla-basic, wc-graph, react-trace-list, solid-streaming).
 
 - [ ] **Step 7: Run the full workspace test**
 
@@ -1148,8 +1148,8 @@ Expected: PASS — all 52 tasks.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add demos/vanilla-basic/test/demo.spec.ts demos/wc-graph/test/demo.spec.ts demos/react-session-list/test/demo.spec.ts demos/solid-streaming/scripts/streaming.spec.ts
-git commit -m "demos: un-skip the four HTTP-demo tests (tighten wc-graph + react-session-list)"
+git add demos/vanilla-basic/test/demo.spec.ts demos/wc-graph/test/demo.spec.ts demos/react-trace-list/test/demo.spec.ts demos/solid-streaming/scripts/streaming.spec.ts
+git commit -m "demos: un-skip the four HTTP-demo tests (tighten wc-graph + react-trace-list)"
 ```
 
 ---
@@ -1159,7 +1159,7 @@ git commit -m "demos: un-skip the four HTTP-demo tests (tighten wc-graph + react
 **Files:**
 - Modify: `docs/superpowers/specs/2026-05-14-remote-trace-cli-design.md`
 
-The Spec C bullet in the Sequencing section was a rough outline written before Spec B was implemented; it still says "Two-level routing: GET / → runs (with metadata), GET /<run>/ → sessions" — which is contradicted by the generic-protocol decision in the actual Spec C spec.
+The Spec C bullet in the Sequencing section was a rough outline written before Spec B was implemented; it still says "Two-level routing: GET / → runs (with metadata), GET /<run>/ → traces" — which is contradicted by the generic-protocol decision in the actual Spec C spec.
 
 - [ ] **Step 1: Update the bullet**
 
@@ -1177,10 +1177,10 @@ Spec C — createHandler as a generic StorageAdapter-over-HTTP transport
     internally; demos/shared/introspectionServe likewise.
   · SSE leaves @introspection/serve entirely and moves into a
     solid-streaming-only Vite plugin (GET /__introspect/stream/<run>/
-    <session>/events).
+    <trace>/events).
   · Also fixes demos/shared/fetch-adapter.ts (listDirectories honours
     subPath; reads hit /file/...) and un-skips the four HTTP-demo tests,
-    tightening the weak ones (wc-graph + react-session-list).
+    tightening the weak ones (wc-graph + react-trace-list).
   · Full design: docs/superpowers/specs/2026-05-15-storage-agnostic-
     createhandler-design.md.
 ```
@@ -1204,10 +1204,10 @@ git commit -m "docs(specs): update remote-trace-CLI's Spec C bullet to match the
 - `serve()` keeps `{ directory }` convenience via `createNodeAdapter` → Task 3. ✓
 - `demos/shared` `introspectionServe` Vite plugin updated → Task 4. ✓
 - `createFetchAdapter` rewritten against the new wire protocol; `listDirectories(subPath?)` honoured → Task 5. ✓
-- SSE relocated to a solid-streaming-only Vite plugin serving `/<prefix>/stream/<run>/<session>/events` → Tasks 6 + 7. ✓
-- Un-skip the four HTTP-demo tests; tighten wc-graph + react-session-list → Task 8. ✓
+- SSE relocated to a solid-streaming-only Vite plugin serving `/<prefix>/stream/<run>/<trace>/events` → Tasks 6 + 7. ✓
+- Un-skip the four HTTP-demo tests; tighten wc-graph + react-trace-list → Task 8. ✓
 - Out-of-scope items (auth, CORS, streaming, symlink-following, fetch-adapter promotion to `@introspection/serve/client`) — confirmed not addressed; left for Spec D / future. ✓
 
-**Placeholder scan:** Task 7's prop-plumbing description ("the principle is: resolve `{ runId, sessionId, reader }` up front, then thread `runId` through to wherever the SSE URL is built") is the one place the plan trusts the engineer to apply a clear principle rather than handing them line-numbered edits — `App.tsx`'s exact structure is enough in flux relative to the spec that exact line edits would be fragile. The principle is concrete and the verifying test (Task 8 streaming step) catches a wrong implementation.
+**Placeholder scan:** Task 7's prop-plumbing description ("the principle is: resolve `{ runId, traceId, reader }` up front, then thread `runId` through to wherever the SSE URL is built") is the one place the plan trusts the engineer to apply a clear principle rather than handing them line-numbered edits — `App.tsx`'s exact structure is enough in flux relative to the spec that exact line edits would be fragile. The principle is concrete and the verifying test (Task 8 streaming step) catches a wrong implementation.
 
 **Type consistency:** `TraversalError` defined in Task 1, exported from `@introspection/read/index.js`, recognised by `name` in the handler (Task 2) and used in the handler test (Task 2). `ServeOptions = { adapter, prefix? }` defined in Task 2 step 4, consumed by `createHandler` (Task 2 step 6) and by `serve()` (Task 3). `NodeServeOptions = { directory, port, host?, prefix? }` defined in Task 2 step 4, consumed by `serve()` (Task 3). `IntrospectionServeOptions = { directory?, prefix? }` defined in Task 4. `IntrospectionServeSSEOptions = { directory?, prefix? }` defined in Task 6. `createFetchAdapter(baseUrl)` returns `StorageAdapter` (Task 5).

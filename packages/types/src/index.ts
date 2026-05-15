@@ -48,7 +48,7 @@ export interface PlaywrightScreenshotEvent extends BaseEvent {
 //
 // A payload is one named piece of data attached to an event. It is either:
 //   - inline (the value lives in events.ndjson; implicitly JSON), or
-//   - an asset (the value lives in the session's assets/ directory on disk).
+//   - an asset (the value lives in the trace's assets/ directory on disk).
 //
 // `PayloadFormat` describes how the on-disk bytes should be parsed/rendered.
 
@@ -371,7 +371,7 @@ export interface CookieEntry {
   value: string
   domain: string
   path: string
-  /** Unix seconds. Absent for session cookies. */
+  /** Unix seconds. Absent for trace cookies. */
   expires?: number
   httpOnly: boolean
   secure: boolean
@@ -736,7 +736,7 @@ export interface AssetWriter {
   writeAsset(opts: WriteAssetOptions): Promise<PayloadAsset>
 }
 
-export interface SessionBus {
+export interface TraceBus {
   on<T extends BusTrigger>(trigger: T, handler: (payload: BusPayloadMap[T]) => void | Promise<void>): void
   emit<T extends BusTrigger>(trigger: T, payload: BusPayloadMap[T]): Promise<void>
 }
@@ -751,15 +751,15 @@ export interface PluginContext extends AssetWriter {
   /**
    * Escape hatch for instrumentation plugins (e.g. plugin-cdp) that need to
    * monkey-patch the shared CDPSession. Mutating this object affects every
-   * plugin in the session — do not use unless you know what you're doing.
+   * plugin in the trace — do not use unless you know what you're doing.
    */
-  rawCdpSession: CDPSession
+  rawCdpTrace: CDPSession
   emit(event: EmitInput): Promise<void>
   timestamp(): number
   /** Installs a browser-side watch and registers it for navigation recovery. */
   addSubscription(pluginName: string, spec: unknown): Promise<WatchHandle>
-  /** Typed async event bus scoped to this session. */
-  bus: SessionBus
+  /** Typed async event bus scoped to this trace. */
+  bus: TraceBus
   /** Track an async operation so that flush()/finalize() wait for it. */
   track(operation: () => Promise<unknown>): void
 }
@@ -812,7 +812,7 @@ export interface TestStartInfo {
   testId: string
   label: string
   titlePath: string[]
-  /** Wall-clock ms-since-session-start. */
+  /** Wall-clock ms-since-trace-start. */
   startedAt: number
 }
 
@@ -828,12 +828,12 @@ export interface TestEndInfo extends TestStartInfo {
 }
 
 export interface ReporterContext {
-  sessionId: string
-  /** Session directory (e.g. `.introspect/<run-id>/<test-id>`). */
+  traceId: string
+  /** Trace directory (e.g. `.introspect/<run-id>/<test-id>`). */
   outDir: string
   /** Run directory (e.g. `.introspect/<run-id>`). Defaults to the parent of outDir. */
   runDir: string
-  meta: SessionMeta
+  meta: TraceMeta
   /** Convenience writer for reporter outputs. Relative paths resolve against runDir. */
   writeFile(path: string, content: string | Uint8Array): Promise<void>
   /** Track an async operation so finalize() waits for it. */
@@ -842,11 +842,11 @@ export interface ReporterContext {
 
 export interface IntrospectionReporter {
   name: string
-  onSessionStart?(ctx: ReporterContext): void | Promise<void>
+  onTraceStart?(ctx: ReporterContext): void | Promise<void>
   onEvent?(event: TraceEvent, ctx: ReporterContext): void | Promise<void>
   onTestStart?(test: TestStartInfo, ctx: ReporterContext): void | Promise<void>
   onTestEnd?(test: TestEndInfo, ctx: ReporterContext): void | Promise<void>
-  onSessionEnd?(ctx: ReporterContext): void | Promise<void>
+  onTraceEnd?(ctx: ReporterContext): void | Promise<void>
 }
 
 // ─── Supporting types ────────────────────────────────────────────────────────
@@ -881,28 +881,28 @@ export interface Snapshot {
   globals: Record<string, unknown>
 }
 
-// ─── Session ──────────────────────────────────────────────────────────────────
+// ─── Trace ──────────────────────────────────────────────────────────────────
 
 export type RunStatus = 'passed' | 'failed'
 
-export type SessionStatus =
+export type TraceStatus =
   | 'passed' | 'failed' | 'timedOut' | 'interrupted' | 'skipped' | 'crashed'
 
-export interface SessionMeta {
+export interface TraceMeta {
   version: '2'
   id: string
   startedAt: number    // unix ms
-  endedAt?: number     // unix ms, set when session ends
+  endedAt?: number     // unix ms, set when trace ends
   label?: string       // human-readable name
   plugins?: PluginMeta[]
   /** Playwright project name; 'default' when the config defines no projects. */
   project?: string
   /**
    * Final test status. Written by the worker auto-fixture at finalize.
-   * 'crashed' is never written — it is derived by readers when a session
+   * 'crashed' is never written — it is derived by readers when a trace
    * directory has no test.end event and no endedAt.
    */
-  status?: SessionStatus
+  status?: TraceStatus
 }
 
 export interface RunMeta {
@@ -934,16 +934,16 @@ export interface WriteAssetOptions {
   ext?: string
 }
 
-// ─── SessionWriter (returned by createSession()) ────────────────────────────
+// ─── TraceWriter (returned by createTrace()) ────────────────────────────
 
-export interface SessionWriter extends AssetWriter {
+export interface TraceWriter extends AssetWriter {
   id: string
   emit(event: EmitInput): Promise<void>
   timestamp(): number
-  bus: SessionBus
+  bus: TraceBus
   track(operation: () => Promise<unknown>): void
   flush(): Promise<void>
-  finalize(extras?: { status?: SessionStatus }): Promise<void>
+  finalize(extras?: { status?: TraceStatus }): Promise<void>
 }
 
 // ─── Storage Adapter ────────────────────────────────────────────────────────────
@@ -955,7 +955,7 @@ export interface StorageAdapter {
   readJSON<T = unknown>(path: string): Promise<T>
 }
 
-// ─── SessionReader (returned by query adapters) ─────────────────────────────
+// ─── TraceReader (returned by query adapters) ─────────────────────────────
 
 export interface EventsFilter {
   type?: string | string[]
@@ -976,9 +976,9 @@ export interface EventsAPI {
   push(event: TraceEvent): void
 }
 
-export interface SessionReader {
+export interface TraceReader {
   id: string
-  meta: SessionMeta
+  meta: TraceMeta
   events: EventsAPI
   resolvePayload(ref: PayloadRef): Promise<unknown>
 }
@@ -993,7 +993,7 @@ export interface DetachResult {
 }
 
 export interface IntrospectHandle extends AssetWriter {
-  session: SessionWriter
+  trace: TraceWriter
   pageId: string
   page: Page   // Proxy-wrapped page
   emit(event: EmitInput): Promise<void>

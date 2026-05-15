@@ -337,8 +337,8 @@ test('redux + react: emits redux.snapshot on store creation', async ({ page }) =
   expect(snapshot.assets[0].kind).toBe('json')
 
   const entries = await readdir(outDir)
-  const sessionDir = join(outDir, entries[0])
-  const state = JSON.parse(await readFile(join(sessionDir, snapshot.assets[0].path), 'utf-8'))
+  const traceDir = join(outDir, entries[0])
+  const state = JSON.parse(await readFile(join(traceDir, snapshot.assets[0].path), 'utf-8'))
   expect(state).toHaveProperty('count')
   expect(state).toHaveProperty('items')
 })

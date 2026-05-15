@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, readFile, readdir, stat } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { createSessionWriter } from '../src/index.js'
+import { createTraceWriter } from '../src/index.js'
 
 let outDir: string
 
@@ -14,40 +14,40 @@ afterEach(async () => {
   await rm(outDir, { recursive: true, force: true })
 })
 
-async function readEvents(dir: string, sessionId: string) {
-  const ndjson = await readFile(join(dir, sessionId, 'events.ndjson'), 'utf-8')
+async function readEvents(dir: string, traceId: string) {
+  const ndjson = await readFile(join(dir, traceId, 'events.ndjson'), 'utf-8')
   return ndjson.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
 }
 
-async function readMeta(dir: string, sessionId: string) {
-  return JSON.parse(await readFile(join(dir, sessionId, 'meta.json'), 'utf-8'))
+async function readMeta(dir: string, traceId: string) {
+  return JSON.parse(await readFile(join(dir, traceId, 'meta.json'), 'utf-8'))
 }
 
-describe('createSessionWriter', () => {
-  it('creates session directory with meta.json and empty events.ndjson', async () => {
-    const writer = await createSessionWriter({ outDir, id: 'session-a' })
-    expect(writer.id).toBe('session-a')
+describe('createTraceWriter', () => {
+  it('creates trace directory with meta.json and empty events.ndjson', async () => {
+    const writer = await createTraceWriter({ outDir, id: 'trace-a' })
+    expect(writer.id).toBe('trace-a')
 
-    const meta = await readMeta(outDir, 'session-a')
+    const meta = await readMeta(outDir, 'trace-a')
     expect(meta.version).toBe('2')
-    expect(meta.id).toBe('session-a')
+    expect(meta.id).toBe('trace-a')
     expect(typeof meta.startedAt).toBe('number')
     expect(meta.endedAt).toBeUndefined()
 
-    const ndjson = await readFile(join(outDir, 'session-a', 'events.ndjson'), 'utf-8')
+    const ndjson = await readFile(join(outDir, 'trace-a', 'events.ndjson'), 'utf-8')
     expect(ndjson).toBe('')
 
-    const assetsStat = await stat(join(outDir, 'session-a', 'assets'))
+    const assetsStat = await stat(join(outDir, 'trace-a', 'assets'))
     expect(assetsStat.isDirectory()).toBe(true)
   })
 
   it('generates a UUID id when none supplied', async () => {
-    const writer = await createSessionWriter({ outDir })
+    const writer = await createTraceWriter({ outDir })
     expect(writer.id).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   it('persists label and plugins into meta', async () => {
-    await createSessionWriter({
+    await createTraceWriter({
       outDir,
       id: 's',
       label: 'my-test',
@@ -58,21 +58,21 @@ describe('createSessionWriter', () => {
     expect(meta.plugins).toEqual([{ name: 'plugin-x', description: 'x' }])
   })
 
-  it('throws when session directory already exists', async () => {
-    await createSessionWriter({ outDir, id: 'dup' })
-    await expect(createSessionWriter({ outDir, id: 'dup' })).rejects.toThrow(/already exists/)
+  it('throws when trace directory already exists', async () => {
+    await createTraceWriter({ outDir, id: 'dup' })
+    await expect(createTraceWriter({ outDir, id: 'dup' })).rejects.toThrow(/already exists/)
   })
 
   it('accepts an optional reporters array', async () => {
     const reporter = { name: 'noop' }
-    const writer = await createSessionWriter({ outDir, id: 'rs1', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 'rs1', reporters: [reporter] })
     expect(writer.id).toBe('rs1')
   })
 })
 
-describe('SessionWriter.emit', () => {
+describe('TraceWriter.emit', () => {
   it('appends NDJSON events with generated id and relative timestamp', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+    const writer = await createTraceWriter({ outDir, id: 's' })
     await writer.emit({ type: 'mark', metadata: { label: 'a' } })
     await writer.emit({ type: 'mark', metadata: { label: 'b' } })
     await writer.flush()
@@ -88,7 +88,7 @@ describe('SessionWriter.emit', () => {
   })
 
   it('preserves event ordering under concurrent emits', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+    const writer = await createTraceWriter({ outDir, id: 's' })
     await Promise.all(
       Array.from({ length: 20 }, (_, index) =>
         writer.emit({ type: 'mark', metadata: { label: `e${index}` } })
@@ -104,7 +104,7 @@ describe('SessionWriter.emit', () => {
   })
 
   it('fires on the bus synchronously with the event type', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+    const writer = await createTraceWriter({ outDir, id: 's' })
     const seen: string[] = []
     writer.bus.on('mark', payload => { seen.push(payload.metadata.label) })
     await writer.emit({ type: 'mark', metadata: { label: 'one' } })
@@ -113,9 +113,9 @@ describe('SessionWriter.emit', () => {
   })
 })
 
-describe('SessionWriter.writeAsset', () => {
+describe('TraceWriter.writeAsset', () => {
   it('writes content to assets/ and returns an AssetRef with size', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+    const writer = await createTraceWriter({ outDir, id: 's' })
     const ref = await writer.writeAsset({ format: 'json', content: '{"hello":"world"}' })
 
     expect(ref.kind).toBe('asset')
@@ -128,13 +128,13 @@ describe('SessionWriter.writeAsset', () => {
   })
 
   it('respects the ext option', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+    const writer = await createTraceWriter({ outDir, id: 's' })
     const ref = await writer.writeAsset({ format: 'html', content: '<h1>x</h1>', ext: 'html' })
     expect(ref.path.endsWith('.html')).toBe(true)
   })
 
   it('writes binary Buffers and reports byte length', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+    const writer = await createTraceWriter({ outDir, id: 's' })
     const buffer = Buffer.from([1, 2, 3, 4, 5])
     const ref = await writer.writeAsset({ format: 'binary', content: buffer, ext: 'bin' })
     expect(ref.size).toBe(5)
@@ -144,9 +144,9 @@ describe('SessionWriter.writeAsset', () => {
   })
 })
 
-describe('SessionWriter.track and flush', () => {
+describe('TraceWriter.track and flush', () => {
   it('flush awaits tracked async operations', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+    const writer = await createTraceWriter({ outDir, id: 's' })
     let completed = false
     writer.track(async () => {
       await new Promise(resolve => setTimeout(resolve, 50))
@@ -163,7 +163,7 @@ describe('SessionWriter.track and flush', () => {
   })
 
   it('flush drains nested tracked operations', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+    const writer = await createTraceWriter({ outDir, id: 's' })
     let innerDone = false
     writer.track(async () => {
       await new Promise(resolve => setTimeout(resolve, 10))
@@ -177,9 +177,9 @@ describe('SessionWriter.track and flush', () => {
   })
 })
 
-describe('SessionWriter.timestamp', () => {
-  it('returns ms since session start', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+describe('TraceWriter.timestamp', () => {
+  it('returns ms since trace start', async () => {
+    const writer = await createTraceWriter({ outDir, id: 's' })
     const first = writer.timestamp()
     await new Promise(resolve => setTimeout(resolve, 25))
     const second = writer.timestamp()
@@ -187,9 +187,9 @@ describe('SessionWriter.timestamp', () => {
   })
 })
 
-describe('SessionWriter.finalize', () => {
+describe('TraceWriter.finalize', () => {
   it('writes endedAt into meta.json', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+    const writer = await createTraceWriter({ outDir, id: 's' })
     await writer.finalize()
     const meta = await readMeta(outDir, 's')
     expect(typeof meta.endedAt).toBe('number')
@@ -197,7 +197,7 @@ describe('SessionWriter.finalize', () => {
   })
 
   it('emits a detach bus event before draining', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+    const writer = await createTraceWriter({ outDir, id: 's' })
     let detached: { trigger: string; timestamp: number } | null = null
     writer.bus.on('detach', payload => { detached = payload })
     await writer.finalize()
@@ -207,7 +207,7 @@ describe('SessionWriter.finalize', () => {
   })
 
   it('awaits outstanding tracked work before finalizing', async () => {
-    const writer = await createSessionWriter({ outDir, id: 's' })
+    const writer = await createTraceWriter({ outDir, id: 's' })
     writer.track(async () => {
       await new Promise(resolve => setTimeout(resolve, 30))
       await writer.emit({ type: 'mark', metadata: { label: 'tail' } })

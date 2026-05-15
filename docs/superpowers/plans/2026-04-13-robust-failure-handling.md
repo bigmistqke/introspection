@@ -20,7 +20,7 @@
 - `packages/utils/test/debug.test.ts` — unit tests for subscribable `createDebug`
 - `packages/utils/test/bus.test.ts` — unit tests for bus rejection reporting
 - `packages/utils/vitest.config.ts` — vitest config (matches sibling packages)
-- `packages/write/test/session.test.ts` — unit test for unswallowed write errors (add to existing or new)
+- `packages/write/test/trace.test.ts` — unit test for unswallowed write errors (add to existing or new)
 - `packages/read/test/ndjson-parse.test.ts` — unit test for per-line parse resilience
 - `packages/playwright/test/failure-handling.spec.ts` — integration test for catch boundaries
 - `plugins/plugin-introspection/` — new package (package.json, src/index.ts, README.md, test/introspection.spec.ts, playwright.config.ts, tsconfig.json)
@@ -32,7 +32,7 @@
 - `packages/utils/src/summarise-body.ts` — throw on parse failure
 - `packages/utils/package.json` — add vitest, add `test` script
 - `packages/types/src/index.ts` — add `introspect.warning` / `introspect.debug` trace events and `introspect:warning` / `introspect:debug` bus channels
-- `packages/write/src/session.ts` — remove `.then(() => {}, () => {})` swallow; subscribe framework `debug` to bus
+- `packages/write/src/trace.ts` — remove `.then(() => {}, () => {})` swallow; subscribe framework `debug` to bus
 - `packages/read/src/index.ts` — per-line try/catch wraps `ParseError`
 - `packages/playwright/src/attach.ts` — plugin-handler wrapper, plugin-install try/catch, recoverable CDP catches wrap in `CdpError` + emit, subscribe framework `debug` to bus, remove `.catch(() => {})` sites
 - `packages/playwright/src/snapshot.ts` — replace silent catches with `CdpError` via `onWarning` callback
@@ -86,12 +86,12 @@ describe('IntrospectError', () => {
 
 describe('CdpError', () => {
   it('prefixes method and extends IntrospectError', () => {
-    const err = new CdpError('Runtime.evaluate', 'session closed')
+    const err = new CdpError('Runtime.evaluate', 'trace closed')
     expect(err).toBeInstanceOf(IntrospectError)
     expect(err).toBeInstanceOf(CdpError)
     expect(err.source).toBe('cdp')
     expect(err.method).toBe('Runtime.evaluate')
-    expect(err.message).toBe('CDP Runtime.evaluate: session closed')
+    expect(err.message).toBe('CDP Runtime.evaluate: trace closed')
     expect(err.name).toBe('CdpError')
   })
 })
@@ -647,14 +647,14 @@ import type { StorageAdapter } from '../src/index.js'
 // loadEvents is internal; if not exported, export it via `__testing__` wrapper in src/index.ts.
 import { __testing__ } from '../src/index.js'
 
-function makeAdapter(sessionId: string, body: string): StorageAdapter {
+function makeAdapter(traceId: string, body: string): StorageAdapter {
   return {
     readText: async (path: string) => {
-      if (path === `${sessionId}/events.ndjson`) return body
+      if (path === `${traceId}/events.ndjson`) return body
       throw new Error('unexpected path')
     },
     readBinary: async () => Buffer.alloc(0),
-    listSessions: async () => [],
+    listTraces: async () => [],
   } as unknown as StorageAdapter
 }
 
@@ -685,8 +685,8 @@ In `packages/read/src/index.ts`, replace the `loadEvents` function body and expo
 ```ts
 import { ParseError } from '@introspection/utils'
 
-async function loadEvents(adapter: StorageAdapter, sessionId: string): Promise<TraceEvent[]> {
-  const eventsRaw = await adapter.readText(`${sessionId}/events.ndjson`)
+async function loadEvents(adapter: StorageAdapter, traceId: string): Promise<TraceEvent[]> {
+  const eventsRaw = await adapter.readText(`${traceId}/events.ndjson`)
   const events: TraceEvent[] = []
   const lines = eventsRaw.split('\n')
   for (let i = 0; i < lines.length; i++) {
@@ -722,26 +722,26 @@ git commit -m "fix(read): tolerate malformed NDJSON lines with per-line ParseErr
 ## Task 7: Write queue stops swallowing errors
 
 **Files:**
-- Modify: `packages/write/src/session.ts`
-- Create or extend: `packages/write/test/session.test.ts`
+- Modify: `packages/write/src/trace.ts`
+- Create or extend: `packages/write/test/trace.test.ts`
 
 - [ ] **Step 1: Write failing test**
 
-Create or extend `packages/write/test/session.test.ts`:
+Create or extend `packages/write/test/trace.test.ts`:
 ```ts
 import { describe, it, expect } from 'vitest'
 import { mkdtemp, mkdir } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { createSessionWriter } from '../src/session.js'
+import { createTraceWriter } from '../src/trace.js'
 
-describe('createSessionWriter write queue', () => {
+describe('createTraceWriter write queue', () => {
   it('propagates write failures instead of swallowing them', async () => {
-    const base = await mkdtemp(join(tmpdir(), 'session-test-'))
-    const writer = await createSessionWriter({ outDir: base })
+    const base = await mkdtemp(join(tmpdir(), 'trace-test-'))
+    const writer = await createTraceWriter({ outDir: base })
     // Corrupt the NDJSON path so append fails: replace the target file with a directory.
-    const sessionDir = join(base, writer.id)
-    await mkdir(join(sessionDir, 'events.ndjson'), { recursive: true })
+    const traceDir = join(base, writer.id)
+    await mkdir(join(traceDir, 'events.ndjson'), { recursive: true })
     await expect(
       writer.emit({ type: 'mark', metadata: { label: 'x' } }),
     ).rejects.toThrow()
@@ -751,12 +751,12 @@ describe('createSessionWriter write queue', () => {
 
 - [ ] **Step 2: Run — expect FAIL**
 
-Run: `pnpm -C packages/write test session`
+Run: `pnpm -C packages/write test trace`
 Expected: FAIL — `emit` currently swallows the error via `.then(() => {}, () => {})`.
 
 - [ ] **Step 3: Remove the swallow**
 
-In `packages/write/src/session.ts`, change `createWriteQueue` so the pending chain does not discard errors (and still serialises writes):
+In `packages/write/src/trace.ts`, change `createWriteQueue` so the pending chain does not discard errors (and still serialises writes):
 
 ```ts
 function createWriteQueue() {
@@ -777,17 +777,17 @@ function createWriteQueue() {
 }
 ```
 
-**Why still a `.catch`?** The `pending` chain itself must not stay rejected — if it did, every subsequent `enqueue` would reject on the prior failure. The rejection is preserved on the *returned* `result` promise only; the queue continues. Callers (like `session.emit`, which returns the promise) now see the rejection.
+**Why still a `.catch`?** The `pending` chain itself must not stay rejected — if it did, every subsequent `enqueue` would reject on the prior failure. The rejection is preserved on the *returned* `result` promise only; the queue continues. Callers (like `trace.emit`, which returns the promise) now see the rejection.
 
 - [ ] **Step 4: Run — expect PASS**
 
-Run: `pnpm -C packages/write test session`
+Run: `pnpm -C packages/write test trace`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/write/src/session.ts packages/write/test/session.test.ts
+git add packages/write/src/trace.ts packages/write/test/trace.test.ts
 git commit -m "fix(write): stop swallowing write-queue errors; propagate to caller"
 ```
 
@@ -846,7 +846,7 @@ test('plugin install throwing marks plugin as failed and continues with subseque
   expect(other).toEqual(['installed'])
   await handle.detach()
 
-  // After detach, read session metadata from disk and assert failed plugin recorded.
+  // After detach, read trace metadata from disk and assert failed plugin recorded.
   // (Adapt path resolution to your existing test helpers; see plugin-console/test for patterns.)
 })
 
@@ -946,11 +946,11 @@ for (const plugin of plugins) {
 
 **Note:** The plugin-init script change removes the `.catch(() => {})` (previously line 111). Failures in `page.addInitScript` / `page.evaluate` now flow through the same catch and emit on `introspect:warning`.
 
-**Why not touch `meta.json`?** Install failure is a runtime event, not metadata. `meta.plugins` lists what was attempted. Which plugins actually failed is answered by the trace — `introspect events --type introspect.warning` with `metadata.source === 'plugin'` and `metadata.pluginName === '<plugin-name>'` identifies every install failure, and also (via distinct subsequent `introspect.warning` events) every handler failure after install. Single source of truth; no mutable session metadata.
+**Why not touch `meta.json`?** Install failure is a runtime event, not metadata. `meta.plugins` lists what was attempted. Which plugins actually failed is answered by the trace — `introspect events --type introspect.warning` with `metadata.source === 'plugin'` and `metadata.pluginName === '<plugin-name>'` identifies every install failure, and also (via distinct subsequent `introspect.warning` events) every handler failure after install. Single source of truth; no mutable trace metadata.
 
 - [ ] **Step 5: Update the install-failure integration test**
 
-In `packages/playwright/test/failure-handling.spec.ts`, adjust the `plugin install throwing…` test to assert against the trace instead of meta. Open the session's `events.ndjson` after detach, filter for `introspect.warning` events with `metadata.source === 'plugin'` and `metadata.pluginName === 'explodes'`, and require at least one. Keep the assertion that `works` installed (the `other` array).
+In `packages/playwright/test/failure-handling.spec.ts`, adjust the `plugin install throwing…` test to assert against the trace instead of meta. Open the trace's `events.ndjson` after detach, filter for `introspect.warning` events with `metadata.source === 'plugin'` and `metadata.pluginName === 'explodes'`, and require at least one. Keep the assertion that `works` installed (the `other` array).
 
 - [ ] **Step 6: Run — expect PASS (first + second tests)**
 
@@ -1077,11 +1077,11 @@ git commit -m "feat(playwright): recoverable CDP catches emit CdpError on intros
 
 **Files:**
 - Modify: `packages/playwright/src/attach.ts`
-- Modify: `packages/write/src/session.ts`
+- Modify: `packages/write/src/trace.ts`
 
 - [ ] **Step 1: Wire framework `debug` to bus in `attach.ts`**
 
-After the `session` is created and `bus` is destructured, add:
+After the `trace` is created and `bus` is destructured, add:
 ```ts
 const unsubscribeDebug = debug.subscribe((message, args) => {
   void bus.emit('introspect:debug', {
@@ -1094,13 +1094,13 @@ const unsubscribeDebug = debug.subscribe((message, args) => {
 bus.on('detach', () => unsubscribeDebug())
 ```
 
-- [ ] **Step 2: Wire framework `debug` to bus in `session.ts`**
+- [ ] **Step 2: Wire framework `debug` to bus in `trace.ts`**
 
-At top of `packages/write/src/session.ts`, add `const debug = createDebug('session-writer', /* always off by default */ false)` (already off unless explicitly enabled via env). After `const bus = createBus()` and after `timestamp` is defined, add:
+At top of `packages/write/src/trace.ts`, add `const debug = createDebug('trace-writer', /* always off by default */ false)` (already off unless explicitly enabled via env). After `const bus = createBus()` and after `timestamp` is defined, add:
 ```ts
 const unsubscribeDebug = debug.subscribe((message, args) => {
   void bus.emit('introspect:debug', {
-    label: 'session-writer',
+    label: 'trace-writer',
     message,
     args,
     timestamp: timestamp(),
@@ -1117,8 +1117,8 @@ Expected: PASS.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/playwright/src/attach.ts packages/write/src/session.ts
-git commit -m "feat(playwright,write): subscribe framework debug to session bus"
+git add packages/playwright/src/attach.ts packages/write/src/trace.ts
+git commit -m "feat(playwright,write): subscribe framework debug to trace bus"
 ```
 
 ---
@@ -1154,7 +1154,7 @@ const unsubscribeDebug = debug.subscribe((message, args) => {
 ctx.bus.on('detach', () => unsubscribeDebug())
 ```
 
-**Why unsubscribe?** `createDebug` is called at factory scope, so the `debug` closure (and its subscribers Set) outlive any single `install`. If the same plugin factory instance is ever re-installed (or leaks across tests in the same Node process), old subscribers would accumulate and fire against stale bus references. Unsubscribing on the session's `detach` bus event keeps the subscriber set bounded to the active session.
+**Why unsubscribe?** `createDebug` is called at factory scope, so the `debug` closure (and its subscribers Set) outlive any single `install`. If the same plugin factory instance is ever re-installed (or leaks across tests in the same Node process), old subscribers would accumulate and fire against stale bus references. Unsubscribing on the trace's `detach` bus event keeps the subscriber set bounded to the active trace.
 
 - [ ] **Step 2: Run plugin-console tests**
 
@@ -1386,9 +1386,9 @@ import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 
 async function readNdjson(outDir: string): Promise<unknown[]> {
-  const sessions = await readdir(outDir)
-  const session = sessions.find(s => !s.startsWith('.'))!
-  const raw = await readFile(join(outDir, session, 'events.ndjson'), 'utf-8')
+  const traces = await readdir(outDir)
+  const trace = traces.find(s => !s.startsWith('.'))!
+  const raw = await readFile(join(outDir, trace, 'events.ndjson'), 'utf-8')
   return raw.split('\n').filter(Boolean).map(line => JSON.parse(line))
 }
 
@@ -1487,17 +1487,17 @@ pnpm test
 ```
 Expected: all green.
 
-- [ ] **Step 2: Dogfood with the react-session-list demo**
+- [ ] **Step 2: Dogfood with the react-trace-list demo**
 
-Add a one-off patch to `demos/react-session-list/test/demo.spec.ts` that attaches with:
+Add a one-off patch to `demos/react-trace-list/test/demo.spec.ts` that attaches with:
 ```ts
 plugins: [...defaults(), introspection({ includeFailures: true, includeDebug: true })],
 ```
 
 Run:
 ```bash
-pnpm -C demos/react-session-list test
-pnpm exec introspect events --dir demos/react-session-list/.introspect --type 'introspect.*'
+pnpm -C demos/react-trace-list test
+pnpm exec introspect events --dir demos/react-trace-list/.introspect --type 'introspect.*'
 ```
 Expected: at least one `introspect.debug` event is visible for framework / plugin debug lines; `introspect.warning` events appear only if a recoverable failure happened during the run.
 
@@ -1546,6 +1546,6 @@ Plan complete and saved to `docs/superpowers/plans/2026-04-13-robust-failure-han
 
 **1. Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration.
 
-**2. Inline Execution** — execute tasks in this session using executing-plans, batch execution with checkpoints.
+**2. Inline Execution** — execute tasks in this trace using executing-plans, batch execution with checkpoints.
 
 Which approach?

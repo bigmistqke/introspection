@@ -30,7 +30,7 @@ test('writes endedAt + aggregate status, keeps all dirs in mode "on"', async () 
   rmSync(base, { recursive: true, force: true })
 })
 
-test('retain-on-failure deletes passing session dirs', async () => {
+test('retain-on-failure deletes passing trace dirs', async () => {
   const { base, runDir } = seedRun()
   setIntrospectConfig({ plugins: [], reporters: [], mode: 'retain-on-failure' })
   await runGlobalTeardown({ RUN_DIR: runDir } as NodeJS.ProcessEnv)

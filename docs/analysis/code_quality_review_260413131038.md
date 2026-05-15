@@ -22,7 +22,7 @@ Fix pattern: a tiny `assertShape<T>(value, keys): asserts value is T` helper or 
 
 ### 2. NDJSON parsing has no error tolerance
 
-`packages/read/src/index.ts:235` — `.map(line => JSON.parse(line))` throws on the first malformed line and aborts the entire `loadEvents` call. A single corrupted event line makes the whole session unreadable. `docs/ideas.md` already notes the `\r\n` line-split issue; this is a separate, more severe one.
+`packages/read/src/index.ts:235` — `.map(line => JSON.parse(line))` throws on the first malformed line and aborts the entire `loadEvents` call. A single corrupted event line makes the whole trace unreadable. `docs/ideas.md` already notes the `\r\n` line-split issue; this is a separate, more severe one.
 
 ### 3. Missing event-type re-exports from plugins
 
@@ -98,7 +98,7 @@ Every other workspace uses `vite@^6.0.0`. Probably an accident. `plugins/plugin-
 
 ## Recommended priority order
 
-1. Fix the NDJSON parse-any-line-kills-the-session bug (#2) — one `try/catch` in a loop, high leverage.
+1. Fix the NDJSON parse-any-line-kills-the-trace bug (#2) — one `try/catch` in a loop, high leverage.
 2. Add event type re-exports (#3) — 4 one-liners, unblocks consumer narrowing.
 3. Introduce a shared `readEvents` helper (#6) — delete 10 duplicates at once.
 4. Bus error surfacing (#4) + CDP response shape validation (#1) — same class, worth doing together.

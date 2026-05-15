@@ -1,6 +1,6 @@
 # Contributing
 
-Introspection is a Playwright-integrated tracing framework. A session records a stream of typed trace events and their associated assets to disk; **plugins are the unit of feature capture** — each one subscribes to Chrome DevTools Protocol (CDP) events or page state and emits trace events. The read side is environment-agnostic, so traces can be queried from Node, a browser, or anywhere with a `StorageAdapter`.
+Introspection is a Playwright-integrated tracing framework. A trace records a stream of typed trace events and their associated assets to disk; **plugins are the unit of feature capture** — each one subscribes to Chrome DevTools Protocol (CDP) events or page state and emits trace events. The read side is environment-agnostic, so traces can be queried from Node, a browser, or anywhere with a `StorageAdapter`.
 
 Most contributions fall into one of these shapes, roughly descending by frequency:
 
@@ -12,9 +12,9 @@ Most contributions fall into one of these shapes, roughly descending by frequenc
 
 | Package | Purpose |
 |---|---|
-| `@introspection/types` | Source of truth for all types — events, assets, plugins, sessions |
+| `@introspection/types` | Source of truth for all types — events, assets, plugins, traces |
 | `@introspection/utils` | Shared: bus, debug, CDP normalizers, snapshot, body summariser |
-| `@introspection/write` | Node-only session recording — directories, NDJSON, assets |
+| `@introspection/write` | Node-only trace recording — directories, NDJSON, assets |
 | `@introspection/read` | Environment-agnostic querying via `StorageAdapter`; reactive queries |
 | `@introspection/playwright` | Attach tracing to a Playwright page |
 | `introspect` | CLI for querying traces |
@@ -25,7 +25,7 @@ Plugins live in `plugins/`. Demos in `demos/`.
 
 ## Plugins
 
-A plugin is a **factory function** that returns an `IntrospectionPlugin`. At session startup, `attach()` calls `install(ctx)` once per plugin; the plugin wires up CDP subscriptions and emits trace events from within.
+A plugin is a **factory function** that returns an `IntrospectionPlugin`. At trace startup, `attach()` calls `install(ctx)` once per plugin; the plugin wires up CDP subscriptions and emits trace events from within.
 
 ```ts
 import type { IntrospectionPlugin, PluginContext } from '@introspection/types'
@@ -56,9 +56,9 @@ Plugins are always factories (never singletons) so callers can pass per-instance
 | `ctx.page` | You need to `evaluate` browser JS from the plugin side. Minimal — prefer CDP when possible. |
 | `ctx.cdpSession.send(method, parameters)` | Issue a CDP command. Returns the typed result. |
 | `ctx.cdpSession.on(event, handler)` | Subscribe to a specific CDP event. |
-| `ctx.rawCdpSession` | **Escape hatch** — instrumentation plugins only (see `plugin-cdp`). Mutating it affects every plugin in the session. |
+| `ctx.rawCdpSession` | **Escape hatch** — instrumentation plugins only (see `plugin-cdp`). Mutating it affects every plugin in the trace. |
 | `ctx.emit(event)` | Emit a trace event. Fire-and-forget is safe — the write queue is advanced synchronously and `handle.flush()` awaits the tail. |
-| `ctx.writeAsset({ kind, content, ext? })` | Persist binary/text content to the session's assets directory. Returns an `AssetRef` to attach to an event via `event.assets`. |
+| `ctx.writeAsset({ kind, content, ext? })` | Persist binary/text content to the trace's assets directory. Returns an `AssetRef` to attach to an event via `event.assets`. |
 | `ctx.timestamp()` | Current ms-since-test-start; matches the timestamp stamped onto events. |
 | `ctx.bus.on(trigger, handler)` | Subscribe to trace events (typed) or lifecycle triggers (`manual`, `detach`, `snapshot`). Use this when a plugin reacts to another plugin's events without coupling to it. |
 | `ctx.bus.emit(trigger, payload)` | Fire a lifecycle trigger. `ctx.emit` already fires on the bus; don't double-emit. |
@@ -67,7 +67,7 @@ Plugins are always factories (never singletons) so callers can pass per-instance
 
 ### Emitting events & writing assets
 
-`ctx.emit(event)` is fire-and-forget-safe: internally it synchronously pushes to the session's write queue, and `session.flush()` returns that queue's tail. Every emit before flush is awaited.
+`ctx.emit(event)` is fire-and-forget-safe: internally it synchronously pushes to the trace's write queue, and `trace.flush()` returns that queue's tail. Every emit before flush is awaited.
 
 When a payload is too large or too binary for event metadata, write it as an asset and link it:
 
@@ -125,7 +125,7 @@ When considering a new framework/library plugin, work backward from the target l
 
 ### Testing plugins
 
-Plugins are tested end-to-end with real Playwright against a real browser. **No mocking** — a mocked CDP session tests your mock, not your plugin.
+Plugins are tested end-to-end with real Playwright against a real browser. **No mocking** — a mocked CDP trace tests your mock, not your plugin.
 
 Standard scaffold (see `plugins/plugin-js-error/test/js-error.spec.ts` for a minimal version, `plugins/plugin-network/test/network.spec.ts` for one with an HTTP server):
 
@@ -170,7 +170,7 @@ Rules to follow:
 
 - **Import from `dist/`, not `src/`.** Tests run against the built output to mirror consumer usage. `pnpm build` before `pnpm test`.
 - **`await handle.flush()` before reading events.** Flush drains the CDP event queue (no-op roundtrip) and awaits the write queue tail.
-- **`await handle.detach()` to finalize the session** and close the CDP channel.
+- **`await handle.detach()` to finalize the trace** and close the CDP channel.
 - **Unique tmp directory per test** via `mkdtemp`. Tests run serially but shared state is still a footgun.
 - **For network-body tests, use a real HTTP server.** Playwright's `route.fulfill` is served via Fetch.fulfillRequest; `Network.getResponseBody` returns "No data found" and `loadingFinished` never fires. See `plugin-network`'s test for the pattern.
 - **Assert on behavior, not type shape.** The type checker covers shape. Tests verify that events actually fire, values match, assets land on disk, etc.

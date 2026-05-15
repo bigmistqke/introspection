@@ -23,7 +23,7 @@ async function readEvents(outDirectory: string) {
   return ndjson.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
 }
 
-async function getSessionId(outDirectory: string) {
+async function getTraceId(outDirectory: string) {
   const entries = await readdir(outDirectory)
   return entries[0]
 }
@@ -52,10 +52,10 @@ test('captures exception pause', async ({ page }) => {
   const ref = captureEvent.payloads!.value
   expect(ref).toMatchObject({ kind: 'asset' })
 
-  const sessionId = await getSessionId(outDir)
+  const traceId = await getTraceId(outDir)
   const assetPath = (ref as PayloadAsset).path
   const assetContent = await readFile(
-    join(outDir, sessionId, assetPath),
+    join(outDir, traceId, assetPath),
     'utf-8'
   )
   const capture = JSON.parse(assetContent)
@@ -89,10 +89,10 @@ test('captures debugger statement pause', async ({ page }) => {
   const ref = captureEvent.payloads!.value
   expect(ref).toMatchObject({ kind: 'asset' })
 
-  const sessionId = await getSessionId(outDir)
+  const traceId = await getTraceId(outDir)
   const assetPath = (ref as PayloadAsset).path
   const assetContent = await readFile(
-    join(outDir, sessionId, assetPath),
+    join(outDir, traceId, assetPath),
     'utf-8'
   )
   const capture = JSON.parse(assetContent)
@@ -122,10 +122,10 @@ test('captures manual capture via client binding', async ({ page }) => {
   const ref = captureEvent.payloads!.value
   expect(ref).toMatchObject({ kind: 'asset' })
 
-  const sessionId = await getSessionId(outDir)
+  const traceId = await getTraceId(outDir)
   const assetPath = (ref as PayloadAsset).path
   const assetContent = await readFile(
-    join(outDir, sessionId, assetPath),
+    join(outDir, traceId, assetPath),
     'utf-8'
   )
   const capture = JSON.parse(assetContent)

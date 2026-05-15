@@ -6,7 +6,7 @@ This is a vision document, not a single implementable spec. It defines the targe
 
 ## Vision
 
-Introspection becomes the canonical tracing primitive for Playwright projects. Adoption is two touch points: `withIntrospect(defineConfig({...}), { plugins, reporters })` in `playwright.config.ts`, and `import { test, expect } from '@introspection/playwright'` in test files. From there: every test produces a per-test session directory under a per-run parent (`.introspect/<run-id>/<test-id>/`) containing an NDJSON event stream, an assets folder, and a `meta.json`. Plugins capture app- and page-level state into the stream during the test. Reporters consume per-test events live and write derived artifacts — per-test files, or run-level files via atomic `O_APPEND`. Post-hoc, humans and LLMs query the NDJSON directly via the `introspect` CLI; viewers are built per-project in userspace, on top of the same NDJSON. Introspection itself ships only capture, the Reporter API, plugins, and the CLI — no bundled viewer. Playwright's built-in `trace.zip` is replaced, not augmented.
+Introspection becomes the canonical tracing primitive for Playwright projects. Adoption is two touch points: `withIntrospect(defineConfig({...}), { plugins, reporters })` in `playwright.config.ts`, and `import { test, expect } from '@introspection/playwright'` in test files. From there: every test produces a per-test trace directory under a per-run parent (`.introspect/<run-id>/<test-id>/`) containing an NDJSON event stream, an assets folder, and a `meta.json`. Plugins capture app- and page-level state into the stream during the test. Reporters consume per-test events live and write derived artifacts — per-test files, or run-level files via atomic `O_APPEND`. Post-hoc, humans and LLMs query the NDJSON directly via the `introspect` CLI; viewers are built per-project in userspace, on top of the same NDJSON. Introspection itself ships only capture, the Reporter API, plugins, and the CLI — no bundled viewer. Playwright's built-in `trace.zip` is replaced, not augmented.
 
 ### Capture is granular; retention is configurable
 
@@ -16,7 +16,7 @@ Introspection separates the two concerns:
 
 **Capture is granular and always on, owned by the plugin list.** There is no monolithic "tracing" to turn on or off — there is the **union of plugins you register**. If you register `redux()` and `network()`, you trace Redux actions and network requests, and nothing else. If you add `domSnapshot()` with a sample rate, you also get DOM snapshots at that rate. The control surface is the plugin list, where each plugin owns its domain, its data shape, and its cost. The redefinition introspection is pushing here is: *tracing is the lens you debug through, composed of the specific observations you care about — not a blanket recording.*
 
-**Retention is a separate dimension and does take a mode.** Even with granular plugins, "do I want a session directory for every passing test, forever?" is a real question — disk in CI, signal-to-noise locally. `withIntrospect` accepts a `mode` field that controls retention only:
+**Retention is a separate dimension and does take a mode.** Even with granular plugins, "do I want a trace directory for every passing test, forever?" is a real question — disk in CI, signal-to-noise locally. `withIntrospect` accepts a `mode` field that controls retention only:
 
 | `mode` | Capture during the test | Retained on disk afterwards |
 |---|---|---|
@@ -24,7 +24,7 @@ Introspection separates the two concerns:
 | `'retain-on-failure'` | full | only for tests whose final status is `failed`, `timedOut`, `interrupted`, or `crashed` |
 | `'on-first-retry'` | no-op handle when `testInfo.retry === 0`; full on retries | matches what was captured |
 
-`'on-first-retry'` is implementable cleanly because `testInfo.retry` is worker-side; no cross-process signaling needed. `'retain-on-failure'` is implemented by a built-in retention step (either in `globalTeardown` or in the auto-fixture's teardown after status is known): it deletes the per-test session directory for passing tests. `tests.jsonl` summary lines emit for everything regardless of mode — you want to see what passed at the summary level.
+`'on-first-retry'` is implementable cleanly because `testInfo.retry` is worker-side; no cross-process signaling needed. `'retain-on-failure'` is implemented by a built-in retention step (either in `globalTeardown` or in the auto-fixture's teardown after status is known): it deletes the per-test trace directory for passing tests. `tests.jsonl` summary lines emit for everything regardless of mode — you want to see what passed at the summary level.
 
 **Operator override:** `INTROSPECT_TRACING=0` in the environment fully disables introspection for that run, regardless of configured `mode`. `globalSetup` skips creating the run directory; the auto-fixture short-circuits to a no-op handle; no plugins install, no events emit, no reporters run. This is for emergencies (debugging a Playwright-only issue, isolating cost in CI, running on a read-only filesystem) — config still describes steady-state intent; the env var is the override.
 
@@ -34,7 +34,7 @@ Introspection separates the two concerns:
 
 - A Playwright-aware entry point (`@introspection/playwright`) that wraps `defineConfig` and extends `test`, providing the entire adoption surface a Playwright project needs.
 - A two-process model: a runner-side `globalSetup`/`globalTeardown` for run-level state (run id, run directory, env propagation), and a worker-side auto-fixture for per-test capture.
-- A hybrid session layout: one directory per run, one sub-directory per test.
+- A hybrid trace layout: one directory per run, one sub-directory per test.
 - Reporters that run live during capture only; no post-hoc reporter replay.
 - Step capture via Playwright's worker-side step hook, with a `test.extend` step-wrapper fallback when the internal hook is unavailable.
 - Run-level aggregation (e.g., `tests.jsonl`) via per-worker reporters appending to a shared file with POSIX `O_APPEND` atomicity. No central coordinator.
@@ -47,7 +47,7 @@ Introspection separates the two concerns:
 - `replayReporters` and any post-hoc reporter execution. Reporters run live; whatever they wrote at capture time is the artifact.
 - Augmenting (rather than replacing) `trace.zip`. Recommendation: users disable Playwright tracing when adopting introspection.
 - A "non-test-runner" stance at the entry-point level. The *internals* (writer, plugin contract, NDJSON format, CLI, asset model) remain Playwright-agnostic and reusable by ad-hoc capture scripts, but the canonical adoption path is Playwright-shaped.
-- Cross-session reporters or cross-run aggregation. Users can run any post-hoc tooling against multiple run directories themselves.
+- Cross-trace reporters or cross-run aggregation. Users can run any post-hoc tooling against multiple run directories themselves.
 
 ## Architecture
 
@@ -77,7 +77,7 @@ Introspection separates the two concerns:
                                        │                              │
                                        │  per test:                   │
                                        │   1. loadInjectedConfig()    │
-                                       │   2. createSessionWriter({   │
+                                       │   2. createTraceWriter({   │
                                        │        outDir:               │
                                        │          <run>/<test>/,      │
                                        │        plugins,              │
@@ -85,7 +85,7 @@ Introspection separates the two concerns:
                                        │      })                      │
                                        │   3. attach(page) →          │
                                        │      plugins capture into    │
-                                       │      session.bus → NDJSON    │
+                                       │      trace.bus → NDJSON    │
                                        │   4. register step listener  │
                                        │      on testInfo →           │
                                        │      step.start/end events   │
@@ -130,7 +130,7 @@ Introspection separates the two concerns:
 | Package | Role | Playwright-aware? |
 |---|---|---|
 | `@introspection/playwright` | `withIntrospect`, extended `test`, `globalSetup`/`globalTeardown`, step capture. The only Playwright-coupled package. | yes |
-| `@introspection/write` | `createSessionWriter`, bus, NDJSON writer, assets, reporter lifecycle. | no |
+| `@introspection/write` | `createTraceWriter`, bus, NDJSON writer, assets, reporter lifecycle. | no |
 | `@introspection/types` | Event shapes, plugin and reporter interfaces. No runtime. | no |
 | `@introspection/config` | `defineIntrospectConfig`, plugin/reporter type contracts, named presets. | no |
 | `@introspection/plugins` | Individual capture plugins (Redux, IndexedDB, network, console, DOM snapshot, ...). | no |
@@ -142,7 +142,7 @@ Introspection separates the two concerns:
 Playwright runs the test runner in one process and N test workers in separate processes. Workers own the Page; only workers can call CDP, run plugins against the page, or write per-test NDJSON. The runner owns the run lifecycle (and Playwright's own Reporter API). Our model honors this split:
 
 - The runner picks the run id and creates the run directory. It exports that path to workers via environment variables.
-- Each worker, on first fixture use, loads the introspection config and creates per-test session writers under the shared run directory.
+- Each worker, on first fixture use, loads the introspection config and creates per-test trace writers under the shared run directory.
 - Workers never talk to each other or to the runner at runtime. They cooperate only through filesystem semantics (per-test sub-directories are non-overlapping; the run-level `tests.jsonl` uses atomic `O_APPEND`).
 - We do *not* use Playwright's Reporter API to bridge the split. `globalSetup` + `globalTeardown` are sufficient for run lifecycle, and worker-side step hooks (see below) are sufficient for step capture.
 
@@ -217,7 +217,7 @@ The NDJSON stream is the contract. Every consumer reads it: reporters at capture
 
 | Source | Events | Emitted by |
 |---|---|---|
-| Lifecycle | `session.start`, `session.end`, `test.start`, `test.end` | Auto-fixture |
+| Lifecycle | `trace.start`, `trace.end`, `test.start`, `test.end` | Auto-fixture |
 | Steps | `step.start`, `step.end` (with `category`) | Auto-fixture via Playwright step hook |
 | Page | `page.created`, `page.closed`, `page.navigated` | `@introspection/playwright` core |
 | Plugins | `redux.action`, `redux.state`, `indexeddb.snapshot`, `network.request`, `console.message`, `dom.snapshot`, ... | Each plugin |
@@ -230,7 +230,7 @@ Per-test `meta.json` denormalizes the identity bits (`titlePath`, `status`, `dur
 
 | Failure | Behavior |
 |---|---|
-| Plugin throws during capture | Caught, surfaced as `introspect:warning` on the bus, plugin disabled for the rest of the session. Test continues; the captured stream remains valid. |
+| Plugin throws during capture | Caught, surfaced as `introspect:warning` on the bus, plugin disabled for the rest of the trace. Test continues; the captured stream remains valid. |
 | Reporter throws in `onEvent` / `onTestEnd` / etc. | Caught, warned, reporter disabled for the rest of the worker's lifetime. Other reporters keep running. |
 | Worker crashes mid-test | The in-flight test directory exists with partial NDJSON and no `meta.json`. CLI surfaces `status: 'crashed'` (derived from "no `test.end` event and no `meta.json`"). Other tests in other workers unaffected. |
 | `globalSetup` fails | Playwright fails the run before any worker starts. Normal Playwright error flow. |

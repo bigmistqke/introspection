@@ -36,7 +36,7 @@ test('emits an install snapshot containing pre-existing keys', async ({ page }) 
 
   expect(installSnapshot).toBeDefined()
   expect(installSnapshot.metadata.localStorage).toEqual({ 'preexisting-local': 'l-1' })
-  expect(installSnapshot.metadata.sessionStorage).toEqual({ 'preexisting-session': 's-1' })
+  expect(installSnapshot.metadata.sessionStorage).toEqual({ 'preexisting-trace': 's-1' })
   expect(typeof installSnapshot.metadata.origin).toBe('string')
 })
 
@@ -50,7 +50,7 @@ test('captures setItem, removeItem, and clear with old/new values', async ({ pag
     localStorage.setItem('foo', 'baz')           // overwrite
     sessionStorage.setItem('s', '1')
     localStorage.removeItem('foo')
-    sessionStorage.clear()                       // clears 'preexisting-session' and 's'
+    sessionStorage.clear()                       // clears 'preexisting-trace' and 's'
   })
   await new Promise(r => setTimeout(r, 200))
   await handle.detach()
@@ -94,7 +94,7 @@ test('captures setItem, removeItem, and clear with old/new values', async ({ pag
     storageType: 'sessionStorage',
     operation: 'clear',
   })
-  expect(new Set(writes[4].metadata.clearedKeys)).toEqual(new Set(['preexisting-session', 's']))
+  expect(new Set(writes[4].metadata.clearedKeys)).toEqual(new Set(['preexisting-trace', 's']))
 })
 
 test('captures getItem when reads option is enabled', async ({ page }) => {

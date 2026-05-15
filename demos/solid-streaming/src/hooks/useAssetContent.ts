@@ -1,5 +1,5 @@
 import { createSignal, createEffect, type Accessor } from 'solid-js'
-import type { SessionReader, PayloadAsset } from '@introspection/types'
+import type { TraceReader, PayloadAsset } from '@introspection/types'
 import { useWatchedQuery } from './useWatchedQuery.js'
 
 export interface AssetWithContent {
@@ -13,15 +13,15 @@ export interface AssetWithContent {
  * Only fetches content for newly added assets.
  */
 export function useAssetContent(
-  getSession: Accessor<SessionReader | undefined>,
+  getTrace: Accessor<TraceReader | undefined>,
 ) {
-  const events = useWatchedQuery(getSession)
+  const events = useWatchedQuery(getTrace)
   const [assets, setAssets] = createSignal<AssetWithContent[]>([])
   const fetchedPaths = new Set<string>()
 
   createEffect(() => {
-    const session = getSession()
-    if (!session) return
+    const trace = getTrace()
+    if (!trace) return
 
     const newAssets: PayloadAsset[] = []
     for (const event of events) {
@@ -47,7 +47,7 @@ export function useAssetContent(
 
       if (asset.format === 'image') continue
 
-      session.resolvePayload(asset).then(content => {
+      trace.resolvePayload(asset).then(content => {
         setAssets(previous => previous.map(item =>
           item.asset.path === asset.path ? { ...item, content: content as string, loading: false } : item
         ))

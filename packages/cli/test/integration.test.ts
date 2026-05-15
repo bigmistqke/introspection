@@ -17,7 +17,7 @@ let dir: string
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'introspect-cli-int-'))
 
-  // run-old (older), run-new (newer); run-new has two sessions
+  // run-old (older), run-new (newer); run-new has two traces
   await mkdir(join(dir, 'run-old', 'sess-o'), { recursive: true })
   await writeFile(join(dir, 'run-old', 'meta.json'), JSON.stringify({ version: '1', id: 'run-old', startedAt: 100, endedAt: 200, status: 'passed', branch: 'main' }))
   await writeFile(join(dir, 'run-old', 'sess-o', 'meta.json'), JSON.stringify({ version: '2', id: 'sess-o', startedAt: 110, endedAt: 190, status: 'passed', project: 'p' }))
@@ -57,14 +57,14 @@ describe('introspect CLI — hierarchy navigation', () => {
     expect(out).not.toContain('sess-early')
   })
 
-  it('summary with no flags resolves the latest session of the latest run', () => {
-    // sess-late is the newest session of the newest run; buildSummary shows its label
+  it('summary with no flags resolves the latest trace of the latest run', () => {
+    // sess-late is the newest trace of the newest run; buildSummary shows its label
     const out = runCli(['summary', '--dir', dir])
     expect(out).toContain('the late one')
   })
 
-  it('summary --run --session-id targets a specific session', () => {
-    const out = runCli(['summary', '--dir', dir, '--run', 'run-old', '--session-id', 'sess-o'])
+  it('summary --run --trace-id targets a specific trace', () => {
+    const out = runCli(['summary', '--dir', dir, '--run', 'run-old', '--trace-id', 'sess-o'])
     expect(out).toContain('sess-o')
   })
 })

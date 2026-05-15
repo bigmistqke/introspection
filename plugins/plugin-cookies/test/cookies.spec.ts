@@ -28,7 +28,7 @@ async function readEvents(outDir: string) {
 test('emits an install snapshot containing pre-existing cookies', async ({ page, context }) => {
   const url = new URL(fixture.url)
   await context.addCookies([
-    { name: 'session', value: 'abc', domain: url.hostname, path: '/', httpOnly: true, secure: false, sameSite: 'Lax' },
+    { name: 'trace', value: 'abc', domain: url.hostname, path: '/', httpOnly: true, secure: false, sameSite: 'Lax' },
     { name: 'theme', value: 'dark', domain: url.hostname, path: '/' },
   ])
 
@@ -43,11 +43,11 @@ test('emits an install snapshot containing pre-existing cookies', async ({ page,
   )
   expect(installSnapshot).toBeDefined()
 
-  const session = installSnapshot.metadata.cookies.find((c: { name: string }) => c.name === 'session')
-  expect(session).toBeDefined()
-  expect(session.value).toBe('abc')
-  expect(session.httpOnly).toBe(true)
-  expect(session.sameSite).toBe('Lax')
+  const trace = installSnapshot.metadata.cookies.find((c: { name: string }) => c.name === 'trace')
+  expect(trace).toBeDefined()
+  expect(trace.value).toBe('abc')
+  expect(trace.httpOnly).toBe(true)
+  expect(trace.sameSite).toBe('Lax')
 
   const theme = installSnapshot.metadata.cookies.find((c: { name: string }) => c.name === 'theme')
   expect(theme).toBeDefined()
@@ -198,15 +198,15 @@ test('emits a snapshot on js.error', async ({ page }) => {
 test('names option filters writes and snapshot entries', async ({ page, context }) => {
   const url = new URL(fixture.url)
   await context.addCookies([
-    { name: 'session', value: 'abc', domain: url.hostname, path: '/' },
+    { name: 'trace', value: 'abc', domain: url.hostname, path: '/' },
     { name: 'tracker', value: 'xyz', domain: url.hostname, path: '/' },
   ])
 
   await page.goto(fixture.url)
-  const handle = await attach(page, { outDir: dir, plugins: [cookies({ names: ['session'] })] })
+  const handle = await attach(page, { outDir: dir, plugins: [cookies({ names: ['trace'] })] })
 
   await page.evaluate(() => {
-    document.cookie = 'session=fresh'
+    document.cookie = 'trace=fresh'
     document.cookie = 'tracker=t2'
   })
   await new Promise(r => setTimeout(r, 150))
@@ -216,12 +216,12 @@ test('names option filters writes and snapshot entries', async ({ page, context 
 
   const writes = events.filter((e: { type: string }) => e.type === 'cookie.write')
   expect(writes).toHaveLength(1)
-  expect(writes[0].metadata.name).toBe('session')
+  expect(writes[0].metadata.name).toBe('trace')
 
   const installSnapshot = events.find((e: { type: string; metadata: { trigger: string } }) =>
     e.type === 'cookie.snapshot' && e.metadata.trigger === 'install'
   )
-  expect(installSnapshot.metadata.cookies.map((c: { name: string }) => c.name)).toEqual(['session'])
+  expect(installSnapshot.metadata.cookies.map((c: { name: string }) => c.name)).toEqual(['trace'])
 })
 
 test('origins option filters cookies whose domain does not match', async ({ page, context }) => {

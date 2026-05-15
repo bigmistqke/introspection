@@ -1,6 +1,6 @@
 import { test as base, expect } from '@playwright/test'
 import type { IntrospectHandle } from '@introspection/types'
-import { createSessionWriter } from '@introspection/write'
+import { createTraceWriter } from '@introspection/write'
 import { attach, toPluginMetas } from './attach.js'
 import { getIntrospectConfig } from './config-store.js'
 import { installStepCapture } from './step-capture.js'
@@ -32,7 +32,7 @@ export const test = base.extend<{ introspect: IntrospectHandle | undefined }>({
       }
 
       const project = testInfo.project.name || 'default'
-      const session = await createSessionWriter({
+      const trace = await createTraceWriter({
         outDir: runDir,
         id: testIdFor(testInfo),
         label: testInfo.title,
@@ -40,10 +40,10 @@ export const test = base.extend<{ introspect: IntrospectHandle | undefined }>({
         plugins: toPluginMetas(config.plugins),
         reporters: config.reporters,
       })
-      const handle = await attach(page, { session, plugins: config.plugins })
-      const stopStepCapture = installStepCapture(testInfo, session)
+      const handle = await attach(page, { trace, plugins: config.plugins })
+      const stopStepCapture = installStepCapture(testInfo, trace)
 
-      await session.emit({
+      await trace.emit({
         type: 'test.start',
         metadata: { label: testInfo.title, titlePath: testInfo.titlePath },
       })
@@ -54,7 +54,7 @@ export const test = base.extend<{ introspect: IntrospectHandle | undefined }>({
       if (status !== 'passed' && status !== 'skipped') {
         await handle.snapshot().catch(() => {})
       }
-      await session.emit({
+      await trace.emit({
         type: 'test.end',
         metadata: {
           label: testInfo.title,
@@ -67,7 +67,7 @@ export const test = base.extend<{ introspect: IntrospectHandle | undefined }>({
 
       stopStepCapture()
       await handle.detach()
-      await session.finalize({ status })
+      await trace.finalize({ status })
     },
     { auto: true },
   ],

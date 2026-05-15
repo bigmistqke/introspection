@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, readFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { createSessionWriter } from '@introspection/write'
+import { createTraceWriter } from '@introspection/write'
 import { summaryReporter } from '../src/index.js'
 
 let outDir: string
@@ -17,7 +17,7 @@ afterEach(async () => {
 
 describe('summaryReporter', () => {
   it('appends one JSON line per test to outFile with the default shape', async () => {
-    const writer = await createSessionWriter({
+    const writer = await createTraceWriter({
       outDir,
       id: 's',
       reporters: [summaryReporter({ outFile: 'tests.jsonl' })],
@@ -55,7 +55,7 @@ describe('summaryReporter', () => {
   })
 
   it('uses a custom format projector when provided', async () => {
-    const writer = await createSessionWriter({
+    const writer = await createTraceWriter({
       outDir,
       id: 's',
       reporters: [summaryReporter({
@@ -77,7 +77,7 @@ describe('summaryReporter', () => {
   // the atomicity guarantee differs. The repo currently targets POSIX dev/CI.
   it('produces non-interleaved lines when two writers append concurrently', async () => {
     async function runWriter(id: string, label: string, count: number) {
-      const writer = await createSessionWriter({
+      const writer = await createTraceWriter({
         outDir,
         id,
         reporters: [summaryReporter({ outFile: 'tests.jsonl' })],

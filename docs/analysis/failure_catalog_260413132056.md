@@ -12,8 +12,8 @@ Paths are relative to `/Users/bigmistqke/Documents/GitHub/introspection`.
 
 - `packages/utils/src/summarise-body.ts:5` — `JSON.parse(raw)` — catches parse failures; returns empty default on error.
 - `packages/read/src/node.ts:17` — `readdir(dir)` — catches directory read failures in `listDirectories()`; swallows silently, returns empty array.
-- `packages/read/src/index.ts:48` — `adapter.readText(...)` + `JSON.parse(raw)` — catches read/parse failures in `listSessions()`; swallows silently, skips malformed session (comment: `// skip malformed sessions`).
-- `packages/read/src/index.ts:217` — `adapter.readText(...)` + `JSON.parse(raw)` — catches read/parse failures in `getLatestSessionId()`; swallows silently, defaults `startedAt` to 0.
+- `packages/read/src/index.ts:48` — `adapter.readText(...)` + `JSON.parse(raw)` — catches read/parse failures in `listTraces()`; swallows silently, skips malformed trace (comment: `// skip malformed traces`).
+- `packages/read/src/index.ts:217` — `adapter.readText(...)` + `JSON.parse(raw)` — catches read/parse failures in `getLatestTraceId()`; swallows silently, defaults `startedAt` to 0.
 - `packages/playwright/src/snapshot.ts:26` — `cdpSession.send('DOM.getDocument')` — catches CDP command failure; swallows silently (`/* non-fatal */`), leaves `dom` empty string.
 - `packages/playwright/src/snapshot.ts:37` — `cdpSession.send('Runtime.getProperties')` — catches CDP command failure; swallows silently (`/* non-fatal */`), skips this scope frame.
 - `packages/playwright/src/snapshot.ts:52` — `cdpSession.send('Runtime.evaluate', …)` — catches CDP command failure; swallows silently (`/* non-fatal */`), skips this global variable.
@@ -43,13 +43,13 @@ Paths are relative to `/Users/bigmistqke/Documents/GitHub/introspection`.
 
 ### Core packages
 
-- `packages/write/src/session.ts:18` — `pending = result.then(() => {}, () => {})` on write-queue pending chain — swallows all errors; disk failures (`ENOSPC`/`EACCES`) during `appendEvent` become resolved state.
+- `packages/write/src/trace.ts:18` — `pending = result.then(() => {}, () => {})` on write-queue pending chain — swallows all errors; disk failures (`ENOSPC`/`EACCES`) during `appendEvent` become resolved state.
 - `packages/playwright/src/attach.ts:82` — `.catch(() => {})` on `cdpSession.send('Runtime.evaluate', unwatchExpression)` — swallows silently; unwatch failure non-fatal.
 - `packages/playwright/src/attach.ts:111` — `.catch(() => {})` on `page.evaluate(plugin.script)` — swallows silently; plugin-script eval failures not reported.
 - `packages/playwright/src/attach.ts:163` — `.catch(() => {})` on `cdpSession.send('Runtime.evaluate', { expression: '0' })` flush roundtrip — swallows silently; no-op roundtrip failure non-fatal.
 - `packages/playwright/src/attach.ts:176` — `.catch(() => {})` on bulk unwatch during detach — swallows silently; unwatch on detach non-fatal.
 - `packages/playwright/src/attach.ts:179` — `.catch(() => {})` on `cdp.detach()` — swallows silently.
-- `packages/playwright/src/session.ts:91` — `.catch(() => {})` on `handle.snapshot()` — swallows silently; auto-snapshot on test failure non-fatal.
+- `packages/playwright/src/trace.ts:91` — `.catch(() => {})` on `handle.snapshot()` — swallows silently; auto-snapshot on test failure non-fatal.
 - `packages/cli/src/commands/debug.ts:164` — `.on('error', …)` listener on `createReadStream(filePath)` — responds with 404 and ends response.
 - `packages/utils/src/bus.ts:22` — `Promise.allSettled(registered.map(h => Promise.resolve().then(() => h(payload))))` — handler rejections are collected by `allSettled` and discarded; a plugin handler that throws is invisible.
 
@@ -69,10 +69,10 @@ Paths are relative to `/Users/bigmistqke/Documents/GitHub/introspection`.
 
 ### Core packages
 
-- `packages/write/src/session-writer.ts:16` — `throw new Error('Session directory already exists: …')` — triggered when session directory already exists; propagates to caller of `initSessionDir`.
-- `packages/read/src/index.ts:80` — `throw new Error('No sessions found')` — no sessions available; propagates to caller of `createSessionReader`.
-- `packages/playwright/src/session.ts:55` — `throw new Error('session not initialized — attach must be called inside a test')` — `sessionRef` is null on attach; propagates to caller.
-- `packages/playwright/src/session.ts:72` — `throw new Error('session not initialized')` — `currentSession` is null in test wrapper; propagates to caller.
+- `packages/write/src/trace-writer.ts:16` — `throw new Error('Trace directory already exists: …')` — triggered when trace directory already exists; propagates to caller of `initTraceDir`.
+- `packages/read/src/index.ts:80` — `throw new Error('No traces found')` — no traces available; propagates to caller of `createTraceReader`.
+- `packages/playwright/src/trace.ts:55` — `throw new Error('trace not initialized — attach must be called inside a test')` — `traceRef` is null on attach; propagates to caller.
+- `packages/playwright/src/trace.ts:72` — `throw new Error('trace not initialized')` — `currentTrace` is null in test wrapper; propagates to caller.
 - `packages/cli/src/commands/debug.ts:25` — `throw new Error('Either url or --serve must be provided')` — neither provided; propagates.
 - `packages/cli/src/commands/debug.ts:29` — `throw new Error('Cannot use both url and --serve')` — both provided; propagates.
 - `packages/cli/src/commands/debug.ts:60` — `throw new Error('Config must export default object with plugins array')` — config loaded but invalid shape; propagates.
@@ -99,16 +99,16 @@ Paths are relative to `/Users/bigmistqke/Documents/GitHub/introspection`.
 
 ### D1. `JSON.parse(x)` without try/catch
 
-- `packages/write/src/session-writer.ts:52` — `JSON.parse(await readFile(metaPath, 'utf-8'))` in `finalizeSession`; SyntaxError if `meta.json` corrupted.
-- `packages/read/src/index.ts:83` — `JSON.parse(metaRaw)` in `createSessionReader` after readText succeeds; SyntaxError if `meta.json` corrupted.
-- `packages/read/src/index.ts:235` — `.map(line => JSON.parse(line))` in `loadEvents`; a single malformed line throws and aborts the whole map, making the entire session unreadable.
+- `packages/write/src/trace-writer.ts:52` — `JSON.parse(await readFile(metaPath, 'utf-8'))` in `finalizeTrace`; SyntaxError if `meta.json` corrupted.
+- `packages/read/src/index.ts:83` — `JSON.parse(metaRaw)` in `createTraceReader` after readText succeeds; SyntaxError if `meta.json` corrupted.
+- `packages/read/src/index.ts:235` — `.map(line => JSON.parse(line))` in `loadEvents`; a single malformed line throws and aborts the whole map, making the entire trace unreadable.
 - `packages/playwright/src/attach.ts:100` — `JSON.parse(bindingCall.payload) as EmitInput` — inside try/catch but the type assertion is unvalidated; a parsed object missing required fields reaches `emit()`.
 - `plugins/plugin-react-scan/src/index.ts:49` — `JSON.parse(result.result.value)` in `report()` path; malformed JSON throws.
 
 ### D2. `JSON.stringify(x)` without try/catch (circular/BigInt/Symbol risk)
 
-- `packages/write/src/session-writer.ts:25` — `JSON.stringify(meta, null, 2)` in `initSessionDir`.
-- `packages/write/src/session-writer.ts:30` — `JSON.stringify(event)` in `appendEvent`; an event containing circular refs / BigInt / Symbol would throw and the write fails.
+- `packages/write/src/trace-writer.ts:25` — `JSON.stringify(meta, null, 2)` in `initTraceDir`.
+- `packages/write/src/trace-writer.ts:30` — `JSON.stringify(event)` in `appendEvent`; an event containing circular refs / BigInt / Symbol would throw and the write fails.
 - `packages/playwright/src/attach.ts:73` — `JSON.stringify(spec)` — injected into browser evaluation; throws on circular/BigInt/Symbol in spec.
 - `packages/playwright/src/attach.ts:81` — `JSON.stringify(subscription.browserId)` — injected into unwatch expression.
 - `packages/playwright/src/attach.ts:121` — `JSON.stringify(subscription.spec)` — injected into navigation recovery loop.
@@ -165,7 +165,7 @@ Paths are relative to `/Users/bigmistqke/Documents/GitHub/introspection`.
 - `packages/playwright/src/snapshot.ts:38-39` — cast on `cdp.send('Runtime.getProperties')`; result array access without bounds check.
 - `packages/playwright/src/snapshot.ts:53-55` — cast on `cdp.send('Runtime.evaluate')`; `result.value` accessed without null check.
 - `packages/utils/src/cdp.ts:44-48` — type assertions on `frame.lineNumber` / `frame.columnNumber` without null checks.
-- `plugins/plugin-cdp/src/index.ts:41` — `session as unknown as { send: …; emit: … }` — raw CDPSession cast; missing methods cause TypeError at call-time.
+- `plugins/plugin-cdp/src/index.ts:41` — `trace as unknown as { send: …; emit: … }` — raw CDPSession cast; missing methods cause TypeError at call-time.
 - `plugins/plugin-console/src/index.ts:32` — `rawParams as { type: string; args: Array<{ type: string; value?: string; description?: string }>; timestamp: number }` — if CDP returns different shape, destructuring fails silently.
 - `plugins/plugin-debugger/src/index.ts:68` — `rawParams as { name: string; payload: string }`.
 - `plugins/plugin-debugger/src/index.ts:77` — `rawParams as { reason: string; data?: Record<string, unknown>; callFrames?: Array<…> }`.

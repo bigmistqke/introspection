@@ -1,6 +1,6 @@
 # @introspection/playwright
 
-Attaches CDP-based tracing to a Playwright `Page`. Captures network requests, JS errors with scope locals, DOM snapshots, and Playwright actions into a structured NDJSON session on disk.
+Attaches CDP-based tracing to a Playwright `Page`. Captures network requests, JS errors with scope locals, DOM snapshots, and Playwright actions into a structured NDJSON trace on disk.
 
 ## Table of contents
 
@@ -35,14 +35,14 @@ Use `handle.page` (the proxy-wrapped page) instead of the original — it record
 function attach(page: Page, opts: AttachOptions): Promise<IntrospectHandle>
 ```
 
-Opens a CDP session on the page and begins recording. CDP domains are enabled by the plugins passed in `opts.plugins`.
+Opens a CDP trace on the page and begins recording. CDP domains are enabled by the plugins passed in `opts.plugins`.
 
 ### Options
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `outDir` | `string` | `'.introspect'` | Directory to write session files |
-| `testTitle` | `string` | `'unknown test'` | Label stored in session metadata |
+| `outDir` | `string` | `'.introspect'` | Directory to write trace files |
+| `testTitle` | `string` | `'unknown test'` | Label stored in trace metadata |
 | `workerIndex` | `number` | — | Playwright worker index (informational) |
 | `plugins` | `IntrospectionPlugin[]` | **required** | Plugins to install — use `defaults()` for standard behaviour |
 | `verbose` | `boolean` | `false` | Log lifecycle events to stderr |
@@ -53,7 +53,7 @@ Opens a CDP session on the page and begins recording. CDP domains are enabled by
 
 ### `handle.page`
 
-A `Proxy`-wrapped version of the original Playwright `Page`. Use this for all test interactions. The following methods emit `playwright.action` events into the session:
+A `Proxy`-wrapped version of the original Playwright `Page`. Use this for all test interactions. The following methods emit `playwright.action` events into the trace:
 
 `click` · `fill` · `goto` · `press` · `selectOption` · `check` · `uncheck` · `hover` · `dragAndDrop` · `evaluate` · `waitForURL` · `waitForSelector`
 
@@ -63,7 +63,7 @@ Function arguments and unserializable objects are replaced with placeholder stri
 
 ### `handle.emit(event)`
 
-Emits a trace event to the session. Use this to record custom timeline markers or data.
+Emits a trace event to the trace. Use this to record custom timeline markers or data.
 
 ```ts
 await handle.emit({ type: 'mark', metadata: { label: 'before-submit', extra: { userId: 42 } } })
@@ -77,7 +77,7 @@ Captures a DOM snapshot and globals snapshot via CDP, writes it to `assets/`, an
 
 ### `handle.detach(result?)`
 
-Emits `'detach'` on the bus (awaiting all handlers), finalizes the session (writes `endedAt` to `meta.json`), and detaches the CDP session.
+Emits `'detach'` on the bus (awaiting all handlers), finalizes the trace (writes `endedAt` to `meta.json`), and detaches the CDP trace.
 
 Pass an optional result to emit a `playwright.result` event:
 
@@ -151,10 +151,10 @@ into the config via Playwright's array form, preserving the project's own.
 | Option | Type | Description |
 |---|---|---|
 | `plugins` | `IntrospectionPlugin[]` | **required** — plugins to install, e.g. `defaults()` |
-| `reporters` | `IntrospectionReporter[]` | reporters wired into each per-test session writer (optional) |
+| `reporters` | `IntrospectionReporter[]` | reporters wired into each per-test trace writer (optional) |
 | `mode` | `'on' \| 'retain-on-failure' \| 'on-first-retry'` | retention knob, default `'on'` (optional) |
 
-Each test produces a session directory at
+Each test produces a trace directory at
 `.introspect/<run-id>/<project>__<test-id>/` containing `events.ndjson`,
 `meta.json` (with `status` and `project`), and `assets/`. The run directory
 also carries a `meta.json` (`RunMeta`: id, branch, commit, startedAt, endedAt,
@@ -170,7 +170,7 @@ Environment variables:
 | `INTROSPECT_RUN_BRANCH` / `INTROSPECT_RUN_COMMIT` | Override the git-detected branch / commit in `RunMeta` |
 | `INTROSPECT_TRACING=0` | Fully disables introspection for the run |
 
-The lower-level `attach()` / `session()` primitives remain available for
+The lower-level `attach()` / `trace()` primitives remain available for
 ad-hoc capture outside the Playwright test runner.
 
 ---
@@ -178,9 +178,9 @@ ad-hoc capture outside the Playwright test runner.
 ## Exports
 
 ```ts
-import { attach, session, withIntrospect, test, expect } from '@introspection/playwright'
+import { attach, trace, withIntrospect, test, expect } from '@introspection/playwright'
 import type {
-  AttachOptions, SessionOptions, SessionContext,
+  AttachOptions, TraceOptions, TraceContext,
   WithIntrospectOptions, IntrospectMode,
   BusPayloadMap, BusTrigger,
 } from '@introspection/playwright'

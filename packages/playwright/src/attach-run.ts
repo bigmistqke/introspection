@@ -12,12 +12,12 @@ export interface AttachRunOptions extends Omit<AttachOptions, 'outDir'> {
 
 /**
  * Ad-hoc capture convenience: creates a run directory (`<dir>/<run-id>/` with a
- * `RunMeta`) and attaches a single session into it, yielding the
- * `<dir>/<run-id>/<session-id>/` layout the run model expects.
+ * `RunMeta`) and attaches a single trace into it, yielding the
+ * `<dir>/<run-id>/<trace-id>/` layout the run model expects.
  *
- * `attach` itself stays the per-session primitive — a run can hold many
- * sessions, and in the `withIntrospect` flow the run directory is created once
- * by `globalSetup`. `attachRun` is for the one-run-one-session ad-hoc case
+ * `attach` itself stays the per-trace primitive — a run can hold many
+ * traces, and in the `withIntrospect` flow the run directory is created once
+ * by `globalSetup`. `attachRun` is for the one-run-one-trace ad-hoc case
  * (`introspect debug`, demos, scripts).
  *
  * The returned handle is the regular `IntrospectHandle` with the chosen

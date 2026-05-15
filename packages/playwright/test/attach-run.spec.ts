@@ -12,7 +12,7 @@ test.afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-test('attachRun creates a run dir with RunMeta and attaches a session into it', async ({ page }) => {
+test('attachRun creates a run dir with RunMeta and attaches a trace into it', async ({ page }) => {
   const handle = await attachRun(page, { dir, plugins: [] })
   await handle.detach()
 
@@ -24,9 +24,9 @@ test('attachRun creates a run dir with RunMeta and attaches a session into it', 
   expect(runMeta).toMatchObject({ version: '1', id: handle.runId })
   expect(typeof runMeta.startedAt).toBe('number')
 
-  // exactly one session directory under the run, with a SessionMeta
-  const sessionDirs = (await readdir(join(dir, handle.runId))).filter(entry => entry !== 'meta.json')
-  expect(sessionDirs.length).toBe(1)
-  const sessionMeta = await readFile(join(dir, handle.runId, sessionDirs[0], 'meta.json'), 'utf-8')
-  expect(sessionMeta).toContain('"version": "2"')
+  // exactly one trace directory under the run, with a TraceMeta
+  const traceDirs = (await readdir(join(dir, handle.runId))).filter(entry => entry !== 'meta.json')
+  expect(traceDirs.length).toBe(1)
+  const traceMeta = await readFile(join(dir, handle.runId, traceDirs[0], 'meta.json'), 'utf-8')
+  expect(traceMeta).toContain('"version": "2"')
 })

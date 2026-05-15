@@ -4,7 +4,7 @@
 
 **Goal:** Implement the live-only Reporter API per `docs/superpowers/specs/2026-05-08-reporter-system-design.md`, plus a reference `summaryReporter` in a new `@introspection/reporters` package.
 
-**Architecture:** Reporters are plain objects with optional lifecycle methods (`onSessionStart`, `onEvent`, `onTestStart`, `onTestEnd`, `onSessionEnd`). They are passed to `createSessionWriter` and driven by a small lifecycle runner that subscribes to the session bus, maintains a per-test event-slice buffer, traps per-reporter errors, and wraps async callbacks with `track()` so `finalize()` waits for disk writes. No post-hoc replay.
+**Architecture:** Reporters are plain objects with optional lifecycle methods (`onTraceStart`, `onEvent`, `onTestStart`, `onTestEnd`, `onTraceEnd`). They are passed to `createTraceWriter` and driven by a small lifecycle runner that subscribes to the trace bus, maintains a per-test event-slice buffer, traps per-reporter errors, and wraps async callbacks with `track()` so `finalize()` waits for disk writes. No post-hoc replay.
 
 **Tech Stack:** TypeScript ESM, vitest, Node `fs/promises`. No new runtime dependencies.
 
@@ -16,7 +16,7 @@
 |---|---|---|
 | `packages/types/src/index.ts` | modify | Add `IntrospectionReporter`, `TestStartInfo`, `TestEndInfo`, `ReporterContext`; widen `introspect:warning` source union to include `'reporter'`. |
 | `packages/write/src/reporter-lifecycle.ts` | create | The lifecycle runner: subscribes to the bus, manages the per-test slice buffer, calls each reporter's hooks, traps errors, tracks async work. |
-| `packages/write/src/session.ts` | modify | Accept `reporters?: IntrospectionReporter[]` in `CreateSessionWriterOptions`, construct a `ReporterContext`, instantiate the runner, drive `onSessionStart` at creation and `onSessionEnd` at finalize. |
+| `packages/write/src/trace.ts` | modify | Accept `reporters?: IntrospectionReporter[]` in `CreateTraceWriterOptions`, construct a `ReporterContext`, instantiate the runner, drive `onTraceStart` at creation and `onTraceEnd` at finalize. |
 | `packages/write/src/index.ts` | modify | Re-export new public types. |
 | `packages/write/test/reporters.test.ts` | create | Integration tests: lifecycle hooks fire correctly, slicing works, errors are trapped, async callbacks are awaited. |
 | `packages/reporters/package.json` | create | New workspace package `@introspection/reporters`. |
@@ -44,7 +44,7 @@ export interface TestStartInfo {
   testId: string
   label: string
   titlePath: string[]
-  /** Wall-clock ms-since-session-start. */
+  /** Wall-clock ms-since-trace-start. */
   startedAt: number
 }
 
@@ -60,12 +60,12 @@ export interface TestEndInfo extends TestStartInfo {
 }
 
 export interface ReporterContext {
-  sessionId: string
-  /** Session directory (e.g. `.introspect/<run-id>/<test-id>`). */
+  traceId: string
+  /** Trace directory (e.g. `.introspect/<run-id>/<test-id>`). */
   outDir: string
   /** Run directory (e.g. `.introspect/<run-id>`). Defaults to the parent of outDir. */
   runDir: string
-  meta: SessionMeta
+  meta: TraceMeta
   /** Convenience writer for reporter outputs. Relative paths resolve against runDir. */
   writeFile(path: string, content: string | Uint8Array): Promise<void>
   /** Track an async operation so finalize() waits for it. */
@@ -74,11 +74,11 @@ export interface ReporterContext {
 
 export interface IntrospectionReporter {
   name: string
-  onSessionStart?(ctx: ReporterContext): void | Promise<void>
+  onTraceStart?(ctx: ReporterContext): void | Promise<void>
   onEvent?(event: TraceEvent, ctx: ReporterContext): void | Promise<void>
   onTestStart?(test: TestStartInfo, ctx: ReporterContext): void | Promise<void>
   onTestEnd?(test: TestEndInfo, ctx: ReporterContext): void | Promise<void>
-  onSessionEnd?(ctx: ReporterContext): void | Promise<void>
+  onTraceEnd?(ctx: ReporterContext): void | Promise<void>
 }
 ```
 
@@ -110,43 +110,43 @@ git commit -m "types: add reporter types (IntrospectionReporter, TestStartInfo, 
 
 ---
 
-## Task 2: Plumb `reporters` option through `createSessionWriter`
+## Task 2: Plumb `reporters` option through `createTraceWriter`
 
 **Files:**
-- Modify: `packages/write/src/session.ts`
-- Modify: `packages/write/test/session-writer.test.ts`
+- Modify: `packages/write/src/trace.ts`
+- Modify: `packages/write/test/trace-writer.test.ts`
 
 This is a zero-behavior plumbing task — accept the option, store it, but call nothing. Establishes the surface before any lifecycle code lands.
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `packages/write/test/session-writer.test.ts` (inside the existing top-level `describe('createSessionWriter', ...)` block, before the closing `})`):
+Append to `packages/write/test/trace-writer.test.ts` (inside the existing top-level `describe('createTraceWriter', ...)` block, before the closing `})`):
 
 ```ts
   it('accepts an optional reporters array', async () => {
     const reporter = { name: 'noop' }
-    const writer = await createSessionWriter({ outDir, id: 'rs1', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 'rs1', reporters: [reporter] })
     expect(writer.id).toBe('rs1')
   })
 ```
 
 - [ ] **Step 2: Run test and verify it fails**
 
-Run: `pnpm -C packages/write test -- session-writer`
+Run: `pnpm -C packages/write test -- trace-writer`
 Expected: FAIL with a type error or runtime error about `reporters` not being a known option.
 
-- [ ] **Step 3: Add the option to `CreateSessionWriterOptions`**
+- [ ] **Step 3: Add the option to `CreateTraceWriterOptions`**
 
-In `packages/write/src/session.ts`, update the imports near the top:
+In `packages/write/src/trace.ts`, update the imports near the top:
 
 ```ts
-import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, PayloadAsset, IntrospectionReporter } from '@introspection/types'
+import type { TraceWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, TraceMeta, WriteAssetOptions, PayloadAsset, IntrospectionReporter } from '@introspection/types'
 ```
 
 Then update the options interface:
 
 ```ts
-export interface CreateSessionWriterOptions {
+export interface CreateTraceWriterOptions {
   outDir?: string
   id?: string
   label?: string
@@ -156,7 +156,7 @@ export interface CreateSessionWriterOptions {
 }
 ```
 
-In the body of `createSessionWriter`, after the existing `const adapter = options.adapter` line, add:
+In the body of `createTraceWriter`, after the existing `const adapter = options.adapter` line, add:
 
 ```ts
   const reporters = options.reporters ?? []
@@ -166,14 +166,14 @@ In the body of `createSessionWriter`, after the existing `const adapter = option
 
 - [ ] **Step 4: Run test and verify it passes**
 
-Run: `pnpm -C packages/write test -- session-writer`
+Run: `pnpm -C packages/write test -- trace-writer`
 Expected: PASS for the new test and all existing tests.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/write/src/session.ts packages/write/test/session-writer.test.ts
-git commit -m "write: accept optional reporters option in createSessionWriter"
+git add packages/write/src/trace.ts packages/write/test/trace-writer.test.ts
+git commit -m "write: accept optional reporters option in createTraceWriter"
 ```
 
 ---
@@ -183,9 +183,9 @@ git commit -m "write: accept optional reporters option in createSessionWriter"
 **Files:**
 - Create: `packages/write/src/reporter-lifecycle.ts`
 - Create: `packages/write/test/reporters.test.ts`
-- Modify: `packages/write/src/session.ts`
+- Modify: `packages/write/src/trace.ts`
 
-The runner is the small module that holds slicing state and dispatches hooks. We add it with a single behavior first (`onSessionStart`), then extend in subsequent tasks.
+The runner is the small module that holds slicing state and dispatches hooks. We add it with a single behavior first (`onTraceStart`), then extend in subsequent tasks.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -196,7 +196,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { createSessionWriter } from '../src/index.js'
+import { createTraceWriter } from '../src/index.js'
 import type { IntrospectionReporter, ReporterContext } from '@introspection/types'
 
 let outDir: string
@@ -210,15 +210,15 @@ afterEach(async () => {
 })
 
 describe('reporter lifecycle', () => {
-  it('calls onSessionStart exactly once with a populated context', async () => {
+  it('calls onTraceStart exactly once with a populated context', async () => {
     const calls: ReporterContext[] = []
     const reporter: IntrospectionReporter = {
       name: 'capture',
-      onSessionStart(ctx) { calls.push(ctx) },
+      onTraceStart(ctx) { calls.push(ctx) },
     }
-    await createSessionWriter({ outDir, id: 'sess', reporters: [reporter] })
+    await createTraceWriter({ outDir, id: 'sess', reporters: [reporter] })
     expect(calls).toHaveLength(1)
-    expect(calls[0]!.sessionId).toBe('sess')
+    expect(calls[0]!.traceId).toBe('sess')
     expect(calls[0]!.outDir).toBe(join(outDir, 'sess'))
     expect(calls[0]!.runDir).toBe(outDir)
     expect(calls[0]!.meta.id).toBe('sess')
@@ -236,7 +236,7 @@ Expected: FAIL — `calls` is empty (no lifecycle wiring yet).
 Create `packages/write/src/reporter-lifecycle.ts`:
 
 ```ts
-import type { IntrospectionReporter, ReporterContext, TraceEvent, SessionBus, TestEndInfo, TestStartInfo, PayloadAsset } from '@introspection/types'
+import type { IntrospectionReporter, ReporterContext, TraceEvent, TraceBus, TestEndInfo, TestStartInfo, PayloadAsset } from '@introspection/types'
 
 export interface ReporterRunner {
   start(): Promise<void>
@@ -246,19 +246,19 @@ export interface ReporterRunner {
 export function createReporterRunner(
   reporters: IntrospectionReporter[],
   ctx: ReporterContext,
-  bus: SessionBus,
+  bus: TraceBus,
 ): ReporterRunner {
   return {
     async start() {
       for (const reporter of reporters) {
-        if (!reporter.onSessionStart) continue
-        await reporter.onSessionStart(ctx)
+        if (!reporter.onTraceStart) continue
+        await reporter.onTraceStart(ctx)
       }
     },
     async end() {
       for (const reporter of reporters) {
-        if (!reporter.onSessionEnd) continue
-        await reporter.onSessionEnd(ctx)
+        if (!reporter.onTraceEnd) continue
+        await reporter.onTraceEnd(ctx)
       }
     },
   }
@@ -267,9 +267,9 @@ export function createReporterRunner(
 
 (More hooks land in later tasks.)
 
-- [ ] **Step 4: Build the ReporterContext and start the runner in session.ts**
+- [ ] **Step 4: Build the ReporterContext and start the runner in trace.ts**
 
-In `packages/write/src/session.ts`, add a `path` import near the existing imports:
+In `packages/write/src/trace.ts`, add a `path` import near the existing imports:
 
 ```ts
 import { dirname, isAbsolute, join } from 'path'
@@ -284,13 +284,13 @@ Then update the imports for the lifecycle module:
 import { createReporterRunner } from './reporter-lifecycle.js'
 ```
 
-Inside `createSessionWriter`, after the existing `const tracker = createTracker()` line, build the context and start the runner. The current session directory is `<outDir>/<id>`; runDir is `outDir`:
+Inside `createTraceWriter`, after the existing `const tracker = createTracker()` line, build the context and start the runner. The current trace directory is `<outDir>/<id>`; runDir is `outDir`:
 
 ```ts
-  const sessionDir = join(outDir, id)
+  const traceDir = join(outDir, id)
   const reporterCtx: ReporterContext = {
-    sessionId: id,
-    outDir: sessionDir,
+    traceId: id,
+    outDir: traceDir,
     runDir: outDir,
     meta,
     writeFile: async (target, content) => {
@@ -307,7 +307,7 @@ Inside `createSessionWriter`, after the existing `const tracker = createTracker(
 Add `ReporterContext` to the type imports at the top:
 
 ```ts
-import type { SessionWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, SessionMeta, WriteAssetOptions, PayloadAsset, IntrospectionReporter, ReporterContext } from '@introspection/types'
+import type { TraceWriter, TraceEvent, BusPayloadMap, PluginMeta, EmitInput, TraceMeta, WriteAssetOptions, PayloadAsset, IntrospectionReporter, ReporterContext } from '@introspection/types'
 ```
 
 - [ ] **Step 5: Run test and verify it passes**
@@ -318,8 +318,8 @@ Expected: PASS — the single test now succeeds; `calls` contains one ReporterCo
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/write/src/reporter-lifecycle.ts packages/write/src/session.ts packages/write/test/reporters.test.ts
-git commit -m "write: scaffold reporter lifecycle runner; call onSessionStart at session start"
+git add packages/write/src/reporter-lifecycle.ts packages/write/src/trace.ts packages/write/test/reporters.test.ts
+git commit -m "write: scaffold reporter lifecycle runner; call onTraceStart at trace start"
 ```
 
 ---
@@ -328,7 +328,7 @@ git commit -m "write: scaffold reporter lifecycle runner; call onSessionStart at
 
 **Files:**
 - Modify: `packages/write/src/reporter-lifecycle.ts`
-- Modify: `packages/write/src/session.ts`
+- Modify: `packages/write/src/trace.ts`
 - Modify: `packages/write/test/reporters.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -342,7 +342,7 @@ Append inside `describe('reporter lifecycle', ...)`:
       name: 'capture',
       onEvent(event) { seen.push(event.type) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [reporter] })
     await writer.emit({ type: 'mark', metadata: { label: 'a' } })
     await writer.emit({ type: 'mark', metadata: { label: 'b' } })
     await writer.flush()
@@ -369,13 +369,13 @@ export interface ReporterRunner {
 export function createReporterRunner(
   reporters: IntrospectionReporter[],
   ctx: ReporterContext,
-  bus: SessionBus,
+  bus: TraceBus,
 ): ReporterRunner {
   return {
     async start() {
       for (const reporter of reporters) {
-        if (!reporter.onSessionStart) continue
-        await reporter.onSessionStart(ctx)
+        if (!reporter.onTraceStart) continue
+        await reporter.onTraceStart(ctx)
       }
     },
     handleEvent(event) {
@@ -387,17 +387,17 @@ export function createReporterRunner(
     },
     async end() {
       for (const reporter of reporters) {
-        if (!reporter.onSessionEnd) continue
-        await reporter.onSessionEnd(ctx)
+        if (!reporter.onTraceEnd) continue
+        await reporter.onTraceEnd(ctx)
       }
     },
   }
 }
 ```
 
-- [ ] **Step 4: Call `handleEvent` from the session writer's emit**
+- [ ] **Step 4: Call `handleEvent` from the trace writer's emit**
 
-In `packages/write/src/session.ts`, inside the `emit` function, after the existing `void bus.emit(...)` line and before `return writePromise`, add:
+In `packages/write/src/trace.ts`, inside the `emit` function, after the existing `void bus.emit(...)` line and before `return writePromise`, add:
 
 ```ts
     reporterRunner.handleEvent(full)
@@ -431,7 +431,7 @@ Expected: PASS — both reporter tests pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/write/src/reporter-lifecycle.ts packages/write/src/session.ts packages/write/test/reporters.test.ts
+git add packages/write/src/reporter-lifecycle.ts packages/write/src/trace.ts packages/write/test/reporters.test.ts
 git commit -m "write: call reporter.onEvent for every emitted event"
 ```
 
@@ -456,7 +456,7 @@ Append inside `describe('reporter lifecycle', ...)`:
       name: 'capture',
       onTestStart(info) { seen.push(info) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [reporter] })
     await writer.emit({ type: 'test.start', metadata: { label: 'logs in', titlePath: ['auth', 'logs in'] } })
     await writer.flush()
     expect(seen).toHaveLength(1)
@@ -483,7 +483,7 @@ Expected: FAIL — `seen` is empty.
 In `packages/write/src/reporter-lifecycle.ts`, replace the entire file with:
 
 ```ts
-import type { IntrospectionReporter, ReporterContext, TraceEvent, SessionBus, TestEndInfo, TestStartInfo, PayloadAsset, TestStartEvent } from '@introspection/types'
+import type { IntrospectionReporter, ReporterContext, TraceEvent, TraceBus, TestEndInfo, TestStartInfo, PayloadAsset, TestStartEvent } from '@introspection/types'
 
 interface ActiveTest {
   info: TestStartInfo
@@ -499,7 +499,7 @@ export interface ReporterRunner {
 export function createReporterRunner(
   reporters: IntrospectionReporter[],
   ctx: ReporterContext,
-  bus: SessionBus,
+  bus: TraceBus,
 ): ReporterRunner {
   let active: ActiveTest | null = null
 
@@ -521,8 +521,8 @@ export function createReporterRunner(
   return {
     async start() {
       for (const reporter of reporters) {
-        if (!reporter.onSessionStart) continue
-        await reporter.onSessionStart(ctx)
+        if (!reporter.onTraceStart) continue
+        await reporter.onTraceStart(ctx)
       }
     },
     handleEvent(event) {
@@ -539,8 +539,8 @@ export function createReporterRunner(
     },
     async end() {
       for (const reporter of reporters) {
-        if (!reporter.onSessionEnd) continue
-        await reporter.onSessionEnd(ctx)
+        if (!reporter.onTraceEnd) continue
+        await reporter.onTraceEnd(ctx)
       }
     },
   }
@@ -578,7 +578,7 @@ Append inside `describe('reporter lifecycle', ...)`:
       name: 'capture',
       onTestEnd(info) { seen.push(info) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [reporter] })
     await writer.emit({ type: 'test.start', metadata: { label: 't', titlePath: ['t'] } })
     await writer.emit({ type: 'mark', metadata: { label: 'a' } })
     await writer.emit({
@@ -605,7 +605,7 @@ Append inside `describe('reporter lifecycle', ...)`:
       onTestEnd(info) { seen.push(info) },
       onEvent(event) { events.push(event.type) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [reporter] })
     await writer.emit({ type: 'mark', metadata: { label: 'outside' } })
     await writer.flush()
     expect(seen).toHaveLength(0)
@@ -631,7 +631,7 @@ In `packages/write/src/reporter-lifecycle.ts`, extend the `handleEvent` logic. A
 Replace the `handleEvent` body and add the helper. The full file is now:
 
 ```ts
-import type { IntrospectionReporter, ReporterContext, TraceEvent, SessionBus, TestEndInfo, TestStartInfo, PayloadAsset, TestStartEvent, TestEndEvent } from '@introspection/types'
+import type { IntrospectionReporter, ReporterContext, TraceEvent, TraceBus, TestEndInfo, TestStartInfo, PayloadAsset, TestStartEvent, TestEndEvent } from '@introspection/types'
 
 interface ActiveTest {
   info: TestStartInfo
@@ -664,7 +664,7 @@ function asEndStatus(raw: string): TestEndInfo['status'] {
 export function createReporterRunner(
   reporters: IntrospectionReporter[],
   ctx: ReporterContext,
-  bus: SessionBus,
+  bus: TraceBus,
 ): ReporterRunner {
   let active: ActiveTest | null = null
 
@@ -706,8 +706,8 @@ export function createReporterRunner(
   return {
     async start() {
       for (const reporter of reporters) {
-        if (!reporter.onSessionStart) continue
-        await reporter.onSessionStart(ctx)
+        if (!reporter.onTraceStart) continue
+        await reporter.onTraceStart(ctx)
       }
     },
     handleEvent(event) {
@@ -726,8 +726,8 @@ export function createReporterRunner(
     },
     async end() {
       for (const reporter of reporters) {
-        if (!reporter.onSessionEnd) continue
-        await reporter.onSessionEnd(ctx)
+        if (!reporter.onTraceEnd) continue
+        await reporter.onTraceEnd(ctx)
       }
     },
   }
@@ -750,10 +750,10 @@ git commit -m "write: deliver per-test slice and flattened assets via onTestEnd"
 
 ---
 
-## Task 7: `onSessionEnd` fires at finalize
+## Task 7: `onTraceEnd` fires at finalize
 
 **Files:**
-- Modify: `packages/write/src/session.ts`
+- Modify: `packages/write/src/trace.ts`
 - Modify: `packages/write/test/reporters.test.ts`
 
 The runner already has an `end()` method; this task wires it into `finalize()`.
@@ -763,10 +763,10 @@ The runner already has an `end()` method; this task wires it into `finalize()`.
 Append inside `describe('reporter lifecycle', ...)`:
 
 ```ts
-  it('calls onSessionEnd exactly once when finalize() runs', async () => {
+  it('calls onTraceEnd exactly once when finalize() runs', async () => {
     let count = 0
-    const reporter: IntrospectionReporter = { name: 'capture', onSessionEnd() { count++ } }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [reporter] })
+    const reporter: IntrospectionReporter = { name: 'capture', onTraceEnd() { count++ } }
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [reporter] })
     await writer.finalize()
     expect(count).toBe(1)
   })
@@ -779,7 +779,7 @@ Expected: FAIL — `count` is 0; the runner's `end()` is never called.
 
 - [ ] **Step 3: Call `reporterRunner.end()` in finalize**
 
-In `packages/write/src/session.ts`, modify the existing `finalize` method:
+In `packages/write/src/trace.ts`, modify the existing `finalize` method:
 
 ```ts
     async finalize() {
@@ -791,12 +791,12 @@ In `packages/write/src/session.ts`, modify the existing `finalize` method:
       if (adapter) {
         await adapter.writeText(`${id}/meta.json`, JSON.stringify({ ...meta, endedAt: Date.now() }, null, 2))
       } else {
-        await finalizeSession(outDir, id, Date.now())
+        await finalizeTrace(outDir, id, Date.now())
       }
     },
 ```
 
-(The second `tracker.flush()` after `reporterRunner.end()` catches any async work `onSessionEnd` itself tracked.)
+(The second `tracker.flush()` after `reporterRunner.end()` catches any async work `onTraceEnd` itself tracked.)
 
 - [ ] **Step 4: Run test and verify it passes**
 
@@ -806,8 +806,8 @@ Expected: PASS for all reporter tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/write/src/session.ts packages/write/test/reporters.test.ts
-git commit -m "write: call reporter.onSessionEnd from session finalize"
+git add packages/write/src/trace.ts packages/write/test/reporters.test.ts
+git commit -m "write: call reporter.onTraceEnd from trace finalize"
 ```
 
 ---
@@ -838,7 +838,7 @@ Append inside `describe('reporter lifecycle', ...)`:
       name: 'good',
       onEvent(event) { goodEvents.push(event.type) },
     }
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [bad, good] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [bad, good] })
     writer.bus.on('introspect:warning', (w) => warnings.push(w.error.reporterName ?? ''))
     await writer.emit({ type: 'mark', metadata: { label: 'a' } })
     await writer.emit({ type: 'mark', metadata: { label: 'b' } })
@@ -859,7 +859,7 @@ Expected: FAIL — the throw propagates out of `emit` (and the test crashes befo
 In `packages/write/src/reporter-lifecycle.ts`, replace the file with:
 
 ```ts
-import type { IntrospectionReporter, ReporterContext, TraceEvent, SessionBus, TestEndInfo, TestStartInfo, PayloadAsset, TestStartEvent, TestEndEvent } from '@introspection/types'
+import type { IntrospectionReporter, ReporterContext, TraceEvent, TraceBus, TestEndInfo, TestStartInfo, PayloadAsset, TestStartEvent, TestEndEvent } from '@introspection/types'
 
 interface ActiveTest {
   info: TestStartInfo
@@ -892,7 +892,7 @@ function asEndStatus(raw: string): TestEndInfo['status'] {
 export function createReporterRunner(
   reporters: IntrospectionReporter[],
   ctx: ReporterContext,
-  bus: SessionBus,
+  bus: TraceBus,
 ): ReporterRunner {
   let active: ActiveTest | null = null
   const disabled = new Set<IntrospectionReporter>()
@@ -967,8 +967,8 @@ export function createReporterRunner(
   return {
     async start() {
       for (const reporter of reporters) {
-        if (!reporter.onSessionStart) continue
-        invoke(reporter, 'onSessionStart', () => reporter.onSessionStart!(ctx))
+        if (!reporter.onTraceStart) continue
+        invoke(reporter, 'onTraceStart', () => reporter.onTraceStart!(ctx))
       }
     },
     handleEvent(event) {
@@ -986,8 +986,8 @@ export function createReporterRunner(
     },
     async end() {
       for (const reporter of reporters) {
-        if (!reporter.onSessionEnd) continue
-        invoke(reporter, 'onSessionEnd', () => reporter.onSessionEnd!(ctx))
+        if (!reporter.onTraceEnd) continue
+        invoke(reporter, 'onTraceEnd', () => reporter.onTraceEnd!(ctx))
       }
     },
   }
@@ -1023,7 +1023,7 @@ Append inside `describe('reporter lifecycle', ...)`:
 ```ts
   it('emits an introspect:warning when test.end arrives without a matching test.start', async () => {
     const warnings: Array<{ source: string; message: string }> = []
-    const writer = await createSessionWriter({ outDir, id: 's', reporters: [] })
+    const writer = await createTraceWriter({ outDir, id: 's', reporters: [] })
     writer.bus.on('introspect:warning', (w) => warnings.push({ source: w.error.source, message: w.error.message }))
     await writer.emit({ type: 'test.end', metadata: { label: 't', titlePath: ['t'], status: 'passed' } })
     await writer.flush()
@@ -1191,7 +1191,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, readFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { createSessionWriter } from '@introspection/write'
+import { createTraceWriter } from '@introspection/write'
 import { summaryReporter } from '../src/index.js'
 
 let outDir: string
@@ -1206,7 +1206,7 @@ afterEach(async () => {
 
 describe('summaryReporter', () => {
   it('appends one JSON line per test to outFile with the default shape', async () => {
-    const writer = await createSessionWriter({
+    const writer = await createTraceWriter({
       outDir,
       id: 's',
       reporters: [summaryReporter({ outFile: 'tests.jsonl' })],
@@ -1325,7 +1325,7 @@ Append inside `describe('summaryReporter', ...)`:
 
 ```ts
   it('uses a custom format projector when provided', async () => {
-    const writer = await createSessionWriter({
+    const writer = await createTraceWriter({
       outDir,
       id: 's',
       reporters: [summaryReporter({
@@ -1371,7 +1371,7 @@ Append inside `describe('summaryReporter', ...)`:
 ```ts
   it('produces non-interleaved lines when two writers append concurrently', async () => {
     async function runWriter(id: string, label: string, count: number) {
-      const writer = await createSessionWriter({
+      const writer = await createTraceWriter({
         outDir,
         id,
         reporters: [summaryReporter({ outFile: 'tests.jsonl' })],

@@ -50,7 +50,7 @@ const handle = await attach(page, {
 
 ## How snapshots work
 
-Snapshots are queried server-side via CDP `DOMStorage.getDOMStorageItems`, so they capture state already on disk from prior sessions even if the page never touched it. They're emitted automatically at install and whenever the introspection runtime fires `manual`, `js.error`, or `detach` on the bus — no API to call.
+Snapshots are queried server-side via CDP `DOMStorage.getDOMStorageItems`, so they capture state already on disk from prior traces even if the page never touched it. They're emitted automatically at install and whenever the introspection runtime fires `manual`, `js.error`, or `detach` on the bus — no API to call.
 
 ## Caveats
 

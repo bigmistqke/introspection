@@ -1,6 +1,6 @@
 # @introspection/plugin-cdp
 
-Captures every CDP command and event crossing the shared session — a raw wire trace for debugging other plugins.
+Captures every CDP command and event crossing the shared trace — a raw wire trace for debugging other plugins.
 
 Useful for understanding the exact sequence and parameters of Chrome DevTools Protocol calls made by other plugins, diagnosing timing races, or replaying bugs from the CDP trace alone. Install first in the plugins array so its tap is in place before other plugins run.
 
@@ -70,7 +70,7 @@ Because this is a wildcard tap, every CDP method appears — `Network.*`, `Runti
 
 A non-trivial page can easily produce thousands of CDP messages. Defaults keep full `result` payloads on `cdp.command`, which includes things like `Runtime.evaluate` return values and `Network.getResponseBody` contents. For long test runs or large responses, either set `captureResults: false` or narrow via `filter`.
 
-### Shared-session mutation
+### Shared-trace mutation
 
 `plugin-cdp` mutates the `CDPSession` that every other plugin uses. That's how the tap sees other plugins' calls. If you need a second CDP instrumentation plugin, write it to compose with `plugin-cdp` (subscribe to its `cdp.command` / `cdp.event` events via `ctx.bus`) rather than double-patching.
 

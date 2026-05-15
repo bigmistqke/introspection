@@ -1,5 +1,5 @@
 import type { TestInfo } from '@playwright/test'
-import type { SessionWriter } from '@introspection/types'
+import type { TraceWriter } from '@introspection/types'
 
 interface StepBeginPayload {
   stepId: string
@@ -18,13 +18,13 @@ interface TestInfoCallbacks {
 
 /**
  * Wraps Playwright's internal worker-side step callbacks so step boundaries
- * become `step.start` / `step.end` events on the session bus. Verified against
+ * become `step.start` / `step.end` events on the trace bus. Verified against
  * Playwright's `TestInfoImpl._callbacks` (>=1.49 <=1.59). If the hook is
  * absent, throws — there is no fallback (see spec §"Step capture").
  *
  * Returns a `stop()` that restores the original callbacks.
  */
-export function installStepCapture(testInfo: TestInfo, session: SessionWriter): () => void {
+export function installStepCapture(testInfo: TestInfo, trace: TraceWriter): () => void {
   const callbacks = (testInfo as unknown as { _callbacks?: Partial<TestInfoCallbacks> })._callbacks
   if (!callbacks || typeof callbacks.onStepBegin !== 'function' || typeof callbacks.onStepEnd !== 'function') {
     throw new Error(
@@ -39,7 +39,7 @@ export function installStepCapture(testInfo: TestInfo, session: SessionWriter): 
   const originalEnd = callbacks.onStepEnd
 
   callbacks.onStepBegin = (payload: StepBeginPayload) => {
-    void session.emit({
+    void trace.emit({
       type: 'step.start',
       metadata: {
         stepId: payload.stepId,
@@ -51,7 +51,7 @@ export function installStepCapture(testInfo: TestInfo, session: SessionWriter): 
     return originalBegin(payload)
   }
   callbacks.onStepEnd = (payload: StepEndPayload) => {
-    void session.emit({
+    void trace.emit({
       type: 'step.end',
       metadata: { stepId: payload.stepId, error: payload.error?.message },
     })

@@ -1,17 +1,17 @@
 ---
 name: introspect-reflect
-description: Use at the end of a debugging or tool-dogfooding session (or when the user asks "reflect / retro / what did we learn") to review how the introspect CLI was used, identify gaps, and propose concrete fixes. Repo-local — do not bundle.
+description: Use at the end of a debugging or tool-dogfooding trace (or when the user asks "reflect / retro / what did we learn") to review how the introspect CLI was used, identify gaps, and propose concrete fixes. Repo-local — do not bundle.
 ---
 
-# Reflect on a debugging session
+# Reflect on a debugging trace
 
-Dogfood review. Turn what just happened into structured feedback on `introspect` itself. This skill exists because the repo builds `introspect`; every debug session here is also a usability test of the tool, and the friction should be captured while it's still fresh.
+Dogfood review. Turn what just happened into structured feedback on `introspect` itself. This skill exists because the repo builds `introspect`; every debug trace here is also a usability test of the tool, and the friction should be captured while it's still fresh.
 
 ## When to invoke
 
 - User asks "reflect on this," "retro this," "what did we learn," or similar.
 - A debugging task just concluded and the user hasn't moved on.
-- **Do not invoke silently mid-task.** Reflection is a session-end activity — running it while debugging is noise.
+- **Do not invoke silently mid-task.** Reflection is a trace-end activity — running it while debugging is noise.
 
 ## What to produce
 

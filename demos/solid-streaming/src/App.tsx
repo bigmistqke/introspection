@@ -1,6 +1,6 @@
 import { createFetchAdapter } from "@introspection/demo-shared/fetch-adapter";
-import { createSessionReader, listRuns, listSessions } from "@introspection/read";
-import type { PayloadRef, SessionReader, TraceEvent } from "@introspection/types";
+import { createTraceReader, listRuns, listTraces } from "@introspection/read";
+import type { PayloadRef, TraceReader, TraceEvent } from "@introspection/types";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { useAssetContent } from "./hooks/useAssetContent.js";
 import { useEventSource } from "./hooks/useEventSource.js";
@@ -53,10 +53,10 @@ export default function App() {
     const runs = await listRuns(adapter);
     const runId = runs[0]?.id;
     if (!runId) return undefined;
-    const sessions = await listSessions(adapter, runId);
-    const sessionId = sessions[0]?.id;
-    if (!sessionId) return undefined;
-    const reader = await createSessionReader(adapter, { runId, sessionId, verbose: VERBOSE });
+    const traces = await listTraces(adapter, runId);
+    const traceId = traces[0]?.id;
+    if (!traceId) return undefined;
+    const reader = await createTraceReader(adapter, { runId, traceId, verbose: VERBOSE });
     return { runId, reader };
   });
 
@@ -65,33 +65,33 @@ export default function App() {
       when={result()}
       fallback={<p style={{ color: "#666" }}>Connecting...</p>}
     >
-      <SessionView runId={result()!.runId} session={result()!.reader} />
+      <TraceView runId={result()!.runId} trace={result()!.reader} />
     </Show>
   );
 }
 
-function SessionView(props: { runId: string | undefined; session?: SessionReader }) {
+function TraceView(props: { runId: string | undefined; trace?: TraceReader }) {
   const [selected, setSelected] = createSignal<TraceEvent | null>(null);
 
   const { status } = useEventSource(
-    () => props.runId && props.session ? `/__introspect/stream/${props.runId}/${props.session.id}/events` : null,
-    () => props.session,
+    () => props.runId && props.trace ? `/__introspect/stream/${props.runId}/${props.trace.id}/events` : null,
+    () => props.trace,
   );
 
-  const allEvents = useWatchedQuery(() => props.session, undefined, {
+  const allEvents = useWatchedQuery(() => props.trace, undefined, {
     verbose: VERBOSE,
   });
   const errors = useWatchedQuery(
-    () => props.session,
+    () => props.trace,
     { type: "js.error" },
     { verbose: VERBOSE },
   );
   const networkEvents = useWatchedQuery(
-    () => props.session,
+    () => props.trace,
     { type: ["network.request", "network.response"] },
     { verbose: VERBOSE },
   );
-  const assets = useAssetContent(() => props.session);
+  const assets = useAssetContent(() => props.trace);
 
   return (
     <>
@@ -173,7 +173,7 @@ function SessionView(props: { runId: string | undefined; session?: SessionReader
                 </Show>
                 <Show when={event().payloads && Object.keys(event().payloads!).length > 0}>
                   <For each={Object.entries(event().payloads ?? {})}>
-                    {([name, ref]) => <AssetPreview session={props.session} name={name} ref={ref} />}
+                    {([name, ref]) => <AssetPreview trace={props.trace} name={name} ref={ref} />}
                   </For>
                 </Show>
               </>
@@ -185,10 +185,10 @@ function SessionView(props: { runId: string | undefined; session?: SessionReader
   );
 }
 
-function AssetPreview(props: { session?: SessionReader; name: string; ref: PayloadRef }) {
+function AssetPreview(props: { trace?: TraceReader; name: string; ref: PayloadRef }) {
   const assetUrl = () =>
     props.ref.kind === 'asset'
-      ? `/__introspect/${props.session?.id}/${props.ref.path}`
+      ? `/__introspect/${props.trace?.id}/${props.ref.path}`
       : null
 
   const isImage = () => props.ref.kind === 'asset' && props.ref.format === 'image'
@@ -196,10 +196,10 @@ function AssetPreview(props: { session?: SessionReader; name: string; ref: Paylo
   const [content] = createResource(
     () => props.ref,
     (ref) => {
-      if (!props.session) return null
+      if (!props.trace) return null
       if (ref.kind === 'inline') return String(ref.value)
       if (ref.format === 'image') return null
-      return props.session.resolvePayload(ref) as Promise<string>
+      return props.trace.resolvePayload(ref) as Promise<string>
     },
   )
 

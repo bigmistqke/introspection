@@ -50,12 +50,12 @@ export function createMemoryAdapters(
 }
 ```
 
-**3. Session factory**
+**3. Trace factory**
 
 ```typescript
-export async function createMemorySession(): Promise<{
-  writer: SessionWriter
-  reader: SessionReader
+export async function createMemoryTrace(): Promise<{
+  writer: TraceWriter
+  reader: TraceReader
 }>
 ```
 
@@ -64,11 +64,11 @@ export async function createMemorySession(): Promise<{
 ```typescript
 // Option 1: Separate adapters for flexibility
 const { reader, write } = createMemoryAdapters()
-const writer = await createSessionWriter({ adapter: write })
-const reader = await createSessionReader(reader)
+const writer = await createTraceWriter({ adapter: write })
+const reader = await createTraceReader(reader)
 
 // Option 2: Convenience factory
-const { writer, reader } = await createMemorySession()
+const { writer, reader } = await createMemoryTrace()
 ```
 
 ## Files to Modify
@@ -79,7 +79,7 @@ const { writer, reader } = await createMemorySession()
 | `packages/utils/src/memory.ts` | New file with memory adapter implementations |
 | `packages/utils/src/index.ts` | Export memory adapters |
 | `packages/read/src/index.ts` | Import `StorageAdapter` from types, remove local definition |
-| `packages/write/src/session.ts` | Add `adapter` option to `createSessionWriter` |
+| `packages/write/src/trace.ts` | Add `adapter` option to `createTraceWriter` |
 
 ## Files to Create
 

@@ -2,14 +2,14 @@ import { test, expect } from '@playwright/test'
 import { attachRun } from '@introspection/playwright'
 import { defaults } from '@introspection/plugin-defaults'
 
-test('renders trace session in timeline viewer', async ({ page }) => {
+test('renders trace trace in timeline viewer', async ({ page }) => {
   // Set up a simple fixture page
   await page.route('/fixture', route => route.fulfill({
     contentType: 'text/html',
     body: '<html><head><title>Test Fixture</title></head><body><button id="test-btn">Click me</button></body></html>',
   }))
 
-  // Capture into a run directory (.introspect/<run-id>/<session-id>/)
+  // Capture into a run directory (.introspect/<run-id>/<trace-id>/)
   const handle = await attachRun(page, {
     plugins: [...defaults()],
   })
@@ -22,7 +22,7 @@ test('renders trace session in timeline viewer', async ({ page }) => {
   // Navigate to the demo to view the trace
   await page.goto('/')
 
-  // Wait for the demo to load and display the session with events
+  // Wait for the demo to load and display the trace with events
   await expect(page.locator('#timeline .event').first()).toBeVisible({ timeout: 10000 })
 
   // Verify multiple events are displayed

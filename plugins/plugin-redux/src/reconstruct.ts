@@ -1,5 +1,5 @@
 import jsonpatch from 'fast-json-patch'
-import type { TraceEvent, SessionReader, ReduxDispatchEvent } from '@introspection/types'
+import type { TraceEvent, TraceReader, ReduxDispatchEvent } from '@introspection/types'
 
 export class ReduxError extends Error {
   constructor(message: string) {
@@ -10,7 +10,7 @@ export class ReduxError extends Error {
 
 export async function reconstruct(opts: {
   events: TraceEvent[]
-  reader: SessionReader
+  reader: TraceReader
   eventId: string
 }): Promise<{ beforeState: unknown; afterState: unknown }> {
   const { events, reader, eventId } = opts

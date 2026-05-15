@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { reconstruct, ReduxError } from '../src/reconstruct.js'
-import type { TraceEvent, SessionReader, PayloadRef } from '@introspection/types'
+import type { TraceEvent, TraceReader, PayloadRef } from '@introspection/types'
 
 describe('reconstruct', () => {
-  let reader: SessionReader
+  let reader: TraceReader
   let events: TraceEvent[]
 
   beforeEach(() => {
@@ -15,7 +15,7 @@ describe('reconstruct', () => {
         }
         throw new Error(`Unknown ref: ${JSON.stringify(ref)}`)
       },
-    } as unknown as SessionReader
+    } as unknown as TraceReader
   })
 
   it('throws ReduxError for non-existent event', async () => {

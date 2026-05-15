@@ -23,7 +23,7 @@ Build missing introspection pieces first, then migrate the runner, then swap the
 `proxy.ts` currently only emits events. Extend it to also accept `writeAsset` so it can handle methods that produce artifacts.
 
 `screenshot` gets special treatment:
-- Intercepts `page.screenshot()`, calls the original, saves the buffer via `writeAsset` to the session's assets directory
+- Intercepts `page.screenshot()`, calls the original, saves the buffer via `writeAsset` to the trace's assets directory
 - Emits a `playwright.screenshot` event with the asset path as metadata
 - Returns the buffer to the caller unchanged
 
@@ -31,13 +31,13 @@ Build missing introspection pieces first, then migrate the runner, then swap the
 
 New event type: `PlaywrightScreenshotEvent` with data `{ path: string, timestamp: number }`.
 
-### 1b. Custom session IDs
+### 1b. Custom trace IDs
 
-Add an optional `id` field to `AttachOptions`. If provided, it is used as the session ID instead of `randomUUID()`. This allows human-readable, flat session directory names derived from the test hierarchy.
+Add an optional `id` field to `AttachOptions`. If provided, it is used as the trace ID instead of `randomUUID()`. This allows human-readable, flat trace directory names derived from the test hierarchy.
 
 The fixture builds the ID from `[projectName, ...testInfo.titlePath].filter(Boolean)`, slugifies each segment, and joins with `--`. Example: `browser-desktop--loading-suite--insecure-requests--01-prepare-page`.
 
-This makes run output directories browsable at a glance and eliminates the need to open `session.json` files to identify sessions.
+This makes run output directories browsable at a glance and eliminates the need to open `trace.json` files to identify traces.
 
 ### 1c. Test lifecycle events with titlePath
 
@@ -46,7 +46,7 @@ The `introspectFixture` gets access to `testInfo.titlePath`. Two events:
 - **`playwright.test.start`** — emitted at the beginning of the fixture (before `use()`), carries `{ titlePath: string[] }`
 - **`playwright.result`** — already exists, extend its data to also carry `titlePath: string[]` alongside `status`, `duration`, `error`
 
-This gives every session a pair of bracketing events per test, with the full describe chain.
+This gives every trace a pair of bracketing events per test, with the full describe chain.
 
 ### 1d. `plugin-redux`
 
@@ -69,7 +69,7 @@ Replaces `vitest.config.ts`. Key settings:
 - **Projects** — one per platform directory (`browser-desktop`, `browser-mobile`, etc.). Since we keep the suite-as-function pattern, projects just point to the test files under each `platforms/` directory.
 - **Workers** — maps from `pool: 'forks'` / `maxWorkers`.
 - **`globalSetup`** — stays the same (kill stale chromium, log setup). Playwright Test supports `globalSetup` natively. The `provide`/`inject` pattern for `logsDirectory` becomes `process.env` since Playwright Test's globalSetup communicates via environment variables.
-- **Reporters** — `CronitorReporter` ported to Playwright's `Reporter` interface (phase 2), then rewritten to read from introspection sessions (phase 3). JSON reporter maps directly.
+- **Reporters** — `CronitorReporter` ported to Playwright's `Reporter` interface (phase 2), then rewritten to read from introspection traces (phase 3). JSON reporter maps directly.
 - **`timeout`** — maps from `testTimeout`.
 - **`fullyParallel: false`** — default, since suites are sequential by design.
 
@@ -120,7 +120,7 @@ The current `afterEach` in `logs/index.ts` does more than a simple screenshot:
 - Writes screenshots to structured paths with step-indexed naming
 - Appends entries to a `manifest.jsonl` for a test results viewer
 
-With the proxy-based screenshot approach, the light/dark orchestration logic moves to a Playwright `afterEach` fixture that calls `page.screenshot()` twice (the proxy captures both to introspection assets). The manifest viewer is replaced by introspection's own session data — the `playwright.screenshot` events carry the titlePath and step metadata that the manifest currently provides.
+With the proxy-based screenshot approach, the light/dark orchestration logic moves to a Playwright `afterEach` fixture that calls `page.screenshot()` twice (the proxy captures both to introspection assets). The manifest viewer is replaced by introspection's own trace data — the `playwright.screenshot` events carry the titlePath and step metadata that the manifest currently provides.
 
 ---
 
@@ -157,7 +157,7 @@ All `.on('console')`, `.on('request')`, `.on('response')`, `.on('pageerror')`, `
 
 `testLogger` is removed entirely. Introspection's `events.ndjson` is the single source of truth.
 
-`CronitorReporter` is rewritten to read from introspection sessions rather than `testLogger`.
+`CronitorReporter` is rewritten to read from introspection traces rather than `testLogger`.
 
 ---
 
@@ -172,12 +172,12 @@ The viewer's middleware (`middleware/index.ts`) currently:
 - Reads `meta.json` for run metadata (commit SHA, branch, timestamp, dirty flag, dark mode)
 - Serves screenshot PNGs and log files from the logs directory
 
-After migration, introspection sessions contain all this data:
+After migration, introspection traces contain all this data:
 - `events.ndjson` has `playwright.test.start` (with titlePath = suites), `playwright.result` (with state), `playwright.screenshot` (with asset path)
-- `session.json` has session metadata (startedAt, label, plugins)
-- Screenshots are in the session's `assets/` directory
+- `trace.json` has trace metadata (startedAt, label, plugins)
+- Screenshots are in the trace's `assets/` directory
 
-The middleware needs to be rewritten to read introspection sessions instead of manifest/meta files.
+The middleware needs to be rewritten to read introspection traces instead of manifest/meta files.
 
 ### 4b. Data mapping
 
@@ -192,15 +192,15 @@ The middleware needs to be rewritten to read introspection sessions instead of m
 
 ### Run-level metadata (`meta.json`)
 
-Git metadata (commitSha, branch, dirty) and run configuration (dm, timestamp) apply to the entire test run, not individual sessions. A `meta.json` file continues to exist at the run output directory root, sitting alongside the session directories. It is written by the Playwright reporter or globalSetup — the writing mechanism changes, but the file's role stays the same.
+Git metadata (commitSha, branch, dirty) and run configuration (dm, timestamp) apply to the entire test run, not individual traces. A `meta.json` file continues to exist at the run output directory root, sitting alongside the trace directories. It is written by the Playwright reporter or globalSetup — the writing mechanism changes, but the file's role stays the same.
 
 ### 4c. Viewer changes
 
-The viewer frontend (`src/`) currently consumes the `Job`, `Platform`, `Suite`, `Test` types built from manifest data. The types and tree-building logic (`tree.ts`) stay structurally the same — they just get populated from introspection data instead of manifest parsing. The `parseManifest` and `parseMeta` utilities in `logs/parse.ts` get replaced with an introspection session reader.
+The viewer frontend (`src/`) currently consumes the `Job`, `Platform`, `Suite`, `Test` types built from manifest data. The types and tree-building logic (`tree.ts`) stay structurally the same — they just get populated from introspection data instead of manifest parsing. The `parseManifest` and `parseMeta` utilities in `logs/parse.ts` get replaced with an introspection trace reader.
 
 ### 4d. Logs panel
 
-The viewer currently serves `.log` files (pino JSON logs) alongside screenshots. After migration, the equivalent is the `events.ndjson` for each session. The viewer's log panel should display introspection events instead — this is a richer data source (typed events with timestamps vs raw pino lines).
+The viewer currently serves `.log` files (pino JSON logs) alongside screenshots. After migration, the equivalent is the `events.ndjson` for each trace. The viewer's log panel should display introspection events instead — this is a richer data source (typed events with timestamps vs raw pino lines).
 
 ---
 
@@ -208,8 +208,8 @@ The viewer currently serves `.log` files (pino JSON logs) alongside screenshots.
 
 - **Phase 1**: New introspection features (proxy writeAsset, titlePath events, plugin-redux) have passing tests in the introspection repo.
 - **Phase 2**: All existing test files run under `npx playwright test` with the same pass/fail results as `vitest run`.
-- **Phase 3**: `createGlobalPage` contains no logging/observability code. `testLogger` is removed. All test artifacts (screenshots, logs, events) are in introspection session directories.
-- **Phase 4**: The integration-tests-viewer reads from introspection sessions. `manifest.jsonl` and `meta.json` are no longer produced. The viewer shows the same information (screenshots, pass/fail, tree navigation) but backed by introspection data.
+- **Phase 3**: `createGlobalPage` contains no logging/observability code. `testLogger` is removed. All test artifacts (screenshots, logs, events) are in introspection trace directories.
+- **Phase 4**: The integration-tests-viewer reads from introspection traces. `manifest.jsonl` and `meta.json` are no longer produced. The viewer shows the same information (screenshots, pass/fail, tree navigation) but backed by introspection data.
 
 ---
 

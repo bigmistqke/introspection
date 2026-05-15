@@ -77,9 +77,9 @@ Scopes are written to a `scopes` asset with the label as the `message` field.
 
 ```bash
 # Run a test, then:
-ls .introspect/           # should contain session subdirectories
-introspect list           # lists sessions with ID, duration, label
-introspect summary        # plain-language overview of the most recent session
+ls .introspect/           # should contain trace subdirectories
+introspect list           # lists traces with ID, duration, label
+introspect summary        # plain-language overview of the most recent trace
 ```
 
 If `.introspect/` is empty or missing:

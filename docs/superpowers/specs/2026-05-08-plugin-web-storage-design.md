@@ -195,7 +195,7 @@ const { entries } = await cdpSession.send('DOMStorage.getDOMStorageItems', {
 })
 ```
 
-This avoids racing the page's first scripts. A page that writes during inline `<script>` execution would have those writes captured by our prototype patch (init scripts run *before* page scripts), but the *initial* contents already on disk from a prior session need a server-side dump. Snapshots triggered later (manual / js.error / detach) can use the same CDP query for consistency.
+This avoids racing the page's first scripts. A page that writes during inline `<script>` execution would have those writes captured by our prototype patch (init scripts run *before* page scripts), but the *initial* contents already on disk from a prior trace need a server-side dump. Snapshots triggered later (manual / js.error / detach) can use the same CDP query for consistency.
 
 We do **not** subscribe to `DOMStorage.domStorageItem*` events for ongoing writes — the page-side wrapper is authoritative.
 

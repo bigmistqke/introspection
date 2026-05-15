@@ -1,27 +1,27 @@
 import type { TraceEvent } from '@introspection/types'
-import { createSessionReader, listRuns, listSessions } from '@introspection/read'
+import { createTraceReader, listRuns, listTraces } from '@introspection/read'
 import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
 import './widgets/event-graph.js'
 
 const adapter = createFetchAdapter('/__introspect')
-const selectElement = document.getElementById('session-select') as HTMLSelectElement
+const selectElement = document.getElementById('trace-select') as HTMLSelectElement
 const graphElement = document.querySelector('event-graph') as HTMLElement & { load(events: TraceEvent[]): void }
 
-async function loadSession(sessionId: string) {
-  const session = await createSessionReader(adapter, { sessionId })
-  const events = await session.events.ls()
+async function loadTrace(traceId: string) {
+  const trace = await createTraceReader(adapter, { traceId })
+  const events = await trace.events.ls()
   graphElement.load(events)
 }
 
-// Demo: show the latest run's sessions.
+// Demo: show the latest run's traces.
 const runs = await listRuns(adapter)
-const sessions = runs.length > 0 ? await listSessions(adapter, runs[0].id) : []
-if (sessions.length === 0) {
-  selectElement.innerHTML = '<option value="">No sessions</option>'
+const traces = runs.length > 0 ? await listTraces(adapter, runs[0].id) : []
+if (traces.length === 0) {
+  selectElement.innerHTML = '<option value="">No traces</option>'
 } else {
-  selectElement.innerHTML = sessions
-    .map(session => `<option value="${session.id}">${session.label ?? session.id}</option>`)
+  selectElement.innerHTML = traces
+    .map(trace => `<option value="${trace.id}">${trace.label ?? trace.id}</option>`)
     .join('')
-  selectElement.addEventListener('change', () => loadSession(selectElement.value))
-  loadSession(sessions[0].id)
+  selectElement.addEventListener('change', () => loadTrace(selectElement.value))
+  loadTrace(traces[0].id)
 }

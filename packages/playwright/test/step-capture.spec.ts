@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test'
 import type { TestInfo } from '@playwright/test'
-import type { SessionWriter, EmitInput } from '@introspection/types'
+import type { TraceWriter, EmitInput } from '@introspection/types'
 import { installStepCapture } from '../src/step-capture.js'
 
-function fakeSession(): { writer: SessionWriter; emitted: EmitInput[] } {
+function fakeTrace(): { writer: TraceWriter; emitted: EmitInput[] } {
   const emitted: EmitInput[] = []
-  const writer = { emit: async (e: EmitInput) => { emitted.push(e) } } as unknown as SessionWriter
+  const writer = { emit: async (e: EmitInput) => { emitted.push(e) } } as unknown as TraceWriter
   return { writer, emitted }
 }
 
@@ -17,7 +17,7 @@ test('wraps onStepBegin/onStepEnd, emits step events, calls originals, restores 
   }
   const originals = { begin: callbacks.onStepBegin, end: callbacks.onStepEnd }
   const testInfo = { _callbacks: callbacks } as unknown as TestInfo
-  const { writer, emitted } = fakeSession()
+  const { writer, emitted } = fakeTrace()
 
   const stop = installStepCapture(testInfo, writer)
   callbacks.onStepBegin({ stepId: 's@1', parentStepId: undefined, title: 'click', category: 'test.step' } as never)
@@ -35,6 +35,6 @@ test('wraps onStepBegin/onStepEnd, emits step events, calls originals, restores 
 })
 
 test('throws a clear error when the internal hook is absent', () => {
-  const { writer } = fakeSession()
+  const { writer } = fakeTrace()
   expect(() => installStepCapture({} as TestInfo, writer)).toThrow(/internal step hook/i)
 })

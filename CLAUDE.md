@@ -8,4 +8,4 @@ This repo builds `introspect`. **Use it aggressively** — both as a way to surf
 - When writing a new plugin, query your own events with the CLI while developing — don't inspect ndjson by hand.
 - If you find yourself reaching for a bash/grep workaround because the CLI doesn't expose what you need, that's feedback about the tool. Flag it explicitly so we can improve the surface (a missing flag, a missing subcommand, a missing heuristic).
 
-The skills at `.claude/skills/introspect-*` document the available commands — invoke them (`introspect-debug`, `introspect-setup`, `introspect-plugin`) rather than rediscovering the CLI each session.
+The skills at `.claude/skills/introspect-*` document the available commands — invoke them (`introspect-debug`, `introspect-setup`, `introspect-plugin`) rather than rediscovering the CLI each trace.

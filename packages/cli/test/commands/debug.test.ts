@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { runDebug } from '../../src/commands/debug.js'
-import { createSessionReader, listRuns, listSessions } from '@introspection/read/node'
+import { createTraceReader, listRuns, listTraces } from '@introspection/read/node'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { mkdtemp, rm } from 'fs/promises'
@@ -20,7 +20,7 @@ describe('debug command', () => {
     await rm(tempDir, { recursive: true, force: true })
   })
 
-  it('serves a local HTML file and records a session', async () => {
+  it('serves a local HTML file and records a trace', async () => {
     const result = await runDebug({
       serve: resolve(fixturesDir, 'index.html'),
       config: resolve(fixturesDir, 'introspect.config.js'),
@@ -28,38 +28,38 @@ describe('debug command', () => {
     })
 
     expect(result.runId).toBeDefined()
-    expect(result.sessionId).toBeDefined()
+    expect(result.traceId).toBeDefined()
 
-    // The run directory exists with a RunMeta and one session
+    // The run directory exists with a RunMeta and one trace
     const runs = await listRuns(tempDir)
     expect(runs.map(r => r.id)).toContain(result.runId)
-    const sessions = await listSessions(tempDir, result.runId)
-    expect(sessions.map(s => s.id)).toContain(result.sessionId)
+    const traces = await listTraces(tempDir, result.runId)
+    expect(traces.map(s => s.id)).toContain(result.traceId)
   })
 
-  it('serves a directory with index.html and records a session', async () => {
+  it('serves a directory with index.html and records a trace', async () => {
     const result = await runDebug({
       serve: fixturesDir,
       config: resolve(fixturesDir, 'introspect.config.js'),
       dir: tempDir,
     })
 
-    expect(result.sessionId).toBeDefined()
-    const sessions = await listSessions(tempDir, result.runId)
-    expect(sessions.map(s => s.id)).toContain(result.sessionId)
+    expect(result.traceId).toBeDefined()
+    const traces = await listTraces(tempDir, result.runId)
+    expect(traces.map(s => s.id)).toContain(result.traceId)
   })
 
-  it('records session metadata and events', async () => {
+  it('records trace metadata and events', async () => {
     const result = await runDebug({
       serve: resolve(fixturesDir, 'index.html'),
       config: resolve(fixturesDir, 'introspect.config.js'),
       dir: tempDir,
     })
 
-    // Verify session metadata exists
-    const reader = await createSessionReader(tempDir, { runId: result.runId, sessionId: result.sessionId })
+    // Verify trace metadata exists
+    const reader = await createTraceReader(tempDir, { runId: result.runId, traceId: result.traceId })
     const meta = reader.meta
-    expect(meta.id).toBe(result.sessionId)
+    expect(meta.id).toBe(result.traceId)
     expect(meta.startedAt).toBeDefined()
     expect(meta.endedAt).toBeDefined()
 
@@ -76,9 +76,9 @@ describe('debug command', () => {
       dir: tempDir,
     })
 
-    expect(result.sessionId).toBeDefined()
-    const reader = await createSessionReader(tempDir, { runId: result.runId, sessionId: result.sessionId })
-    expect(reader.meta.id).toBe(result.sessionId)
+    expect(result.traceId).toBeDefined()
+    const reader = await createTraceReader(tempDir, { runId: result.runId, traceId: result.traceId })
+    expect(reader.meta.id).toBe(result.traceId)
   })
 
   it('loads config from provided path', async () => {
@@ -88,9 +88,9 @@ describe('debug command', () => {
       dir: tempDir,
     })
 
-    expect(result.sessionId).toBeDefined()
-    const reader = await createSessionReader(tempDir, { runId: result.runId, sessionId: result.sessionId })
-    expect(reader.meta.id).toBe(result.sessionId)
+    expect(result.traceId).toBeDefined()
+    const reader = await createTraceReader(tempDir, { runId: result.runId, traceId: result.traceId })
+    expect(reader.meta.id).toBe(result.traceId)
   })
 
   it('throws error for missing path with --serve', async () => {

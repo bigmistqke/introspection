@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test'
-import type { RunMeta, SessionMeta, StepStartEvent, StepEndEvent } from '@introspection/types'
+import type { RunMeta, TraceMeta, StepStartEvent, StepEndEvent } from '@introspection/types'
 
-test('RunMeta and extended SessionMeta have the expected shape', () => {
+test('RunMeta and extended TraceMeta have the expected shape', () => {
   const run: RunMeta = {
     version: '1', id: 'r1', startedAt: 1, endedAt: 2, status: 'passed', branch: 'main', commit: 'abc',
   }
-  const session: SessionMeta = {
+  const trace: TraceMeta = {
     version: '2', id: 's1', startedAt: 1, status: 'failed', project: 'browser-mobile',
   }
   expect(run.status).toBe('passed')
-  expect(session.project).toBe('browser-mobile')
+  expect(trace.project).toBe('browser-mobile')
 
   const start: StepStartEvent = {
     id: 'e1', type: 'step.start', timestamp: 0,

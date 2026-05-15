@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import type { TraceEvent } from '@introspection/types'
-import { createSessionReader } from '../src/node.js'
+import { createTraceReader } from '../src/node.js'
 import { writeFixtureRun, markEvent, networkRequestEvent } from './helpers.js'
 
 let dir: string
@@ -16,45 +16,45 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-describe('createSessionReader — selection & meta', () => {
-  it('selects the latest session of the latest run when no ids are given', async () => {
-    await writeFixtureRun(dir, { id: 'run-old', startedAt: 100, sessions: [{ id: 's', startedAt: 110 }] })
+describe('createTraceReader — selection & meta', () => {
+  it('selects the latest trace of the latest run when no ids are given', async () => {
+    await writeFixtureRun(dir, { id: 'run-old', startedAt: 100, traces: [{ id: 's', startedAt: 110 }] })
     await writeFixtureRun(dir, {
       id: 'run-new', startedAt: 500,
-      sessions: [{ id: 'early', startedAt: 510 }, { id: 'late', startedAt: 590 }],
+      traces: [{ id: 'early', startedAt: 510 }, { id: 'late', startedAt: 590 }],
     })
-    const reader = await createSessionReader(dir)
+    const reader = await createTraceReader(dir)
     expect(reader.id).toBe('late')
   })
 
-  it('selects a specific session within the latest run when sessionId is given', async () => {
+  it('selects a specific trace within the latest run when traceId is given', async () => {
     await writeFixtureRun(dir, {
       id: 'run', startedAt: 100,
-      sessions: [{ id: 'a', startedAt: 110 }, { id: 'b', startedAt: 120 }],
+      traces: [{ id: 'a', startedAt: 110 }, { id: 'b', startedAt: 120 }],
     })
-    const reader = await createSessionReader(dir, { sessionId: 'a' })
+    const reader = await createTraceReader(dir, { traceId: 'a' })
     expect(reader.id).toBe('a')
   })
 
-  it('selects a session within an explicitly named run', async () => {
-    await writeFixtureRun(dir, { id: 'run-1', startedAt: 100, sessions: [{ id: 'x', startedAt: 110 }] })
-    await writeFixtureRun(dir, { id: 'run-2', startedAt: 500, sessions: [{ id: 'y', startedAt: 510 }] })
-    const reader = await createSessionReader(dir, { runId: 'run-1' })
+  it('selects a trace within an explicitly named run', async () => {
+    await writeFixtureRun(dir, { id: 'run-1', startedAt: 100, traces: [{ id: 'x', startedAt: 110 }] })
+    await writeFixtureRun(dir, { id: 'run-2', startedAt: 500, traces: [{ id: 'y', startedAt: 510 }] })
+    const reader = await createTraceReader(dir, { runId: 'run-1' })
     expect(reader.id).toBe('x')
   })
 
   it('throws when no runs exist', async () => {
-    await expect(createSessionReader(dir)).rejects.toThrow(/No runs found/)
+    await expect(createTraceReader(dir)).rejects.toThrow(/No runs found/)
   })
 
-  it('throws when the named run has no sessions', async () => {
+  it('throws when the named run has no traces', async () => {
     await writeFixtureRun(dir, { id: 'empty', startedAt: 100 })
-    await expect(createSessionReader(dir, { runId: 'empty' })).rejects.toThrow(/No sessions in run/)
+    await expect(createTraceReader(dir, { runId: 'empty' })).rejects.toThrow(/No traces in run/)
   })
 
   it('exposes meta including label and plugins', async () => {
-    await writeFixtureRun(dir, { id: 'run', startedAt: 10, sessions: [{ id: 's', startedAt: 10, label: 'hi' }] })
-    const reader = await createSessionReader(dir)
+    await writeFixtureRun(dir, { id: 'run', startedAt: 10, traces: [{ id: 's', startedAt: 10, label: 'hi' }] })
+    const reader = await createTraceReader(dir)
     expect(reader.meta.id).toBe('s')
     expect(reader.meta.label).toBe('hi')
   })
@@ -65,28 +65,28 @@ describe('events.ls', () => {
     await writeFixtureRun(dir, {
       id: 'run',
       startedAt: 0,
-      sessions: [{ id: 's', startedAt: 0, events: [markEvent('e1', 10, 'a'), markEvent('e2', 20, 'b')] }],
+      traces: [{ id: 's', startedAt: 0, events: [markEvent('e1', 10, 'a'), markEvent('e2', 20, 'b')] }],
     })
-    const reader = await createSessionReader(dir)
+    const reader = await createTraceReader(dir)
     const events = await reader.events.ls()
     expect(events.map(event => event.id)).toEqual(['e1', 'e2'])
   })
 
-  it('returns empty array for a session with no events', async () => {
-    await writeFixtureRun(dir, { id: 'run', startedAt: 0, sessions: [{ id: 's', startedAt: 0 }] })
-    const reader = await createSessionReader(dir)
+  it('returns empty array for a trace with no events', async () => {
+    await writeFixtureRun(dir, { id: 'run', startedAt: 0, traces: [{ id: 's', startedAt: 0 }] })
+    const reader = await createTraceReader(dir)
     expect(await reader.events.ls()).toEqual([])
   })
 })
 
 describe('events.query', () => {
-  let reader: Awaited<ReturnType<typeof createSessionReader>>
+  let reader: Awaited<ReturnType<typeof createTraceReader>>
 
   beforeEach(async () => {
     await writeFixtureRun(dir, {
       id: 'run',
       startedAt: 0,
-      sessions: [{
+      traces: [{
         id: 's',
         startedAt: 0,
         events: [
@@ -97,7 +97,7 @@ describe('events.query', () => {
         ],
       }],
     })
-    reader = await createSessionReader(dir)
+    reader = await createTraceReader(dir)
   })
 
   it('filters by exact type', async () => {
@@ -141,9 +141,9 @@ describe('events.push + reactive watch', () => {
     await writeFixtureRun(dir, {
       id: 'run',
       startedAt: 0,
-      sessions: [{ id: 's', startedAt: 0, events: [markEvent('e1', 10, 'a')] }],
+      traces: [{ id: 's', startedAt: 0, events: [markEvent('e1', 10, 'a')] }],
     })
-    const reader = await createSessionReader(dir)
+    const reader = await createTraceReader(dir)
     const iterator = reader.events.ls.watch()[Symbol.asyncIterator]()
 
     const initial = await iterator.next()
@@ -162,9 +162,9 @@ describe('events.push + reactive watch', () => {
     await writeFixtureRun(dir, {
       id: 'run',
       startedAt: 0,
-      sessions: [{ id: 's', startedAt: 0, events: [markEvent('e1', 10, 'a')] }],
+      traces: [{ id: 's', startedAt: 0, events: [markEvent('e1', 10, 'a')] }],
     })
-    const reader = await createSessionReader(dir)
+    const reader = await createTraceReader(dir)
     const iterator = reader.events.query.watch({ type: 'mark' })[Symbol.asyncIterator]()
 
     const initial = await iterator.next()
@@ -187,8 +187,8 @@ describe('events.push + reactive watch', () => {
   })
 
   it('return() stops the watch', async () => {
-    await writeFixtureRun(dir, { id: 'run', startedAt: 0, sessions: [{ id: 's', startedAt: 0 }] })
-    const reader = await createSessionReader(dir)
+    await writeFixtureRun(dir, { id: 'run', startedAt: 0, traces: [{ id: 's', startedAt: 0 }] })
+    const reader = await createTraceReader(dir)
     const iterator = reader.events.ls.watch()[Symbol.asyncIterator]()
     await iterator.next()
     const end = await iterator.return!(undefined as unknown as TraceEvent[])
@@ -198,8 +198,8 @@ describe('events.push + reactive watch', () => {
 
 describe('resolvePayload', () => {
   it('returns the inline value verbatim', async () => {
-    await writeFixtureRun(dir, { id: 'run', startedAt: 0, sessions: [{ id: 's', startedAt: 0 }] })
-    const reader = await createSessionReader(dir)
+    await writeFixtureRun(dir, { id: 'run', startedAt: 0, traces: [{ id: 's', startedAt: 0 }] })
+    const reader = await createTraceReader(dir)
     const value = await reader.resolvePayload({ kind: 'inline', value: { hello: 'world' } })
     expect(value).toEqual({ hello: 'world' })
   })
@@ -208,9 +208,9 @@ describe('resolvePayload', () => {
     await writeFixtureRun(dir, {
       id: 'run',
       startedAt: 0,
-      sessions: [{ id: 's', startedAt: 0, assets: [{ path: 'assets/hello.json', content: '{"hello":"world"}' }] }],
+      traces: [{ id: 's', startedAt: 0, assets: [{ path: 'assets/hello.json', content: '{"hello":"world"}' }] }],
     })
-    const reader = await createSessionReader(dir)
+    const reader = await createTraceReader(dir)
     const value = await reader.resolvePayload({
       kind: 'asset',
       format: 'json',
@@ -223,9 +223,9 @@ describe('resolvePayload', () => {
     await writeFixtureRun(dir, {
       id: 'run',
       startedAt: 0,
-      sessions: [{ id: 's', startedAt: 0, assets: [{ path: 'assets/blob.bin', content: Buffer.from([1, 2, 3]) }] }],
+      traces: [{ id: 's', startedAt: 0, assets: [{ path: 'assets/blob.bin', content: Buffer.from([1, 2, 3]) }] }],
     })
-    const reader = await createSessionReader(dir)
+    const reader = await createTraceReader(dir)
     const value = await reader.resolvePayload({
       kind: 'asset',
       format: 'binary',

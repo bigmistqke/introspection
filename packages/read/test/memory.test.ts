@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createMemoryReadAdapter } from '../src/memory.js'
-import { createSessionReader } from '../src/index.js'
-import { createMemoryWriteAdapter, createSessionWriter } from '@introspection/write'
+import { createTraceReader } from '../src/index.js'
+import { createMemoryWriteAdapter, createTraceWriter } from '@introspection/write'
 
 describe('createMemoryReadAdapter', () => {
   it('listDirectories returns unique directories', async () => {
@@ -73,18 +73,18 @@ describe('createMemoryReadAdapter', () => {
   })
 })
 
-describe('createSessionReader + createSessionWriter (memory)', () => {
-  it('reads events written by createSessionWriter', async () => {
+describe('createTraceReader + createTraceWriter (memory)', () => {
+  it('reads events written by createTraceWriter', async () => {
     const store = new Map<string, string | Uint8Array>()
     const writeAdapter = createMemoryWriteAdapter(store)
     const readAdapter = createMemoryReadAdapter(store)
 
-    const writer = await createSessionWriter({ adapter: writeAdapter, id: 'run-1/test-session' })
+    const writer = await createTraceWriter({ adapter: writeAdapter, id: 'run-1/test-trace' })
     await writer.emit({ type: 'mark', metadata: { label: 'first', extra: { foo: 'bar' } } })
     await writer.emit({ type: 'playwright.result', metadata: {} })
     await writer.finalize()
 
-    const reader = await createSessionReader(readAdapter, { runId: 'run-1', sessionId: 'test-session' })
+    const reader = await createTraceReader(readAdapter, { runId: 'run-1', traceId: 'test-trace' })
     const events = await reader.events.ls()
 
     expect(events).toHaveLength(2)
@@ -95,14 +95,14 @@ describe('createSessionReader + createSessionWriter (memory)', () => {
 
   it('appends events correctly (no duplication)', async () => {
     const store = new Map<string, string | Uint8Array>()
-    const writer = await createSessionWriter({ adapter: createMemoryWriteAdapter(store), id: 'run-1/test' })
+    const writer = await createTraceWriter({ adapter: createMemoryWriteAdapter(store), id: 'run-1/test' })
 
     await writer.emit({ type: 'browser.navigate', metadata: { from: '/', to: '/about' } })
     await writer.emit({ type: 'mark', metadata: { label: 'mid' } })
     await writer.emit({ type: 'playwright.result', metadata: {} })
     await writer.finalize()
 
-    const reader = await createSessionReader(createMemoryReadAdapter(store), { runId: 'run-1', sessionId: 'test' })
+    const reader = await createTraceReader(createMemoryReadAdapter(store), { runId: 'run-1', traceId: 'test' })
     const events = await reader.events.ls()
 
     expect(events).toHaveLength(3)

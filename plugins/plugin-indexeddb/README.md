@@ -63,7 +63,7 @@ The shared follow-up note `docs/superpowers/plans/2026-05-08-event-payload-size-
 
 ## How snapshots work
 
-Schema snapshots are queried server-side via CDP `IndexedDB.requestDatabaseNames` / `requestDatabase`, so they include databases on disk from prior sessions. Data snapshots (`dataSnapshots: true`) walk every store via the page's own IndexedDB API (`Runtime.evaluate` + cursor walk) — more robust than CDP's `requestData`, which is finicky about origins and indexes.
+Schema snapshots are queried server-side via CDP `IndexedDB.requestDatabaseNames` / `requestDatabase`, so they include databases on disk from prior traces. Data snapshots (`dataSnapshots: true`) walk every store via the page's own IndexedDB API (`Runtime.evaluate` + cursor walk) — more robust than CDP's `requestData`, which is finicky about origins and indexes.
 
 Snapshots are emitted automatically at install and whenever the introspection runtime fires `manual`, `js.error`, or `detach` on the bus — no API to call.
 

@@ -1,12 +1,12 @@
 import type { TraceEvent } from '@introspection/types'
-import type { SessionSummary } from '@introspection/read'
+import type { TraceSummary } from '@introspection/read'
 
-export function buildSummary(session: SessionSummary, events: TraceEvent[]): string {
+export function buildSummary(trace: TraceSummary, events: TraceEvent[]): string {
   const lines: string[] = []
 
-  const label = session.label ?? session.id
-  const duration = session.endedAt != null ? `${session.endedAt - session.startedAt}ms` : 'ongoing'
-  lines.push(`Session: "${label}" (${duration})`)
+  const label = trace.label ?? trace.id
+  const duration = trace.endedAt != null ? `${trace.endedAt - trace.startedAt}ms` : 'ongoing'
+  lines.push(`Trace: "${label}" (${duration})`)
   lines.push('')
 
   const actions = events.filter((event): event is TraceEvent & { type: 'playwright.action' } => event.type === 'playwright.action')

@@ -19,16 +19,16 @@
 - Modify: `packages/types/README.md` — keep documentation in sync (the public type doc).
 
 **Write side:**
-- Modify: `packages/write/src/session-writer.ts` — `writeAsset` builds and returns a `PayloadRef` asset variant.
-- Modify: `packages/write/src/session.ts` — pass-through, types only.
+- Modify: `packages/write/src/trace-writer.ts` — `writeAsset` builds and returns a `PayloadRef` asset variant.
+- Modify: `packages/write/src/trace.ts` — pass-through, types only.
 - Modify: `packages/write/src/memory.ts` — adapter signature unchanged on disk side, types only.
-- Modify: `packages/write/test/session-writer.test.ts`, `packages/write/test/memory.test.ts` — update assertions.
+- Modify: `packages/write/test/trace-writer.test.ts`, `packages/write/test/memory.test.ts` — update assertions.
 
 **Read side:**
 - Modify: `packages/read/src/index.ts` — add `resolvePayload`, drop the `assets.ls()` / `assets.metadata()` API (no longer used after the CLI command is removed).
-- Modify: `packages/read/test/session-reader.test.ts` — add resolver tests, drop tests for the removed asset-listing API.
+- Modify: `packages/read/test/trace-reader.test.ts` — add resolver tests, drop tests for the removed asset-listing API.
 
-Legacy session normalization is **out of scope**. Old recorded sessions on disk (with `assets: AssetRef[]`) will not be readable by the new code. The repo is early enough that this cost is acceptable.
+Legacy trace normalization is **out of scope**. Old recorded traces on disk (with `assets: AssetRef[]`) will not be readable by the new code. The repo is early enough that this cost is acceptable.
 
 **Built-in writers:**
 - Modify: `packages/playwright/src/attach.ts` — `PluginContext.writeAsset` typed return, no behavior change.
@@ -110,7 +110,7 @@ Replace the `AssetKind` and `AssetRef` block with:
 //
 // A payload is one named piece of data attached to an event. It is either:
 //   - inline (the value lives in events.ndjson; implicitly JSON), or
-//   - an asset (the value lives in the session's assets/ directory on disk).
+//   - an asset (the value lives in the trace's assets/ directory on disk).
 //
 // `PayloadFormat` describes how the on-disk bytes should be parsed/rendered.
 
@@ -284,19 +284,19 @@ git commit -m "types: rename WriteAssetOptions.kind to format; writeAsset return
 ## Task 4: Update the write package implementation
 
 **Files:**
-- Modify: `packages/write/src/session-writer.ts`
-- Modify: `packages/write/src/session.ts`
+- Modify: `packages/write/src/trace-writer.ts`
+- Modify: `packages/write/src/trace.ts`
 - Modify: `packages/write/src/memory.ts`
-- Modify: `packages/write/test/session-writer.test.ts`
+- Modify: `packages/write/test/trace-writer.test.ts`
 - Modify: `packages/write/test/memory.test.ts`
 
-- [ ] **Step 1: Update `session-writer.ts`'s `writeAsset` to use `format` and return a `PayloadAsset`**
+- [ ] **Step 1: Update `trace-writer.ts`'s `writeAsset` to use `format` and return a `PayloadAsset`**
 
 Find the `writeAsset` function (currently around line 34). It typically looks like:
 
 ```ts
-export async function writeAsset(args: { kind: AssetKind; content: ...; sessionDir: string; ... }): Promise<AssetRef> {
-  // ...write file at <sessionDir>/assets/<generated>.<ext>...
+export async function writeAsset(args: { kind: AssetKind; content: ...; traceDir: string; ... }): Promise<AssetRef> {
+  // ...write file at <traceDir>/assets/<generated>.<ext>...
   return { path, kind, size }
 }
 ```
@@ -304,17 +304,17 @@ export async function writeAsset(args: { kind: AssetKind; content: ...; sessionD
 Change the parameter and return:
 
 ```ts
-export async function writeAsset(args: { format: PayloadFormat; content: ...; sessionDir: string; ... }): Promise<PayloadAsset> {
-  // ...write file at <sessionDir>/assets/<generated>.<ext>...
+export async function writeAsset(args: { format: PayloadFormat; content: ...; traceDir: string; ... }): Promise<PayloadAsset> {
+  // ...write file at <traceDir>/assets/<generated>.<ext>...
   return { kind: 'asset', format, path, size }
 }
 ```
 
 Replace every reference to the old `kind` parameter inside the body with `format`. The returned object now carries the `kind: 'asset'` discriminator.
 
-- [ ] **Step 2: Update `session.ts` callers**
+- [ ] **Step 2: Update `trace.ts` callers**
 
-`session.ts` wraps `writeAsset`. Find:
+`trace.ts` wraps `writeAsset`. Find:
 
 ```ts
 async writeAsset(options) {
@@ -337,7 +337,7 @@ pnpm --filter @introspection/write typecheck
 
 Expected: zero errors inside `packages/write/src`.
 
-- [ ] **Step 5: Update `packages/write/test/session-writer.test.ts`**
+- [ ] **Step 5: Update `packages/write/test/trace-writer.test.ts`**
 
 Open the file and find every `writer.writeAsset({ kind: 'json', ... })` (around lines 113, 125, 132). Replace `kind:` with `format:` in those input objects. Then update assertions: tests asserting on the returned ref's `.kind === 'json'` etc. should now assert on `.format` for the format and `.kind === 'asset'` for the discriminator.
 
@@ -383,22 +383,22 @@ git commit -m "write: writeAsset uses format, returns PayloadAsset"
 
 **Files:**
 - Modify: `packages/read/src/index.ts`
-- Modify: `packages/read/test/session-reader.test.ts`
+- Modify: `packages/read/test/trace-reader.test.ts`
 
 - [ ] **Step 1: Write a failing test for `resolvePayload` on inline variants**
 
-Open `packages/read/test/session-reader.test.ts` and add at the bottom (inside the existing `describe`, or in a new one):
+Open `packages/read/test/trace-reader.test.ts` and add at the bottom (inside the existing `describe`, or in a new one):
 
 ```ts
 describe('resolvePayload', () => {
   it('returns the inline value verbatim', async () => {
-    const reader = await openSession(/* existing fixture path */)
+    const reader = await openTrace(/* existing fixture path */)
     const value = await reader.resolvePayload({ kind: 'inline', value: { hello: 'world' } })
     expect(value).toEqual({ hello: 'world' })
   })
 
   it('reads and parses a json asset by format', async () => {
-    const reader = await openSession(sessionWithAsset('hello.json', '{"hello":"world"}'))
+    const reader = await openTrace(traceWithAsset('hello.json', '{"hello":"world"}'))
     const value = await reader.resolvePayload({
       kind: 'asset',
       format: 'json',
@@ -408,7 +408,7 @@ describe('resolvePayload', () => {
   })
 
   it('returns raw bytes for binary assets', async () => {
-    const reader = await openSession(sessionWithAsset('blob.bin', Buffer.from([1, 2, 3])))
+    const reader = await openTrace(traceWithAsset('blob.bin', Buffer.from([1, 2, 3])))
     const value = await reader.resolvePayload({
       kind: 'asset',
       format: 'binary',
@@ -420,7 +420,7 @@ describe('resolvePayload', () => {
 })
 ```
 
-`openSession` and `sessionWithAsset` are existing helpers — read the file's top to confirm names; adjust if they're called something else (e.g. `createSessionReader`, `withFixture`).
+`openTrace` and `traceWithAsset` are existing helpers — read the file's top to confirm names; adjust if they're called something else (e.g. `createTraceReader`, `withFixture`).
 
 - [ ] **Step 2: Run the test to confirm it fails**
 
@@ -438,7 +438,7 @@ Locate the public API surface of the reader (look for the existing `assets` API 
 async resolvePayload(ref: PayloadRef): Promise<unknown> {
   if (ref.kind === 'inline') return ref.value
   // asset variant
-  const fullPath = path.join(sessionDir, ref.path)
+  const fullPath = path.join(traceDir, ref.path)
   const bytes = await fs.readFile(fullPath)
   switch (ref.format) {
     case 'json':
@@ -476,7 +476,7 @@ git commit -m "read: add resolvePayload(ref) returning inline value or parsed as
 
 **Files:**
 - Modify: `packages/read/src/index.ts`
-- Modify: `packages/read/test/session-reader.test.ts`
+- Modify: `packages/read/test/trace-reader.test.ts`
 
 The `assets.ls()` and `assets.metadata()` methods existed solely to power the CLI `assets` command, which is being removed in Task 15a. Drop them now (in lockstep with the type rename) rather than carrying dead code.
 
@@ -495,14 +495,14 @@ assets: {
 Delete the whole `assets:` property. If `readText` / `readJSON` (or similar) helpers live there and are used elsewhere, move them out as standalone reader methods or exports — search for callers first:
 
 ```bash
-grep -rn "session\.assets\|reader\.assets" packages/ plugins/ --include="*.ts" | grep -v "\.d\.ts\|/dist/"
+grep -rn "trace\.assets\|reader\.assets" packages/ plugins/ --include="*.ts" | grep -v "\.d\.ts\|/dist/"
 ```
 
-If `session.assets.readJSON` is still used (e.g. in `plugin-redux/src/reconstruct.ts`), expose `reader.resolvePayload` as the replacement before deleting the old API. The Task 10 (plugin-redux) migration already updates `reconstruct.ts` to use `resolvePayload`; ensure that runs before this delete or in the same task.
+If `trace.assets.readJSON` is still used (e.g. in `plugin-redux/src/reconstruct.ts`), expose `reader.resolvePayload` as the replacement before deleting the old API. The Task 10 (plugin-redux) migration already updates `reconstruct.ts` to use `resolvePayload`; ensure that runs before this delete or in the same task.
 
 - [ ] **Step 2: Remove the corresponding tests**
 
-In `packages/read/test/session-reader.test.ts`, delete tests that exercise `session.assets.ls()` or `session.assets.metadata()`. Keep the `resolvePayload` tests added in Task 5.
+In `packages/read/test/trace-reader.test.ts`, delete tests that exercise `trace.assets.ls()` or `trace.assets.metadata()`. Keep the `resolvePayload` tests added in Task 5.
 
 - [ ] **Step 3: Run read package tests**
 
@@ -532,12 +532,12 @@ git commit -m "read: drop assets.ls/metadata API, superseded by resolvePayload"
 Find the four occurrences in `packages/playwright/src/attach.ts` (lines 121, 192, 202–203). Each currently looks like:
 
 ```ts
-writeAsset: session.writeAsset.bind(session),
+writeAsset: trace.writeAsset.bind(trace),
 // or
-async writeAsset(opts) { return session.writeAsset(opts) }
+async writeAsset(opts) { return trace.writeAsset(opts) }
 ```
 
-The shape doesn't change — the underlying session method's return type now flows through as `PayloadAsset`. Run typecheck and confirm no inline `AssetRef` annotations need updating.
+The shape doesn't change — the underlying trace method's return type now flows through as `PayloadAsset`. Run typecheck and confirm no inline `AssetRef` annotations need updating.
 
 ```bash
 pnpm --filter @introspection/playwright typecheck
@@ -613,7 +613,7 @@ In `packages/playwright/test/proxy.spec.ts` at lines 93 and 98:
 Before:
 ```ts
 expect(screenshotEvent.assets[0].kind).toBe('image')
-const assetPath = join(sessionDir, screenshotEvent.assets[0].path)
+const assetPath = join(traceDir, screenshotEvent.assets[0].path)
 ```
 
 After:
@@ -621,7 +621,7 @@ After:
 const screenshot = screenshotEvent.payloads!.image
 expect(screenshot.kind).toBe('asset')
 expect(screenshot).toMatchObject({ kind: 'asset', format: 'image' })
-const assetPath = join(sessionDir, (screenshot as PayloadAsset).path)
+const assetPath = join(traceDir, (screenshot as PayloadAsset).path)
 ```
 
 Search the file for `.assets[` to catch all assertions.
@@ -753,7 +753,7 @@ Replace every `snapshot.assets[0]` lookup with `snapshot.payloads.state` and upd
 const ref = snapshot.payloads.state
 expect(ref.kind).toBe('asset')
 expect(ref).toMatchObject({ kind: 'asset', format: 'json' })
-const state = JSON.parse(await readFile(join(sessionDir, (ref as PayloadAsset).path), 'utf-8'))
+const state = JSON.parse(await readFile(join(traceDir, (ref as PayloadAsset).path), 'utf-8'))
 ```
 
 Apply at lines 127, 131, 150, 154, 176.
@@ -1044,7 +1044,7 @@ This preserves the old per-asset rendering and adds payload names — useful sin
 
 Delete the entire block at lines 63–91 (`program.command('assets')...`). The new `introspect payload <event-id> <name>` command (added in Task 15c) replaces the by-path display with one that speaks the user's vocabulary; the flat listing has no clear replacement and is dropped.
 
-Also remove any imports made unused by this deletion (`createSessionReader` may still be used by other commands — check).
+Also remove any imports made unused by this deletion (`createTraceReader` may still be used by other commands — check).
 
 - [ ] **Step 3: Run CLI tests**
 
@@ -1380,9 +1380,9 @@ program.command('events')
   .option('--payload <names>', 'comma-separated list of payload names to include', (v: string, prev: string[] = []) => prev.concat(v.split(',').map(s => s.trim()).filter(Boolean)))
   .action(async (opts) => {
     const baseDir = program.opts().dir as string
-    const session = await createSessionReader(baseDir, opts)
-    const events = await session.events.list()
-    const output = await formatEvents(events, opts, session)
+    const trace = await createTraceReader(baseDir, opts)
+    const events = await trace.events.list()
+    const output = await formatEvents(events, opts, trace)
     console.log(output)
   })
 ```
@@ -1397,7 +1397,7 @@ pnpm --filter @introspection/cli test
 
 Expected: all green.
 
-- [ ] **Step 7: Smoke test in a real session**
+- [ ] **Step 7: Smoke test in a real trace**
 
 ```bash
 introspect events --type 'redux.snapshot' --last 1
@@ -1555,12 +1555,12 @@ program.command('payload')
   .description('Print one named payload of one event to stdout')
   .argument('<event-id>')
   .argument('<name>')
-  .option('--session-id <id>')
+  .option('--trace-id <id>')
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (eventId: string, name: string, opts) => {
     const baseDir = program.opts().dir as string
-    const session = await createSessionReader(baseDir, opts)
-    await runPayloadCommand({ eventId, name }, session, process.stdout)
+    const trace = await createTraceReader(baseDir, opts)
+    await runPayloadCommand({ eventId, name }, trace, process.stdout)
   })
 ```
 
@@ -1572,7 +1572,7 @@ pnpm --filter @introspection/cli test
 
 Expected: all green.
 
-- [ ] **Step 6: Smoke test in a real session**
+- [ ] **Step 6: Smoke test in a real trace**
 
 ```bash
 # JSON state:
@@ -1643,7 +1643,7 @@ for (const ref of Object.values(event.payloads)) {
 pnpm --filter @introspection/demo-solid-streaming dev
 ```
 
-Open the printed URL, run a session that produces events with payloads (the existing demo does this). Confirm asset entries still display.
+Open the printed URL, run a trace that produces events with payloads (the existing demo does this). Confirm asset entries still display.
 
 - [ ] **Step 4: Commit**
 
@@ -1746,24 +1746,24 @@ git commit -m "skill: document payloads API, naming convention, and kind-field f
 
 ---
 
-## Task 18: End-to-end smoke test against a real session
+## Task 18: End-to-end smoke test against a real trace
 
 **Files:**
 - (no source changes) — verification only.
 
-- [ ] **Step 1: Record a fresh session running the test suite that exercises the most plugins**
+- [ ] **Step 1: Record a fresh trace running the test suite that exercises the most plugins**
 
 ```bash
 pnpm test
-# or whichever script runs the playwright integration suite that produces a .introspect/ session
+# or whichever script runs the playwright integration suite that produces a .introspect/ trace
 ```
 
 - [ ] **Step 2: Inspect the resulting `events.ndjson`**
 
 ```bash
 ls .introspect
-# pick the most recent session
-head -50 .introspect/<session>/events.ndjson | jq 'select(.payloads != null)'
+# pick the most recent trace
+head -50 .introspect/<trace>/events.ndjson | jq 'select(.payloads != null)'
 ```
 
 Expected: every event that previously had `assets: [...]` now has `payloads: { <name>: { kind: 'asset', format, path, ... } }`.
@@ -1803,7 +1803,7 @@ If everything passed without changes, no commit needed. If you found and fixed a
   - `writeAsset` returns `PayloadAsset` → Tasks 3, 4.
   - `resolvePayload` on read API → Task 5.
   - Drop legacy `assets.ls()` / `assets.metadata()` API → Task 6.
-  - Legacy session normalization → **deliberately out of scope** (called out in the file map). Old `.introspect/` recordings won't read after this lands.
+  - Legacy trace normalization → **deliberately out of scope** (called out in the file map). Old `.introspect/` recordings won't read after this lands.
   - Every write-side migration (proxy + 6 plugins) → Tasks 8–14.
   - Read-side consumer migration (CLI events render + remove `assets` command, demos, skill docs) → Tasks 15–17.
   - `introspect events` rendering: compact text + auto-resolved JSON + filter triggers resolution + `--payload` option + filter errors to stderr → Task 15b.
@@ -1828,6 +1828,6 @@ If everything passed without changes, no commit needed. If you found and fixed a
 
 **1. Subagent-Driven (recommended)** — fresh subagent per task with review between tasks. Good fit for this plan because tasks are mechanical and fan out cleanly.
 
-**2. Inline Execution** — execute tasks in this session using executing-plans, batched with checkpoints.
+**2. Inline Execution** — execute tasks in this trace using executing-plans, batched with checkpoints.
 
 **Which approach?**

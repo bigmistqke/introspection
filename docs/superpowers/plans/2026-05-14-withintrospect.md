@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the Playwright adoption surface for introspection — a `withIntrospect` config wrapper, runner-side `globalSetup`/`globalTeardown` for run lifecycle, and a pre-built `test`/`expect` whose auto-fixture captures every test (including steps) into a per-run, per-test session directory.
+**Goal:** Build the Playwright adoption surface for introspection — a `withIntrospect` config wrapper, runner-side `globalSetup`/`globalTeardown` for run lifecycle, and a pre-built `test`/`expect` whose auto-fixture captures every test (including steps) into a per-run, per-test trace directory.
 
-**Architecture:** `withIntrospect(defineConfig({...}), { plugins, reporters, mode })` runs in both the runner and every worker (Playwright re-evaluates `playwright.config.ts` per worker); it stashes config in a module-level singleton and composes introspection's `globalSetup`/`globalTeardown` into the config via Playwright's array form. The runner-side `globalSetup` picks a run-id, creates `.introspect/<run-id>/`, writes a `RunMeta`, and exports `RUN_DIR`. The worker auto-fixture reads `RUN_DIR` + the singleton, creates a per-test session writer at `<RUN_DIR>/<project>__<slug>/`, wires plugins/reporters, captures steps via Playwright's internal `testInfo._callbacks` hook (throwing if absent), and writes a per-test `meta.json` including `status` and `project`. `globalTeardown` scans session metas, writes the run's aggregate status, and runs `retain-on-failure` cleanup.
+**Architecture:** `withIntrospect(defineConfig({...}), { plugins, reporters, mode })` runs in both the runner and every worker (Playwright re-evaluates `playwright.config.ts` per worker); it stashes config in a module-level singleton and composes introspection's `globalSetup`/`globalTeardown` into the config via Playwright's array form. The runner-side `globalSetup` picks a run-id, creates `.introspect/<run-id>/`, writes a `RunMeta`, and exports `RUN_DIR`. The worker auto-fixture reads `RUN_DIR` + the singleton, creates a per-test trace writer at `<RUN_DIR>/<project>__<slug>/`, wires plugins/reporters, captures steps via Playwright's internal `testInfo._callbacks` hook (throwing if absent), and writes a per-test `meta.json` including `status` and `project`. `globalTeardown` scans trace metas, writes the run's aggregate status, and runs `retain-on-failure` cleanup.
 
 **Tech Stack:** TypeScript (NodeNext), pnpm workspace, tsup (build), Playwright Test (the package's test runner — `*.spec.ts`).
 
@@ -15,10 +15,10 @@
 ## File Structure
 
 **Modify:**
-- `packages/types/src/index.ts` — `SessionMeta` gains `status`/`project`; new `RunMeta`; new `StepStartEvent`/`StepEndEvent` + `TraceEventMap` entries; `SessionWriter.finalize` signature gains optional `{ status }`.
-- `packages/write/src/session-writer.ts` — `SessionInitParams` + `initSessionDir` accept `project`; `finalizeSession` merges optional `status`.
-- `packages/write/src/session.ts` — `CreateSessionWriterOptions` accepts `project`; `finalize` accepts `{ status }`.
-- `packages/playwright/src/index.ts` — export `withIntrospect`, `test`, `expect`, `IntrospectMode`; keep `attach`/`session`.
+- `packages/types/src/index.ts` — `TraceMeta` gains `status`/`project`; new `RunMeta`; new `StepStartEvent`/`StepEndEvent` + `TraceEventMap` entries; `TraceWriter.finalize` signature gains optional `{ status }`.
+- `packages/write/src/trace-writer.ts` — `TraceInitParams` + `initTraceDir` accept `project`; `finalizeTrace` merges optional `status`.
+- `packages/write/src/trace.ts` — `CreateTraceWriterOptions` accepts `project`; `finalize` accepts `{ status }`.
+- `packages/playwright/src/index.ts` — export `withIntrospect`, `test`, `expect`, `IntrospectMode`; keep `attach`/`trace`.
 - `packages/playwright/package.json` — bump `@playwright/test` peer/dev range; drop `./fixture` export.
 - `packages/playwright/tsup.config.ts` — entries: `index`, `global-setup`, `global-teardown` (drop `fixture`).
 - `packages/playwright/playwright.config.ts` — `testIgnore` the fixtures dir.
@@ -26,11 +26,11 @@
 **Create (all under `packages/playwright/src/`):**
 - `config-store.ts` — the module-level config singleton.
 - `run-id.ts` — `resolveRunId()`.
-- `run-meta.ts` — git detection, `RunMeta` read/write, `scanSessionMetas`, `computeAggregateStatus`.
+- `run-meta.ts` — git detection, `RunMeta` read/write, `scanTraceMetas`, `computeAggregateStatus`.
 - `with-introspect.ts` — the `withIntrospect` wrapper.
 - `global-setup.ts` — runner-side setup module.
 - `global-teardown.ts` — runner-side teardown module.
-- `step-capture.ts` — `installStepCapture(testInfo, session)`.
+- `step-capture.ts` — `installStepCapture(testInfo, trace)`.
 - `test-id.ts` — `testIdFor(testInfo)` directory-name slug.
 - `test.ts` — the pre-built `test`/`expect` auto-fixture.
 
@@ -43,7 +43,7 @@
 
 ---
 
-## Task 1: Types — run/session metadata, step events, finalize signature
+## Task 1: Types — run/trace metadata, step events, finalize signature
 
 **Files:**
 - Modify: `packages/types/src/index.ts`
@@ -55,17 +55,17 @@ Create `packages/playwright/test/types.spec.ts`:
 
 ```ts
 import { test, expect } from '@playwright/test'
-import type { RunMeta, SessionMeta, StepStartEvent, StepEndEvent } from '@introspection/types'
+import type { RunMeta, TraceMeta, StepStartEvent, StepEndEvent } from '@introspection/types'
 
-test('RunMeta and extended SessionMeta have the expected shape', () => {
+test('RunMeta and extended TraceMeta have the expected shape', () => {
   const run: RunMeta = {
     version: '1', id: 'r1', startedAt: 1, endedAt: 2, status: 'passed', branch: 'main', commit: 'abc',
   }
-  const session: SessionMeta = {
+  const trace: TraceMeta = {
     version: '2', id: 's1', startedAt: 1, status: 'failed', project: 'browser-mobile',
   }
   expect(run.status).toBe('passed')
-  expect(session.project).toBe('browser-mobile')
+  expect(trace.project).toBe('browser-mobile')
 
   const start: StepStartEvent = {
     id: 'e1', type: 'step.start', timestamp: 0,
@@ -80,33 +80,33 @@ test('RunMeta and extended SessionMeta have the expected shape', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd packages/playwright && pnpm exec tsc --noEmit`
-Expected: FAIL — `RunMeta`, `StepStartEvent`, `StepEndEvent` not exported; `status`/`project` not on `SessionMeta`.
+Expected: FAIL — `RunMeta`, `StepStartEvent`, `StepEndEvent` not exported; `status`/`project` not on `TraceMeta`.
 
 - [ ] **Step 3: Implement the type changes**
 
-In `packages/types/src/index.ts`, replace the `SessionMeta` interface (currently around line 874) with:
+In `packages/types/src/index.ts`, replace the `TraceMeta` interface (currently around line 874) with:
 
 ```ts
 export type RunStatus = 'passed' | 'failed'
 
-export type SessionStatus =
+export type TraceStatus =
   | 'passed' | 'failed' | 'timedOut' | 'interrupted' | 'skipped' | 'crashed'
 
-export interface SessionMeta {
+export interface TraceMeta {
   version: '2'
   id: string
   startedAt: number    // unix ms
-  endedAt?: number     // unix ms, set when session ends
+  endedAt?: number     // unix ms, set when trace ends
   label?: string       // human-readable name
   plugins?: PluginMeta[]
   /** Playwright project name; 'default' when the config defines no projects. */
   project?: string
   /**
    * Final test status. Written by the worker auto-fixture at finalize.
-   * 'crashed' is never written — it is derived by readers when a session
+   * 'crashed' is never written — it is derived by readers when a trace
    * directory has no test.end event and no endedAt.
    */
-  status?: SessionStatus
+  status?: TraceStatus
 }
 
 export interface RunMeta {
@@ -141,10 +141,10 @@ In `TraceEventMap` (around line 615), add after the `'test.end'` line:
   'step.end': StepEndEvent
 ```
 
-Find the `SessionWriter` interface in the same file and change its `finalize` member from `finalize(): Promise<void>` to:
+Find the `TraceWriter` interface in the same file and change its `finalize` member from `finalize(): Promise<void>` to:
 
 ```ts
-  finalize(extras?: { status?: SessionStatus }): Promise<void>
+  finalize(extras?: { status?: TraceStatus }): Promise<void>
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -156,7 +156,7 @@ Expected: PASS (no type errors). Then `cd packages/types && pnpm exec tsc --noEm
 
 ```bash
 git add packages/types/src/index.ts packages/playwright/test/types.spec.ts
-git commit -m "types: add RunMeta, SessionMeta status/project, step events, finalize extras"
+git commit -m "types: add RunMeta, TraceMeta status/project, step events, finalize extras"
 ```
 
 ---
@@ -164,26 +164,26 @@ git commit -m "types: add RunMeta, SessionMeta status/project, step events, fina
 ## Task 2: `@introspection/write` — `project` option and `status` at finalize
 
 **Files:**
-- Modify: `packages/write/src/session-writer.ts`, `packages/write/src/session.ts`
-- Test: `packages/write/test/session-meta.test.ts`
+- Modify: `packages/write/src/trace-writer.ts`, `packages/write/src/trace.ts`
+- Test: `packages/write/test/trace-meta.test.ts`
 
 `@introspection/write` uses vitest (`packages/write/test/*.test.ts`). Follow that pattern.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `packages/write/test/session-meta.test.ts`:
+Create `packages/write/test/trace-meta.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { createSessionWriter } from '../src/session.js'
+import { createTraceWriter } from '../src/trace.js'
 
-describe('session meta project + status', () => {
+describe('trace meta project + status', () => {
   it('writes project at init and status at finalize', async () => {
     const outDir = mkdtempSync(join(tmpdir(), 'introspect-write-'))
-    const writer = await createSessionWriter({ outDir, id: 'sess', project: 'browser-mobile' })
+    const writer = await createTraceWriter({ outDir, id: 'sess', project: 'browser-mobile' })
     await writer.finalize({ status: 'failed' })
 
     const meta = JSON.parse(readFileSync(join(outDir, 'sess', 'meta.json'), 'utf-8'))
@@ -197,17 +197,17 @@ describe('session meta project + status', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd packages/write && pnpm exec vitest run test/session-meta.test.ts`
+Run: `cd packages/write && pnpm exec vitest run test/trace-meta.test.ts`
 Expected: FAIL — `project` not accepted; `meta.project`/`meta.status` undefined.
 
 - [ ] **Step 3: Implement the write changes**
 
-In `packages/write/src/session-writer.ts`:
+In `packages/write/src/trace-writer.ts`:
 
-Add `project` to `SessionInitParams`:
+Add `project` to `TraceInitParams`:
 
 ```ts
-export interface SessionInitParams {
+export interface TraceInitParams {
   id: string
   startedAt: number
   label?: string
@@ -216,10 +216,10 @@ export interface SessionInitParams {
 }
 ```
 
-In `initSessionDir`, include `project` in the `meta` object it writes:
+In `initTraceDir`, include `project` in the `meta` object it writes:
 
 ```ts
-  const meta: SessionMeta = {
+  const meta: TraceMeta = {
     version: '2',
     id: parameters.id,
     startedAt: parameters.startedAt,
@@ -229,29 +229,29 @@ In `initSessionDir`, include `project` in the `meta` object it writes:
   }
 ```
 
-Change `finalizeSession` to accept and merge an optional status:
+Change `finalizeTrace` to accept and merge an optional status:
 
 ```ts
-export async function finalizeSession(
+export async function finalizeTrace(
   outDir: string,
-  sessionId: string,
+  traceId: string,
   endedAt: number,
-  extras?: { status?: SessionMeta['status'] },
+  extras?: { status?: TraceMeta['status'] },
 ): Promise<void> {
-  const metaPath = join(outDir, sessionId, 'meta.json')
-  const meta = JSON.parse(await readFile(metaPath, 'utf-8')) as SessionMeta
+  const metaPath = join(outDir, traceId, 'meta.json')
+  const meta = JSON.parse(await readFile(metaPath, 'utf-8')) as TraceMeta
   meta.endedAt = endedAt
   if (extras?.status) meta.status = extras.status
   await writeFile(metaPath, JSON.stringify(meta, null, 2))
 }
 ```
 
-In `packages/write/src/session.ts`:
+In `packages/write/src/trace.ts`:
 
-Add `project` to `CreateSessionWriterOptions`:
+Add `project` to `CreateTraceWriterOptions`:
 
 ```ts
-export interface CreateSessionWriterOptions {
+export interface CreateTraceWriterOptions {
   outDir?: string
   id?: string
   label?: string
@@ -262,10 +262,10 @@ export interface CreateSessionWriterOptions {
 }
 ```
 
-In `createSessionWriter`, add `project` to the in-memory `meta` object and to the `initSessionDir` call:
+In `createTraceWriter`, add `project` to the in-memory `meta` object and to the `initTraceDir` call:
 
 ```ts
-  const meta: SessionMeta = {
+  const meta: TraceMeta = {
     version: '2',
     id,
     startedAt,
@@ -276,7 +276,7 @@ In `createSessionWriter`, add `project` to the in-memory `meta` object and to th
 ```
 
 ```ts
-    await initSessionDir(outDir, {
+    await initTraceDir(outDir, {
       id,
       startedAt,
       label: options.label,
@@ -288,7 +288,7 @@ In `createSessionWriter`, add `project` to the in-memory `meta` object and to th
 Change the returned `finalize` to accept and forward `extras`:
 
 ```ts
-    async finalize(extras?: { status?: SessionMeta['status'] }) {
+    async finalize(extras?: { status?: TraceMeta['status'] }) {
       await bus.emit('detach', { trigger: 'detach', timestamp: timestamp() })
       await tracker.flush()
       await queue.flush()
@@ -297,7 +297,7 @@ Change the returned `finalize` to accept and forward `extras`:
       if (adapter) {
         await adapter.writeText(`${id}/meta.json`, JSON.stringify({ ...meta, endedAt: Date.now(), ...(extras?.status ? { status: extras.status } : {}) }, null, 2))
       } else {
-        await finalizeSession(outDir, id, Date.now(), extras)
+        await finalizeTrace(outDir, id, Date.now(), extras)
       }
     },
 ```
@@ -310,7 +310,7 @@ Expected: PASS (new test + all existing write tests). Then `pnpm exec tsc --noEm
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/write/src/session-writer.ts packages/write/src/session.ts packages/write/test/session-meta.test.ts
+git add packages/write/src/trace-writer.ts packages/write/src/trace.ts packages/write/test/trace-meta.test.ts
 git commit -m "write: accept project option and status at finalize"
 ```
 
@@ -463,7 +463,7 @@ git commit -m "playwright: add resolveRunId (env override + timestamped fallback
 
 ---
 
-## Task 5: Run metadata — git detection, IO, aggregate status, session scan
+## Task 5: Run metadata — git detection, IO, aggregate status, trace scan
 
 **Files:**
 - Create: `packages/playwright/src/run-meta.ts`
@@ -479,7 +479,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import {
-  detectGitInfo, writeRunMeta, readRunMeta, scanSessionMetas, computeAggregateStatus,
+  detectGitInfo, writeRunMeta, readRunMeta, scanTraceMetas, computeAggregateStatus,
 } from '../src/run-meta.js'
 
 test('detectGitInfo prefers env overrides', () => {
@@ -494,20 +494,20 @@ test('writeRunMeta / readRunMeta round-trip', async () => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-test('scanSessionMetas reads each session dir status, ignoring meta.json', async () => {
+test('scanTraceMetas reads each trace dir status, ignoring meta.json', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'introspect-scan-'))
   writeFileSync(join(dir, 'meta.json'), '{}')
   for (const [name, status] of [['a', 'passed'], ['b', 'failed']] as const) {
     mkdirSync(join(dir, name))
     writeFileSync(join(dir, name, 'meta.json'), JSON.stringify({ version: '2', id: name, startedAt: 0, status }))
   }
-  const scanned = await scanSessionMetas(dir)
+  const scanned = await scanTraceMetas(dir)
   expect(scanned.sort((x, y) => x.dir.localeCompare(y.dir)))
     .toEqual([{ dir: 'a', status: 'passed' }, { dir: 'b', status: 'failed' }])
   rmSync(dir, { recursive: true, force: true })
 })
 
-test('computeAggregateStatus is failed if any session failed', () => {
+test('computeAggregateStatus is failed if any trace failed', () => {
   expect(computeAggregateStatus(['passed', 'skipped'])).toBe('passed')
   expect(computeAggregateStatus(['passed', 'timedOut'])).toBe('failed')
   expect(computeAggregateStatus([])).toBe('passed')
@@ -527,7 +527,7 @@ Create `packages/playwright/src/run-meta.ts`:
 import { execFileSync } from 'child_process'
 import { readFile, writeFile, readdir } from 'fs/promises'
 import { join } from 'path'
-import type { RunMeta, RunStatus, SessionMeta, SessionStatus } from '@introspection/types'
+import type { RunMeta, RunStatus, TraceMeta, TraceStatus } from '@introspection/types'
 
 const FAILING: ReadonlySet<string> = new Set(['failed', 'timedOut', 'interrupted', 'crashed'])
 
@@ -557,19 +557,19 @@ export async function readRunMeta(runDir: string): Promise<RunMeta> {
   return JSON.parse(await readFile(join(runDir, 'meta.json'), 'utf-8')) as RunMeta
 }
 
-export interface ScannedSession {
+export interface ScannedTrace {
   dir: string
-  status: SessionStatus | undefined
+  status: TraceStatus | undefined
 }
 
 /** Reads `status` from every `<runDir>/<dir>/meta.json`, skipping the run's own meta.json. */
-export async function scanSessionMetas(runDir: string): Promise<ScannedSession[]> {
+export async function scanTraceMetas(runDir: string): Promise<ScannedTrace[]> {
   const entries = await readdir(runDir, { withFileTypes: true })
   const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name)
   return Promise.all(
-    dirs.map(async (dir): Promise<ScannedSession> => {
+    dirs.map(async (dir): Promise<ScannedTrace> => {
       try {
-        const meta = JSON.parse(await readFile(join(runDir, dir, 'meta.json'), 'utf-8')) as SessionMeta
+        const meta = JSON.parse(await readFile(join(runDir, dir, 'meta.json'), 'utf-8')) as TraceMeta
         return { dir, status: meta.status }
       } catch {
         return { dir, status: undefined }
@@ -592,7 +592,7 @@ Expected: PASS.
 
 ```bash
 git add packages/playwright/src/run-meta.ts packages/playwright/test/run-meta.spec.ts
-git commit -m "playwright: add run-meta (git detect, IO, session scan, aggregate status)"
+git commit -m "playwright: add run-meta (git detect, IO, trace scan, aggregate status)"
 ```
 
 ---
@@ -856,7 +856,7 @@ test('writes endedAt + aggregate status, keeps all dirs in mode "on"', async () 
   rmSync(base, { recursive: true, force: true })
 })
 
-test('retain-on-failure deletes passing session dirs', async () => {
+test('retain-on-failure deletes passing trace dirs', async () => {
   const { base, runDir } = seedRun()
   setIntrospectConfig({ plugins: [], reporters: [], mode: 'retain-on-failure' })
   await introspectGlobalTeardown({ RUN_DIR: runDir } as NodeJS.ProcessEnv)
@@ -883,14 +883,14 @@ Create `packages/playwright/src/global-teardown.ts`:
 ```ts
 import { rm } from 'fs/promises'
 import { join } from 'path'
-import { readRunMeta, writeRunMeta, scanSessionMetas, computeAggregateStatus } from './run-meta.js'
+import { readRunMeta, writeRunMeta, scanTraceMetas, computeAggregateStatus } from './run-meta.js'
 import { getIntrospectConfig } from './config-store.js'
 
 const RETAINED: ReadonlySet<string> = new Set(['failed', 'timedOut', 'interrupted', 'crashed'])
 
 /**
  * Runner-side run lifecycle teardown. Default-exported so Playwright can load
- * it as a globalTeardown module. Scans per-test session metas to compute the
+ * it as a globalTeardown module. Scans per-test trace metas to compute the
  * run's aggregate status, then applies `retain-on-failure` cleanup in the same
  * pass.
  */
@@ -901,17 +901,17 @@ export default async function introspectGlobalTeardown(
   const runDir = env.RUN_DIR
   if (!runDir) return
 
-  const sessions = await scanSessionMetas(runDir)
-  const status = computeAggregateStatus(sessions.map((s) => s.status))
+  const traces = await scanTraceMetas(runDir)
+  const status = computeAggregateStatus(traces.map((s) => s.status))
 
   const meta = await readRunMeta(runDir)
   await writeRunMeta(runDir, { ...meta, endedAt: Date.now(), status })
 
   const mode = getIntrospectConfig()?.mode ?? 'on'
   if (mode === 'retain-on-failure') {
-    for (const session of sessions) {
-      if (!session.status || !RETAINED.has(session.status)) {
-        await rm(join(runDir, session.dir), { recursive: true, force: true })
+    for (const trace of traces) {
+      if (!trace.status || !RETAINED.has(trace.status)) {
+        await rm(join(runDir, trace.dir), { recursive: true, force: true })
       }
     }
   }
@@ -947,12 +947,12 @@ Create `packages/playwright/test/step-capture.spec.ts`:
 ```ts
 import { test, expect } from '@playwright/test'
 import type { TestInfo } from '@playwright/test'
-import type { SessionWriter, EmitInput } from '@introspection/types'
+import type { TraceWriter, EmitInput } from '@introspection/types'
 import { installStepCapture } from '../src/step-capture.js'
 
-function fakeSession(): { writer: SessionWriter; emitted: EmitInput[] } {
+function fakeTrace(): { writer: TraceWriter; emitted: EmitInput[] } {
   const emitted: EmitInput[] = []
-  const writer = { emit: async (e: EmitInput) => { emitted.push(e) } } as unknown as SessionWriter
+  const writer = { emit: async (e: EmitInput) => { emitted.push(e) } } as unknown as TraceWriter
   return { writer, emitted }
 }
 
@@ -963,7 +963,7 @@ test('wraps onStepBegin/onStepEnd, emits step events, calls originals, restores 
     onStepEnd: () => { calls.push('end') },
   }
   const testInfo = { _callbacks: callbacks } as unknown as TestInfo
-  const { writer, emitted } = fakeSession()
+  const { writer, emitted } = fakeTrace()
 
   const stop = installStepCapture(testInfo, writer)
   callbacks.onStepBegin({ stepId: 's@1', parentStepId: undefined, title: 'click', category: 'test.step' } as never)
@@ -980,7 +980,7 @@ test('wraps onStepBegin/onStepEnd, emits step events, calls originals, restores 
 })
 
 test('throws a clear error when the internal hook is absent', () => {
-  const { writer } = fakeSession()
+  const { writer } = fakeTrace()
   expect(() => installStepCapture({} as TestInfo, writer)).toThrow(/internal step hook/i)
 })
 ```
@@ -996,7 +996,7 @@ Create `packages/playwright/src/step-capture.ts`:
 
 ```ts
 import type { TestInfo } from '@playwright/test'
-import type { SessionWriter } from '@introspection/types'
+import type { TraceWriter } from '@introspection/types'
 
 interface StepBeginPayload {
   stepId: string
@@ -1015,13 +1015,13 @@ interface TestInfoCallbacks {
 
 /**
  * Wraps Playwright's internal worker-side step callbacks so step boundaries
- * become `step.start` / `step.end` events on the session bus. Verified against
+ * become `step.start` / `step.end` events on the trace bus. Verified against
  * Playwright's `TestInfoImpl._callbacks` (>=1.49 <=1.59). If the hook is
  * absent, throws — there is no fallback (see spec §"Step capture").
  *
  * Returns a `stop()` that restores the original callbacks.
  */
-export function installStepCapture(testInfo: TestInfo, session: SessionWriter): () => void {
+export function installStepCapture(testInfo: TestInfo, trace: TraceWriter): () => void {
   const callbacks = (testInfo as unknown as { _callbacks?: Partial<TestInfoCallbacks> })._callbacks
   if (!callbacks || typeof callbacks.onStepBegin !== 'function' || typeof callbacks.onStepEnd !== 'function') {
     throw new Error(
@@ -1036,7 +1036,7 @@ export function installStepCapture(testInfo: TestInfo, session: SessionWriter): 
   const originalEnd = callbacks.onStepEnd
 
   callbacks.onStepBegin = (payload: StepBeginPayload) => {
-    void session.emit({
+    void trace.emit({
       type: 'step.start',
       metadata: {
         stepId: payload.stepId,
@@ -1048,7 +1048,7 @@ export function installStepCapture(testInfo: TestInfo, session: SessionWriter): 
     return originalBegin(payload)
   }
   callbacks.onStepEnd = (payload: StepEndPayload) => {
-    void session.emit({
+    void trace.emit({
       type: 'step.end',
       metadata: { stepId: payload.stepId, error: payload.error?.message },
     })
@@ -1129,7 +1129,7 @@ export function slugify(input: string): string {
 }
 
 /**
- * The per-test session directory name: `<project>__<titlePath-slug>` with a
+ * The per-test trace directory name: `<project>__<titlePath-slug>` with a
  * `-<retry>` suffix on retries. Project is encoded as a filename prefix, not a
  * structural directory level — `ls <run-dir>/` still groups by project, the
  * tree stays two-level.
@@ -1154,7 +1154,7 @@ Create `packages/playwright/src/test.ts`:
 ```ts
 import { test as base, expect } from '@playwright/test'
 import type { IntrospectHandle } from '@introspection/types'
-import { createSessionWriter } from '@introspection/write'
+import { createTraceWriter } from '@introspection/write'
 import { attach, toPluginMetas } from './attach.js'
 import { getIntrospectConfig } from './config-store.js'
 import { installStepCapture } from './step-capture.js'
@@ -1186,7 +1186,7 @@ export const test = base.extend<{ introspect: IntrospectHandle | undefined }>({
       }
 
       const project = testInfo.project.name || 'default'
-      const session = await createSessionWriter({
+      const trace = await createTraceWriter({
         outDir: runDir,
         id: testIdFor(testInfo),
         label: testInfo.title,
@@ -1194,10 +1194,10 @@ export const test = base.extend<{ introspect: IntrospectHandle | undefined }>({
         plugins: toPluginMetas(config.plugins),
         reporters: config.reporters,
       })
-      const handle = await attach(page, { session, plugins: config.plugins })
-      const stopStepCapture = installStepCapture(testInfo, session)
+      const handle = await attach(page, { trace, plugins: config.plugins })
+      const stopStepCapture = installStepCapture(testInfo, trace)
 
-      await session.emit({
+      await trace.emit({
         type: 'test.start',
         metadata: { label: testInfo.title, titlePath: testInfo.titlePath },
       })
@@ -1208,7 +1208,7 @@ export const test = base.extend<{ introspect: IntrospectHandle | undefined }>({
       if (status !== 'passed' && status !== 'skipped') {
         await handle.snapshot().catch(() => {})
       }
-      await session.emit({
+      await trace.emit({
         type: 'test.end',
         metadata: {
           label: testInfo.title,
@@ -1221,7 +1221,7 @@ export const test = base.extend<{ introspect: IntrospectHandle | undefined }>({
 
       stopStepCapture()
       await handle.detach()
-      await session.finalize({ status })
+      await trace.finalize({ status })
     },
     { auto: true },
   ],
@@ -1264,14 +1264,14 @@ Replace `packages/playwright/src/index.ts` with:
 export { attach } from './attach.js'
 export type { AttachOptions } from './attach.js'
 export { session } from './session.js'
-export type { SessionOptions, SessionContext } from './session.js'
+export type { TraceOptions, TraceContext } from './trace.js'
 export { withIntrospect } from './with-introspect.js'
 export type { WithIntrospectOptions } from './with-introspect.js'
 export { test, expect } from './test.js'
 export type { IntrospectMode } from './config-store.js'
-export { createSessionWriter } from '@introspection/write'
-export type { CreateSessionWriterOptions } from '@introspection/write'
-export type { BusPayloadMap, BusTrigger, SessionWriter } from '@introspection/types'
+export { createTraceWriter } from '@introspection/write'
+export type { CreateTraceWriterOptions } from '@introspection/write'
+export type { BusPayloadMap, BusTrigger, TraceWriter } from '@introspection/types'
 export type { IntrospectConfig, PluginSet } from '@introspection/types'
 export { loadPlugins, loadIntrospectConfig, resolvePlugins } from '@introspection/config'
 export type { LoadPluginsOptions, LoadConfigOptions, ResolvePluginsArgs } from '@introspection/config'
@@ -1394,7 +1394,7 @@ import { tmpdir } from 'os'
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-test('withIntrospect produces a run dir, run meta, and a per-test session with steps', () => {
+test('withIntrospect produces a run dir, run meta, and a per-test trace with steps', () => {
   const base = mkdtempSync(join(tmpdir(), 'introspect-e2e-'))
 
   execFileSync(
@@ -1415,18 +1415,18 @@ test('withIntrospect produces a run dir, run meta, and a per-test session with s
   expect(runMeta.status).toBe('passed')
   expect(runMeta.endedAt).toBeDefined()
 
-  // exactly one per-test session directory
-  const sessionDirs = readdirSync(runDir).filter((e) => e !== 'meta.json')
-  expect(sessionDirs.length).toBe(1)
-  expect(sessionDirs[0]).toMatch(/^default__/)
+  // exactly one per-test trace directory
+  const traceDirs = readdirSync(runDir).filter((e) => e !== 'meta.json')
+  expect(traceDirs.length).toBe(1)
+  expect(traceDirs[0]).toMatch(/^default__/)
 
-  // session meta carries status + project
-  const sessionMeta = JSON.parse(readFileSync(join(runDir, sessionDirs[0], 'meta.json'), 'utf-8'))
-  expect(sessionMeta.status).toBe('passed')
-  expect(sessionMeta.project).toBe('default')
+  // trace meta carries status + project
+  const traceMeta = JSON.parse(readFileSync(join(runDir, traceDirs[0], 'meta.json'), 'utf-8'))
+  expect(traceMeta.status).toBe('passed')
+  expect(traceMeta.project).toBe('default')
 
   // events include test lifecycle + a captured step
-  const events = readFileSync(join(runDir, sessionDirs[0], 'events.ndjson'), 'utf-8')
+  const events = readFileSync(join(runDir, traceDirs[0], 'events.ndjson'), 'utf-8')
     .trim().split('\n').map((line) => JSON.parse(line))
   expect(events.some((e) => e.type === 'test.start')).toBe(true)
   expect(events.some((e) => e.type === 'test.end')).toBe(true)
@@ -1449,7 +1449,7 @@ Expected: build succeeds.
 - [ ] **Step 6: Run test to verify it passes**
 
 Run: `cd packages/playwright && pnpm exec playwright test test/integration.spec.ts`
-Expected: PASS — the subprocess Playwright run completes; the `.introspect/e2e-run/` tree has run meta with `status: 'passed'`, one `default__*` session dir with `status`/`project` in its meta, and `test.start`/`test.end`/`step.start` events in its NDJSON.
+Expected: PASS — the subprocess Playwright run completes; the `.introspect/e2e-run/` tree has run meta with `status: 'passed'`, one `default__*` trace dir with `status`/`project` in its meta, and `test.start`/`test.end`/`step.start` events in its NDJSON.
 
 - [ ] **Step 7: Run the full package test suite**
 
@@ -1471,17 +1471,17 @@ git commit -m "playwright: add end-to-end withIntrospect integration test"
 - `withIntrospect` wrapper → Task 6. ✓
 - `globalSetup`/`globalTeardown`, run-id, run dir, run `meta.json`, `RUN_DIR` propagation → Tasks 4, 5, 7, 8. ✓
 - Array-form setup/teardown composition + Playwright peer-dep bump → Tasks 6, 11. ✓
-- Delete `introspectFixture` factory; ship pre-built `test`/`expect`; keep `attach`/`session` → Tasks 10, 11. ✓
-- Per-test session dir under run dir; reporter wiring; `test.start`/`test.end`; per-test `meta.json` incl. `status` + `project` → Tasks 2, 10. ✓
+- Delete `introspectFixture` factory; ship pre-built `test`/`expect`; keep `attach`/`trace` → Tasks 10, 11. ✓
+- Per-test trace dir under run dir; reporter wiring; `test.start`/`test.end`; per-test `meta.json` incl. `status` + `project` → Tasks 2, 10. ✓
 - Step capture via internal hook; throw if absent; no fallback → Task 9. ✓
 - `mode` retention (`on` / `retain-on-failure` / `on-first-retry`) → Task 8 (retain GC), Task 10 (`on-first-retry` worker-side). ✓
 - `INTROSPECT_TRACING=0` override → Task 7 (globalSetup), Task 8 (globalTeardown), Task 10 (fixture). ✓
-- Types: `SessionMeta` gains `status`/`project`; new `RunMeta` → Task 1. ✓
+- Types: `TraceMeta` gains `status`/`project`; new `RunMeta` → Task 1. ✓
 - Run-level identity: `branch`/`commit` via git with env override → Task 5. ✓
 - Project as filename prefix, not a directory level → Task 10 (`test-id.ts`). ✓
 
 **Deferred (per spec, intentionally absent):** step-capture hardening (CI version matrix, exhaustive README compat section); the `test.extend` `.step` fallback (resolved: no fallback).
 
-**Type consistency:** `RunMeta`/`SessionMeta`/`SessionStatus`/`RunStatus` defined in Task 1 and consumed unchanged in Tasks 2, 5, 7, 8. `StoredIntrospectConfig`/`IntrospectMode` defined in Task 3, consumed in Tasks 6, 8, 10. `installStepCapture(testInfo, session)` signature defined in Task 9, called in Task 10. `testIdFor(testInfo)` defined in Task 10, used in `test.ts` same task. `createSessionWriter`'s new `project` option and `finalize({ status })` defined in Task 2, used in Task 10. `globalSetup`/`globalteardown` default exports take `env?: NodeJS.ProcessEnv` — consistent across Tasks 7, 8 and their tests.
+**Type consistency:** `RunMeta`/`TraceMeta`/`TraceStatus`/`RunStatus` defined in Task 1 and consumed unchanged in Tasks 2, 5, 7, 8. `StoredIntrospectConfig`/`IntrospectMode` defined in Task 3, consumed in Tasks 6, 8, 10. `installStepCapture(testInfo, trace)` signature defined in Task 9, called in Task 10. `testIdFor(testInfo)` defined in Task 10, used in `test.ts` same task. `createTraceWriter`'s new `project` option and `finalize({ status })` defined in Task 2, used in Task 10. `globalSetup`/`globalteardown` default exports take `env?: NodeJS.ProcessEnv` — consistent across Tasks 7, 8 and their tests.
 
 **Planning-time check (from the spec):** the model assumes Playwright re-evaluates `playwright.config.ts` in worker processes (so `withIntrospect` re-populates the singleton per worker). Task 12's integration test is the verification — if step/test events do *not* appear in the worker's NDJSON, the singleton was not populated in the worker and the config-injection approach needs revisiting (fallback: `globalSetup` writes a serialized config path to env, workers `loadIntrospectConfig` it).
