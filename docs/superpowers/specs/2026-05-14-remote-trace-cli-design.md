@@ -1,5 +1,7 @@
 # Remote Trace Access for the `introspect` CLI — Design
 
+> **Status:** landed (2026-05-15) · plan: `docs/superpowers/plans/2026-05-15-remote-trace-cli.md`
+
 Lets the `introspect` CLI read traces served over HTTP, not just from local
 disk. Today the CLI only reads `--dir <local path>`; CI runs produce traces on
 a server, and debugging them means downloading artifacts first. This spec

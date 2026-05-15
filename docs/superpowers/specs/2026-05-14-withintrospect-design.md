@@ -1,5 +1,7 @@
 # `withIntrospect` — Design
 
+> **Status:** landed (2026-05-14) · plan: `docs/superpowers/plans/2026-05-14-withintrospect.md`
+
 The Playwright adoption surface for introspection: a `withIntrospect` config
 wrapper, runner-side `globalSetup` / `globalTeardown` for run lifecycle, and a
 pre-built `test` / `expect` whose auto-fixture captures every test into a

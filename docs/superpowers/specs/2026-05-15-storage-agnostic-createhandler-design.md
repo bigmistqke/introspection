@@ -1,5 +1,7 @@
 # Storage-Agnostic `createHandler` — Design
 
+> **Status:** landed (2026-05-15) · plan: `docs/superpowers/plans/2026-05-15-storage-agnostic-createhandler.md`
+
 Make `@introspection/serve`'s `createHandler` a generic transport that exposes
 any `StorageAdapter` over HTTP, so the HTTP-served `read` path can navigate
 the `<run-id>/<trace-id>/` hierarchy established by Spec B. The handler

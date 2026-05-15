@@ -1,5 +1,7 @@
 # Storage-Agnostic `createHandler` Implementation Plan
 
+> **Status:** landed (2026-05-15) · spec: `docs/superpowers/specs/2026-05-15-storage-agnostic-createhandler-design.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `@introspection/serve`'s `createHandler` a generic `StorageAdapter`-over-HTTP transport (verb-prefix URLs `/dirs/` and `/file/`, no trace vocabulary, async, no SSE), with traversal protection pushed down into `createNodeAdapter`, the demo `fetch-adapter` rewritten against the new wire protocol, SSE relocated into a solid-streaming-only Vite plugin, and the four HTTP-served demo tests un-skipped (with the two weak ones tightened).

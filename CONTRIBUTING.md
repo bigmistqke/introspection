@@ -21,7 +21,7 @@ Most contributions fall into one of these shapes, roughly descending by frequenc
 
 Plugins live in `plugins/`. Demos in `demos/`.
 
-**Read vs write are separate on purpose.** Write uses `fs` directly (Node-only). Read accepts any `StorageAdapter` (`listDirectories`, `readText`, `readBinary?`) and runs in any environment. Built-in adapters: `createNodeAdapter(dir)` in `@introspection/read/node`, `createFetchAdapter(baseUrl)` in `demos/shared`.
+**Read vs write are separate on purpose.** Write uses `fs` directly (Node-only). Read accepts any `StorageAdapter` (`listDirectories`, `readText`, `readBinary`, `readJSON`) and runs in any environment. Built-in adapters: `createNodeAdapter(dir)` in `@introspection/read/node`, `createHttpReadAdapter(baseUrl)` in `@introspection/serve/client`.
 
 ## Plugins
 
@@ -237,6 +237,28 @@ Same result — the augmented type flows through the whole system.
 - Type narrowing works everywhere (discriminated unions on `type` and `kind`).
 - No risk of forgetting a side-effect import that registers types.
 - Clear separation: built-in types live in source, third-party types use augmentation.
+
+## Specs and plans
+
+Designs live in `docs/superpowers/specs/`; implementation plans in `docs/superpowers/plans/`. Both kinds of doc carry a top-of-file `Status:` blockquote so readers can tell at a glance whether a doc describes shipped behaviour, in-flight work, or a superseded design.
+
+```markdown
+> **Status:** landed (YYYY-MM-DD) · plan: `docs/superpowers/plans/<plan>.md`
+```
+
+Status values:
+
+| Value | Meaning |
+|---|---|
+| `in-flight` | Design or plan is still moving. Edit freely. |
+| `landed (YYYY-MM-DD)` | Implementation merged on the given date; the doc now describes shipped behaviour. Edit only for vocabulary drift (e.g. a rename across the codebase) or to keep cross-references accurate. |
+| `superseded by <path>` | A newer doc replaces this one. Reader is pointed at the replacement; this file is kept as historical record. |
+| `abandoned` | Decided against. Kept as historical record. |
+| `vision (ongoing reference)` | Non-spec direction-setting docs (e.g. `2026-05-13-introspection-playwright-vision.md`). |
+
+A landed spec's status line references the plan that implemented it; a landed plan's status line references the spec it implements.
+
+Older docs under `docs/specs/` predate the superpowers flow and are archive by default; they're not expected to carry a status header.
 
 ## Code style
 

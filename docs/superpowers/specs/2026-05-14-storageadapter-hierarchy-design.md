@@ -1,5 +1,7 @@
 # StorageAdapter Hierarchy + Hierarchy-Aware `read` — Design
 
+> **Status:** landed (2026-05-14) · plan: `docs/superpowers/plans/2026-05-14-storageadapter-hierarchy.md`
+
 Make `@introspection/read` and the `introspect` CLI navigate the two-level
 `<run-id>/<trace-id>/` trace layout that the `withIntrospect` work
 established on disk. Today `read` assumes a flat `<trace>/` layout and is

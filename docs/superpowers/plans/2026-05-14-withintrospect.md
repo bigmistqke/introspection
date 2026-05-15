@@ -1,5 +1,7 @@
 # withIntrospect Implementation Plan
 
+> **Status:** landed (2026-05-14) · spec: `docs/superpowers/specs/2026-05-14-withintrospect-design.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the Playwright adoption surface for introspection — a `withIntrospect` config wrapper, runner-side `globalSetup`/`globalTeardown` for run lifecycle, and a pre-built `test`/`expect` whose auto-fixture captures every test (including steps) into a per-run, per-test trace directory.

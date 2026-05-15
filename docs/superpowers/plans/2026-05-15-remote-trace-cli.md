@@ -1,5 +1,7 @@
 # Remote Trace CLI Implementation Plan
 
+> **Status:** landed (2026-05-15) · spec: `docs/superpowers/specs/2026-05-14-remote-trace-cli-design.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let `introspect` read traces over HTTP from a server mounting `@introspection/serve`'s `createHandler`, by promoting the demo's `createFetchAdapter` into a published `createHttpReadAdapter` and replacing the CLI's `--dir <path>` with a single `--base <pathOrUrl>` flag whose value discriminates by URL scheme.

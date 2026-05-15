@@ -1,5 +1,7 @@
 # StorageAdapter Hierarchy + Hierarchy-Aware read — Implementation Plan
 
+> **Status:** landed (2026-05-14) · spec: `docs/superpowers/specs/2026-05-14-storageadapter-hierarchy-design.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `@introspection/read` and the `introspect` CLI navigate the two-level `<run-id>/<trace-id>/` trace layout that `withIntrospect` established on disk.
