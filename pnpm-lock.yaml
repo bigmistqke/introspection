@@ -32,6 +32,9 @@ importers:
       '@introspection/read':
         specifier: workspace:*
         version: link:../../packages/read
+      '@introspection/serve':
+        specifier: workspace:*
+        version: link:../../packages/serve
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -103,6 +106,9 @@ importers:
       '@introspection/read':
         specifier: workspace:*
         version: link:../../packages/read
+      '@introspection/serve':
+        specifier: workspace:*
+        version: link:../../packages/serve
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -171,6 +177,9 @@ importers:
       '@introspection/read':
         specifier: workspace:*
         version: link:../../packages/read
+      '@introspection/serve':
+        specifier: workspace:*
+        version: link:../../packages/serve
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -199,6 +208,9 @@ importers:
       '@introspection/read':
         specifier: workspace:*
         version: link:../../packages/read
+      '@introspection/serve':
+        specifier: workspace:*
+        version: link:../../packages/serve
       '@introspection/types':
         specifier: workspace:*
         version: link:../../packages/types
