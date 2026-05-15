@@ -115,4 +115,14 @@ describe('createHandler — protocol', () => {
     expect(await handler({ url: '/api/trace/dirs/' })).not.toBeNull()
     expect(await handler({ url: '/_introspect/dirs/' })).toBeNull()
   })
+
+  it('returns 500 when listDirectories throws unexpectedly (non-traversal)', async () => {
+    const adapter = stubAdapter({
+      async listDirectories() { throw new Error('database is on fire') },
+    })
+    const handler = createHandler({ adapter })
+    const response = await handler({ url: '/_introspect/dirs/run-a' })
+    expect(response!.status).toBe(500)
+    expect(await response!.json()).toEqual({ error: 'database is on fire' })
+  })
 })

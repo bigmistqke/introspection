@@ -37,7 +37,9 @@ export function serve(options: NodeServeOptions): Server {
   })
 
   server.listen(port, host, () => {
-    console.log(`Serving introspection traces at http://${host}:${port}${prefix ?? '/_introspect'}`)
+    const address = server.address()
+    const actualPort = typeof address === 'object' && address ? address.port : port
+    console.log(`Serving introspection traces at http://${host}:${actualPort}${prefix ?? '/_introspect'}`)
   })
 
   return server

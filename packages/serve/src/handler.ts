@@ -26,12 +26,12 @@ export function createHandler(options: ServeOptions) {
     if (!url.startsWith(prefix)) return null
 
     const tail = url.slice(prefix.length).replace(/^\/+/, '')
-    // tail is now "dirs/<sub>", "dirs", "dirs/", "file/<path>", or something else
+    // tail is "", "dirs", "dirs/<sub>", "file/<path>", or an unknown verb
     let verb: 'dirs' | 'file' | null = null
     let rest = ''
-    if (tail === 'dirs' || tail === 'dirs/' || tail.startsWith('dirs/')) {
+    if (tail === 'dirs' || tail.startsWith('dirs/')) {
       verb = 'dirs'
-      rest = tail === 'dirs' || tail === 'dirs/' ? '' : tail.slice('dirs/'.length)
+      rest = tail === 'dirs' ? '' : tail.slice('dirs/'.length).replace(/\/$/, '')
     } else if (tail.startsWith('file/')) {
       verb = 'file'
       rest = tail.slice('file/'.length)
