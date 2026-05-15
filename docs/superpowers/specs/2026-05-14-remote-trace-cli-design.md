@@ -80,7 +80,7 @@ mounts `@introspection/serve` can be read by both a project's own viewer UI
 ## Sequencing
 
 This spec is the **last node in a four-spec chain** and must not be planned or
-implemented until the chain above it lands. A brainstorming + grill trace on
+implemented until the chain above it lands. A brainstorming + grill session on
 2026-05-14 decomposed the work:
 
 ```

@@ -1,6 +1,6 @@
 ---
 name: introspect-debug
-description: Use when a Playwright test fails or an app behaves unexpectedly and introspection is set up — guides querying the trace trace to identify root cause
+description: Use when a Playwright test fails or an app behaves unexpectedly and introspection is set up — guides querying the trace to identify root cause
 ---
 
 # Debugging with introspect
