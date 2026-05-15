@@ -37,8 +37,12 @@ test('renders event graph visualization', async ({ page }) => {
   const options = selectElement.locator('option')
   expect(await options.count()).toBeGreaterThan(0)
 
-  // Tighten: verify the captured trace id is actually surfaced
+  // Tighten: verify the captured trace id is actually surfaced.
+  // Poll because vite's file watcher may need a tick to pick up the new
+  // .introspect/ data written by attachRun.
   const captured = handle.trace.id
-  const optionTexts = await options.allTextContents()
-  expect(optionTexts.some(t => t.includes(captured))).toBe(true)
+  await expect(async () => {
+    const optionTexts = await options.allTextContents()
+    expect(optionTexts.some(t => t.includes(captured))).toBe(true)
+  }).toPass({ timeout: 5000 })
 })
