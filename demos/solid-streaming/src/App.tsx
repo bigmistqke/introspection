@@ -1,5 +1,5 @@
 import { createFetchAdapter } from "@introspection/demo-shared/fetch-adapter";
-import { createSessionReader } from "@introspection/read";
+import { createSessionReader, listRuns, listSessions } from "@introspection/read";
 import type { PayloadRef, SessionReader, TraceEvent } from "@introspection/types";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { useAssetContent } from "./hooks/useAssetContent.js";
@@ -49,25 +49,32 @@ function formatEvent(event: TraceEvent): string {
 const adapter = createFetchAdapter("/__introspect");
 
 export default function App() {
-  const [session] = createResource(() =>
-    createSessionReader(adapter, { verbose: VERBOSE }),
-  );
+  const [result] = createResource(async () => {
+    const runs = await listRuns(adapter);
+    const runId = runs[0]?.id;
+    if (!runId) return undefined;
+    const sessions = await listSessions(adapter, runId);
+    const sessionId = sessions[0]?.id;
+    if (!sessionId) return undefined;
+    const reader = await createSessionReader(adapter, { runId, sessionId, verbose: VERBOSE });
+    return { runId, reader };
+  });
 
   return (
     <Show
-      when={session()}
+      when={result()}
       fallback={<p style={{ color: "#666" }}>Connecting...</p>}
     >
-      <SessionView session={session()} />
+      <SessionView runId={result()!.runId} session={result()!.reader} />
     </Show>
   );
 }
 
-function SessionView(props: { session?: SessionReader }) {
+function SessionView(props: { runId: string | undefined; session?: SessionReader }) {
   const [selected, setSelected] = createSignal<TraceEvent | null>(null);
 
   const { status } = useEventSource(
-    () => props.session ? `/__introspect/${props.session.id}/events?sse` : null,
+    () => props.runId && props.session ? `/__introspect/stream/${props.runId}/${props.session.id}/events` : null,
     () => props.session,
   );
 
