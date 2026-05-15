@@ -1,9 +1,9 @@
 import type { TraceEvent } from '@introspection/types'
 import { createTraceReader, listRuns, listTraces } from '@introspection/read'
-import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
+import { createHttpReadAdapter } from '@introspection/serve/client'
 import './widgets/event-graph.js'
 
-const adapter = createFetchAdapter('/__introspect')
+const adapter = createHttpReadAdapter('/__introspect')
 const selectElement = document.getElementById('trace-select') as HTMLSelectElement
 const graphElement = document.querySelector('event-graph') as HTMLElement & { load(events: TraceEvent[]): void }
 

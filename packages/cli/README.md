@@ -26,10 +26,10 @@ pnpm add -D introspect
 ## Global options
 
 ```
-introspect --dir <path>   # trace directory (default: .introspect in cwd)
+introspect --base <pathOrUrl>   # trace source: a path or http(s):// URL (default: ./.introspect)
 ```
 
-All commands accept `--dir` to point at a non-default trace directory.
+All commands accept `--base` to point at a non-default trace source. The value is a filesystem path (e.g. `./.introspect`) or an `http(s)://` URL pointing at a server that mounts `@introspection/serve`. `debug` and `serve` accept only the path form. The default is `./.introspect`. May also be set as `base` in `introspect.config.ts`.
 
 ---
 

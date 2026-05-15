@@ -2,9 +2,10 @@
 
 Lets the `introspect` CLI read traces served over HTTP, not just from local
 disk. Today the CLI only reads `--dir <local path>`; CI runs produce traces on
-a server, and debugging them means downloading artifacts first. This spec adds
-an HTTP-backed `StorageAdapter` and a `--url` flag so a developer can point
-the CLI at a CI run without copying files locally. Run selection on a remote
+a server, and debugging them means downloading artifacts first. This spec
+adds an HTTP-backed `StorageAdapter` and replaces `--dir` with a single
+`--base <pathOrUrl>` flag whose value discriminates by URL scheme — local
+path, or `http(s)://` for the remote transport. Run selection on a remote
 server (pick a run by branch/commit/etc.) is handled by the run-selection
 flags that Spec B introduces — see "Run selection" below.
 
@@ -57,10 +58,14 @@ mounts `@introspection/serve` can be read by both a project's own viewer UI
   `StorageAdapter` interface.
 - The demos drop their local `fetch-adapter.ts` copy and import from
   `@introspection/serve/client`, so there is one implementation.
-- `introspect --url <baseUrl>` — a sibling to `--dir`, mutually exclusive,
-  building the HTTP adapter instead of the filesystem one. `baseUrl` may also
-  come from `introspect.config.ts` so it doesn't have to be retyped every
-  invocation.
+- `introspect --base <pathOrUrl>` — replaces `--dir`. A single flag whose
+  value discriminates the transport: any string containing `://` is parsed
+  as a URL (only `http://` / `https://` accepted, anything else is an
+  argument error) and builds the HTTP adapter; everything else is treated as
+  a filesystem path and builds the node adapter. Default: `./.introspect`.
+  Also settable as `base` in `introspect.config.ts`.
+- `--dir` is removed in the same change (hard cut; the CLI is pre-1.0).
+  Demos, tests, and docs are updated in the same PR.
 
 **Out of scope:**
 
@@ -80,7 +85,7 @@ mounts `@introspection/serve` can be read by both a project's own viewer UI
 ## Sequencing
 
 This spec is the **last node in a four-spec chain** and must not be planned or
-implemented until the chain above it lands. A brainstorming + grill trace on
+implemented until the chain above it lands. A brainstorming + grill session on
 2026-05-14 decomposed the work:
 
 ```
@@ -133,25 +138,27 @@ structure; this spec's `createHttpReadAdapter` and `introspect runs` build
 directly on both. Building the client first means building against an
 interface and a package layout that are still moving.
 
-**This spec's own scope expands when its turn comes.** As written below it
-covers `createHttpReadAdapter` + `--url`. Spec D will additionally need: an
-`introspect runs` command, `createHttpReadAdapter` implementing the hierarchy
-methods (`listRuns`/`listTraces`), and run/trace selection across every
-command (default: latest run on current git branch, via `listRuns()` filtered
-by branch identity from Spec A). The sections below predate the decomposition
-and will be revised at planning time. An earlier draft proposed a `--ci [ref]`
-flag and a `resolveRun(ref)` hook in `introspect.config.ts` to map a human ref
-to a base URL; once Spec B exposes `listRuns()` with branch/commit identity,
-that resolution happens against the server's run list instead — under the
-assumption of a single stable trace `baseUrl` per project — so `--ci` and the
-hook are dropped.
+**Scope status when D's turn arrived.** Specs A and B already shipped the
+`introspect runs` command, the run/trace hierarchy methods (`listRuns` /
+`listTraces`), and the run/trace selection flags (`--run`, `--trace-id`) —
+all wired against `StorageAdapter`. So Spec D really is just
+`createHttpReadAdapter` + the single `--base` flag.
+
+An earlier draft proposed a `--ci [ref]` flag and a `resolveRun(ref)` hook in
+`introspect.config.ts` to map a human ref to a base URL; once Spec B exposed
+`listRuns()` with branch/commit identity, that resolution happens against the
+server's run list instead — under the assumption of a single stable trace
+base per project — so `--ci` and the hook are dropped. A second iteration
+also unified the originally-proposed `--url <baseUrl>` flag with `--dir
+<path>` into a single `--base <pathOrUrl>` whose value discriminates the
+transport by URL scheme; `--dir` is removed.
 
 ## Architecture
 
 Today there are two unrelated read paths: a project viewer's bespoke
 file-serving middleware, and the `introspect` CLI reading a local `--dir`.
 After this change there is **one read protocol** — `@introspection/serve` —
-with two transports and two clients:
+with two transports, both selected by a single CLI flag:
 
 ```
                     ┌─────────────────────────────┐
@@ -160,17 +167,18 @@ with two transports and two clients:
                     └──────────────┬──────────────┘
                                    │
                   ┌────────────────┴─────────────────┐
-          FilesystemAdapter                  @introspection/serve
+          createNodeAdapter                  @introspection/serve
           (local disk)                       createHandler (HTTP)
                   │                                  │
                   │                      ┌───────────┴───────────┐
                   │                      │                       │
             introspect CLI         introspect CLI          project viewer UI
-              --dir                    --url                   (fetch)
+        --base ./.introspect    --base https://…/_introspect    (fetch)
 ```
 
-The CLI gains exactly one branch point: `--url` → HTTP adapter, `--dir` →
-filesystem adapter. Everything downstream of the adapter is unchanged.
+The CLI gains exactly one branch point inside `--base` parsing: value with
+`http(s)://` → HTTP adapter, anything else → filesystem adapter. Everything
+downstream of the adapter is unchanged.
 
 ## `createHttpReadAdapter`
 
@@ -186,49 +194,46 @@ import type { StorageAdapter } from '@introspection/types'
  * the @introspection/serve protocol.
  *
  * @param baseUrl - URL prefix where traces are served
- *                  (e.g. https://ci.example/_introspect/<run-id>)
+ *                  (e.g. https://ci.example/_introspect)
  */
 export function createHttpReadAdapter(baseUrl: string): StorageAdapter
 ```
 
-It implements the **current** `StorageAdapter` interface — the precise method
-set (`listDirectories`, `readText`, and whichever of `readBinary` / `readBytes`
-/ `readJSON` the interface actually declares today) is reconciled during
-implementation. The demo prototype implements `listDirectories`, `readText`,
-`readBinary`, `readJSON`; the first implementation task is to diff that against
-`@introspection/types`'s `StorageAdapter` and implement exactly the current
-shape. The demo's `demos/shared/src/fetch-adapter.ts` is then deleted and its
-importers point at `@introspection/serve/client`.
+It implements the current `StorageAdapter` interface — `listDirectories`,
+`readText`, `readBinary`, `readJSON` — using the Spec C verb-prefix URL
+shape: `GET <base>/dirs/<subPath>` and `GET <base>/file/<path>`. `readJSON`
+parses client-side via `readText`. The demo prototype at
+`demos/shared/src/fetch-adapter.ts` is already this shape and is the
+direct ancestor; in the same change it is deleted and its importers point
+at `@introspection/serve/client`.
 
 Behaviour, per method:
 
-- `listDirectories()` — `GET <base>/`; on a non-OK response, **throws** a clear
-  error (see Error handling — this is the resolved decision point, not `[]`).
-- `readText(path)` / binary / JSON reads — `GET <base>/<path>`; non-OK throws
-  `Failed to fetch <path>: <status>`.
+- `listDirectories(subPath?)` — `GET <base>/dirs/<subPath || ''>`; on a
+  non-OK response, **throws** a clear error (see Error handling — this is
+  the resolved decision point, not `[]`).
+- `readText(path)` / `readBinary(path)` — `GET <base>/file/<path>`; non-OK
+  throws `Failed to fetch <path>: <status>`.
+- `readJSON(path)` — parses `readText` client-side.
 
 ## CLI surface
 
-`introspect` gains one way to select a remote source, alongside the existing
-`--dir`:
+`introspect` selects its trace source with a single top-level flag:
 
 | Flag | Meaning |
 |---|---|
-| `--dir <path>` | Filesystem adapter. Default: `.introspect` in cwd. Unchanged. |
-| `--url <baseUrl>` | HTTP adapter pointed at `baseUrl`. May also be set as `baseUrl` in `introspect.config.ts`. |
+| `--base <pathOrUrl>` | Where the traces live. Default: `./.introspect`. A value containing `://` is parsed as a URL: only `http://` and `https://` are accepted, anything else is an argument error. Any other value is a filesystem path. May also be set as `base` in `introspect.config.ts`. |
 
-`--dir` and `--url` are mutually exclusive; supplying both is an argument
-error. With neither supplied, the CLI uses `baseUrl` from
-`introspect.config.ts` if present, otherwise falls back to `--dir .introspect`
-as today.
+`--dir` is removed in the same change (hard cut; the CLI is pre-1.0). Demos
+and tests are updated in the same PR.
 
-The adapter is constructed once at command startup; `loadTrace` /
-`listTraces` receive it exactly as they receive the filesystem adapter now.
-No command implementation changes.
+Internally, `--base` is parsed once at startup into a `StorageAdapter` —
+`createNodeAdapter(path)` or `createHttpReadAdapter(url)` — and every
+command receives the adapter. No command implementation changes.
 
 ## Run selection
 
-Once a remote server is selected (via `--url` or config `baseUrl`), there is
+Once a remote server is selected (via `--base <url>` or config `base`), there is
 still the question of *which* run on that server to read. That is the job of
 Spec B's `listRuns()` plus the run-selection flags that Spec D's planning-time
 revision introduces (`--run <id>` and similar) — not of a project-supplied
@@ -244,10 +249,14 @@ went.
   as a clear error naming the URL and status; the CLI exits non-zero. It does
   not silently produce empty output.
 - **`listDirectories` on a non-OK response** — *throws* rather than returning
-  `[]`. Rationale: a developer running `introspect --url … list` against a
-  wrong URL must see "that URL is wrong", not "no traces found". (The demo
-  prototype returns `[]`; that is a demo affordance, not correct CLI
-  behaviour. This is the resolved decision point.)
+  `[]`. Rationale: a developer running `introspect --base https://… list`
+  against a wrong URL must see "that URL is wrong", not "no traces found".
+  (The demo prototype returns `[]`; that is a demo affordance, not correct
+  CLI behaviour. This is the resolved decision point.)
+- **`--base` value with an unsupported URL scheme** — e.g. `--base ftp://…`
+  or a typo like `--base htttp://…`. The CLI errors at startup naming the
+  unsupported scheme; it does not fall back to treating the value as a
+  filesystem path.
 
 ## Testing
 
@@ -259,9 +268,9 @@ TDD throughout.
   on the HTTP adapter returns the same events / assets / meta as one built on
   the filesystem adapter reading the same fixture. Plus per-method error cases
   (404, 500, network rejection).
-- **CLI argument resolution** — `--dir` / `--url` selection (including config
-  `baseUrl` fallback) and the mutual-exclusion error, tested at the
-  arg-parsing layer.
+- **CLI argument resolution** — `--base` parsing: path vs URL discrimination,
+  config `base` fallback, default to `./.introspect`, and the
+  unsupported-scheme error, tested at the arg-parsing layer.
 
 ## Reference target (illustration only — not built here)
 
@@ -271,6 +280,6 @@ introspection, and its viewer moves to a conventional **built SPA + Node API
 `@introspection/serve`'s `createHandler`. Because `createHandler` is a
 Web-standard `(Request) => Response | null`, mounting it in Hono is direct —
 Hono's `c.req.raw` is a standard `Request` — no `req`/`res` shim. At that
-point the viewer UI and the `introspect --url` / `--ci` CLI are two clients of
+point the viewer UI and the `introspect --base https://…` CLI are two clients of
 the same mounted protocol. None of that server-side work is in this spec; it
 is the picture that justifies the shape chosen here.

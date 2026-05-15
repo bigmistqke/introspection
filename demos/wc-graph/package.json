@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@introspection/demo-shared": "workspace:*",
+    "@introspection/serve": "workspace:*",
     "@introspection/read": "workspace:*",
     "@introspection/types": "workspace:*"
   },

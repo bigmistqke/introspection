@@ -9,7 +9,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const cliEntry = join(packageRoot, 'dist', 'index.js')
 
 function runCli(args: string[]): string {
-  return execFileSync('node', [cliEntry, ...args], { encoding: 'utf-8' })
+  return execFileSync('node', [cliEntry, ...args], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] })
 }
 
 let dir: string
@@ -38,33 +38,84 @@ afterAll(async () => {
 
 describe('introspect CLI — hierarchy navigation', () => {
   it('runs lists all runs, newest first', () => {
-    const out = runCli(['runs', '--dir', dir])
+    const out = runCli(['runs', '--base', dir])
     const firstLine = out.trim().split('\n')[0]
     expect(firstLine).toContain('run-new')
     expect(out).toContain('run-old')
   })
 
   it('list defaults to the latest run', () => {
-    const out = runCli(['list', '--dir', dir])
+    const out = runCli(['list', '--base', dir])
     expect(out).toContain('sess-early')
     expect(out).toContain('sess-late')
     expect(out).not.toContain('sess-o')
   })
 
   it('list --run scopes to the named run', () => {
-    const out = runCli(['list', '--dir', dir, '--run', 'run-old'])
+    const out = runCli(['list', '--base', dir, '--run', 'run-old'])
     expect(out).toContain('sess-o')
     expect(out).not.toContain('sess-early')
   })
 
   it('summary with no flags resolves the latest trace of the latest run', () => {
     // sess-late is the newest trace of the newest run; buildSummary shows its label
-    const out = runCli(['summary', '--dir', dir])
+    const out = runCli(['summary', '--base', dir])
     expect(out).toContain('the late one')
   })
 
   it('summary --run --trace-id targets a specific trace', () => {
-    const out = runCli(['summary', '--dir', dir, '--run', 'run-old', '--trace-id', 'sess-o'])
+    const out = runCli(['summary', '--base', dir, '--run', 'run-old', '--trace-id', 'sess-o'])
     expect(out).toContain('sess-o')
+  })
+})
+
+describe('introspect --base URL form rejection on write commands', () => {
+  it('debug rejects a URL --base', () => {
+    let threw = false
+    try {
+      runCli(['--base', 'https://h/_introspect', 'debug', 'https://example.com'])
+    } catch (error) {
+      threw = true
+      const message = String((error as Error & { stderr?: Buffer | string }).stderr ?? error)
+      expect(message).toMatch(/--base path|URL form/)
+    }
+    expect(threw).toBe(true)
+  })
+
+  it('serve rejects a URL --base', () => {
+    let threw = false
+    try {
+      runCli(['--base', 'https://h/_introspect', 'serve'])
+    } catch (error) {
+      threw = true
+      const message = String((error as Error & { stderr?: Buffer | string }).stderr ?? error)
+      expect(message).toMatch(/--base path|URL form/)
+    }
+    expect(threw).toBe(true)
+  })
+})
+
+describe('config.base fallback', () => {
+  it('uses config.base when --base is not supplied', async () => {
+    const cfgDir = await mkdtemp(join(tmpdir(), 'introspect-cfg-'))
+    // Write a config that points at our fixture dir.
+    await writeFile(
+      join(cfgDir, 'introspect.config.mjs'),
+      `export default { base: ${JSON.stringify(dir)} }`,
+    )
+    const out = execFileSync('node', [cliEntry, 'runs'], { encoding: 'utf-8', cwd: cfgDir })
+    expect(out).toContain('run-new')
+    await rm(cfgDir, { recursive: true, force: true })
+  })
+
+  it('--base wins over config.base', async () => {
+    const cfgDir = await mkdtemp(join(tmpdir(), 'introspect-cfg-'))
+    await writeFile(
+      join(cfgDir, 'introspect.config.mjs'),
+      `export default { base: '/nonexistent-config-base' }`,
+    )
+    const out = execFileSync('node', [cliEntry, '--base', dir, 'runs'], { encoding: 'utf-8', cwd: cfgDir })
+    expect(out).toContain('run-new')
+    await rm(cfgDir, { recursive: true, force: true })
   })
 })

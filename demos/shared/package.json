@@ -7,10 +7,6 @@
     "./vite-plugin": {
       "types": "./src/vite-plugin.ts",
       "import": "./src/vite-plugin.ts"
-    },
-    "./fetch-adapter": {
-      "types": "./src/fetch-adapter.ts",
-      "import": "./src/fetch-adapter.ts"
     }
   },
   "dependencies": {
@@ -19,12 +15,10 @@
     "@introspection/utils": "workspace:*"
   },
   "scripts": {
-    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "vite": "^6.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "^2.0.0"
+    "typescript": "^5.0.0"
   }
 }

@@ -803,6 +803,11 @@ export type ReporterSet =
 export interface IntrospectConfig {
   plugins?: PluginSet
   reporters?: ReporterSet
+  /**
+   * Where the CLI reads traces from. Filesystem path or http(s):// URL.
+   * Overridden by the --base CLI flag. Defaults to './.introspect'.
+   */
+  base?: string
 }
 
 // ─── Reporter system ─────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { createTraceReader, listRuns, listTraces } from '@introspection/read'
-import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
+import { createHttpReadAdapter } from '@introspection/serve/client'
 import type { TraceEvent } from '@introspection/types'
 
 const COLORS: Record<string, string> = {
@@ -13,7 +13,7 @@ const COLORS: Record<string, string> = {
   'browser.navigate': '#e0e0e0',
 }
 
-const adapter = createFetchAdapter('/__introspect')
+const adapter = createHttpReadAdapter('/__introspect')
 const timelineElement = document.getElementById('timeline')!
 const detailElement = document.getElementById('detail')!
 const selectElement = document.getElementById('trace-select') as HTMLSelectElement

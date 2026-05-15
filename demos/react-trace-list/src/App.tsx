@@ -1,13 +1,13 @@
 import { Suspense, use } from 'react'
 import { listRuns, listTraces } from '@introspection/read'
-import { createFetchAdapter } from '@introspection/demo-shared/fetch-adapter'
+import { createHttpReadAdapter } from '@introspection/serve/client'
 import { TraceCard } from './TraceCard.jsx'
 
 const baseUrl = typeof window !== 'undefined'
   ? `${window.location.origin}/__introspect`
   : 'http://localhost:5175/__introspect'
 
-const adapter = createFetchAdapter(baseUrl)
+const adapter = createHttpReadAdapter(baseUrl)
 // Demo: show the latest run's traces. createTraceReader({ traceId })
 // downstream resolves within that same latest run.
 const tracesPromise = listRuns(adapter).then(runs =>

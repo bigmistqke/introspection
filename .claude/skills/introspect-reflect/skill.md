@@ -1,6 +1,6 @@
 ---
 name: introspect-reflect
-description: Use at the end of a debugging or tool-dogfooding trace (or when the user asks "reflect / retro / what did we learn") to review how the introspect CLI was used, identify gaps, and propose concrete fixes. Repo-local — do not bundle.
+description: Use at the end of a debugging or tool-dogfooding session (or when the user asks "reflect / retro / what did we learn") to review how the introspect CLI was used, identify gaps, and propose concrete fixes. Repo-local — do not bundle.
 ---
 
 # Reflect on a debugging trace
