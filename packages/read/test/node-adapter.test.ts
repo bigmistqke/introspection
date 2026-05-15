@@ -109,12 +109,7 @@ describe('createNodeAdapter — traversal guard', () => {
 
   it('errors are TraversalError instances (name)', async () => {
     const adapter = createNodeAdapter(dir)
-    try {
-      await adapter.readText('../x')
-      throw new Error('expected throw')
-    } catch (e) {
-      expect((e as Error).name).toBe('TraversalError')
-    }
+    await expect(adapter.readText('../x')).rejects.toMatchObject({ name: 'TraversalError' })
   })
 
   it('valid nested paths still work', async () => {
@@ -123,5 +118,19 @@ describe('createNodeAdapter — traversal guard', () => {
     const adapter = createNodeAdapter(dir)
     expect(await adapter.readText('sub/x.txt')).toBe('ok')
     expect(await adapter.listDirectories('sub')).toEqual([])
+  })
+
+  it("treats '.' as the base directory itself (no escape)", async () => {
+    await mkdir(join(dir, 'a'))
+    await mkdir(join(dir, 'b'))
+    const adapter = createNodeAdapter(dir)
+    expect((await adapter.listDirectories('.')).sort()).toEqual(['a', 'b'])
+  })
+
+  it("accepts './'-prefixed paths that stay inside the base", async () => {
+    await mkdir(join(dir, 'sub'), { recursive: true })
+    await writeFile(join(dir, 'sub', 'x.txt'), 'ok')
+    const adapter = createNodeAdapter(dir)
+    expect(await adapter.readText('./sub/x.txt')).toBe('ok')
   })
 })

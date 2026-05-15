@@ -17,8 +17,7 @@ export class TraversalError extends Error {
   override readonly name = 'TraversalError'
 }
 
-function safeJoin(base: string, sub: string): string {
-  const baseResolved = resolve(base)
+function safeJoin(baseResolved: string, sub: string): string {
   const target = resolve(baseResolved, sub)
   if (target !== baseResolved && !target.startsWith(baseResolved + sep)) {
     throw new TraversalError(`Path '${sub}' escapes base directory`)
@@ -27,25 +26,26 @@ function safeJoin(base: string, sub: string): string {
 }
 
 export function createNodeAdapter(dir: string): StorageAdapter {
+  const baseResolved = resolve(dir)
   return {
     async listDirectories(subPath?: string) {
-      const target = subPath ? safeJoin(dir, subPath) : dir
+      const target = subPath ? safeJoin(baseResolved, subPath) : baseResolved
       try {
         const entries = await readdir(target, { withFileTypes: true })
         return entries.filter(entry => entry.isDirectory()).map(entry => entry.name)
       } catch (err) {
-        if ((err as Error).name === 'TraversalError') throw err
+        if (err instanceof TraversalError) throw err
         return []
       }
     },
     async readText(path: string) {
-      return readFile(safeJoin(dir, path), 'utf-8')
+      return readFile(safeJoin(baseResolved, path), 'utf-8')
     },
     async readBinary(path: string) {
-      return readFile(safeJoin(dir, path))
+      return readFile(safeJoin(baseResolved, path))
     },
     async readJSON<T = unknown>(path: string): Promise<T> {
-      const text = await readFile(safeJoin(dir, path), 'utf-8')
+      const text = await readFile(safeJoin(baseResolved, path), 'utf-8')
       return JSON.parse(text) as T
     },
   }
