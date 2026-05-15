@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest'
 import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { createHandler } from '../index.js'
@@ -22,7 +22,11 @@ beforeEach(() => {
   // Stub global fetch: turn the URL into the request shape createHandler expects.
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
     const url = typeof input === 'string' ? input : input.toString()
-    const path = url.startsWith('http://localhost') ? url.slice('http://localhost'.length) : url
+    if (!url.startsWith('http://localhost')) {
+      throw new Error(`Unexpected fetch in equivalence test: ${url}`)
+    }
+    const parsed = new URL(url)
+    const path = parsed.pathname + parsed.search
     const response = await handler({ url: path })
     if (response === null) return new Response('', { status: 404 })
     return response
@@ -33,6 +37,12 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+let runId: string
+beforeAll(async () => {
+  const runs = await listRuns(createNodeAdapter(fixtureDir))
+  runId = runs[0].id
+})
+
 describe('createHttpReadAdapter ≡ createNodeAdapter through createHandler', () => {
   it('listRuns returns identical results', async () => {
     const fs = await listRuns(createNodeAdapter(fixtureDir))
@@ -41,24 +51,18 @@ describe('createHttpReadAdapter ≡ createNodeAdapter through createHandler', ()
   })
 
   it('listTraces returns identical results for a run', async () => {
-    const fsRuns = await listRuns(createNodeAdapter(fixtureDir))
-    const runId = fsRuns[0].id
     const fs = await listTraces(createNodeAdapter(fixtureDir), runId)
     const http = await listTraces(createHttpReadAdapter(BASE), runId)
     expect(http).toEqual(fs)
   })
 
   it('createTraceReader.meta is identical', async () => {
-    const fsRuns = await listRuns(createNodeAdapter(fixtureDir))
-    const runId = fsRuns[0].id
     const fs = await createTraceReader(createNodeAdapter(fixtureDir), { runId })
     const http = await createTraceReader(createHttpReadAdapter(BASE), { runId })
     expect(http.meta).toEqual(fs.meta)
   })
 
   it('createTraceReader.events.ls() is identical', async () => {
-    const fsRuns = await listRuns(createNodeAdapter(fixtureDir))
-    const runId = fsRuns[0].id
     const fs = await createTraceReader(createNodeAdapter(fixtureDir), { runId })
     const http = await createTraceReader(createHttpReadAdapter(BASE), { runId })
     expect(await http.events.ls()).toEqual(await fs.events.ls())
