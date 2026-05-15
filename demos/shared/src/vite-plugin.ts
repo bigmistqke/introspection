@@ -1,5 +1,6 @@
 import { resolve } from 'path'
 import { createHandler } from '@introspection/serve'
+import { createNodeAdapter } from '@introspection/read/node'
 import type { Plugin } from 'vite'
 
 export interface IntrospectionServeOptions {
@@ -22,13 +23,13 @@ export function introspectionServe(options?: IntrospectionServeOptions): Plugin 
 
     configureServer(server) {
       const handler = createHandler({
-        directory: resolvedDirectory,
+        adapter: createNodeAdapter(resolvedDirectory),
         prefix,
       })
 
       server.middlewares.use(async (req, res, next) => {
         const request = { url: req.url ?? '' }
-        const response = handler(request)
+        const response = await handler(request)
         if (response === null) return next()
 
         res.statusCode = response.status
