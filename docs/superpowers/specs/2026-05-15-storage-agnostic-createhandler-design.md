@@ -210,8 +210,14 @@ function safeJoin(base: string, sub: string): string {
 Every `createNodeAdapter` method routes its incoming path string through
 `safeJoin` before any `fs` call. Coverage:
 
-- `..` segments (literal or URL-decoded) — `resolve` normalises, `startsWith`
-  rejects.
+- Literal `..` segments — `resolve` normalises them; `startsWith` rejects when
+  the resolved path escapes the base.
+- URL-encoded segments like `%2e%2e` are NOT decoded by `resolve` and are
+  treated as literal directory names; they cannot reach a parent directory via
+  the file system. The subsequent `fs` call against a path containing `%2e%2e`
+  returns `ENOENT` (graceful `[]` for `listDirectories`, throw for reads which
+  the handler maps to `404`). No `TraversalError` is thrown, but no escape
+  occurs either.
 - Absolute-path overrides (`/etc/passwd`) — `resolve(base, '/etc/passwd')`
   returns the absolute path; `startsWith(base + sep)` rejects.
 - Empty segments, double slashes — normalised by `resolve` to no-ops.

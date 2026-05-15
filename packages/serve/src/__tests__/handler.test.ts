@@ -95,6 +95,16 @@ describe('createHandler — protocol', () => {
     expect(await response!.json()).toEqual({ error: 'Forbidden' })
   })
 
+  it('returns 403 when listDirectories throws TraversalError', async () => {
+    const adapter = stubAdapter({
+      async listDirectories() { throw new TraversalError('nope') },
+    })
+    const handler = createHandler({ adapter })
+    const response = await handler({ url: '/_introspect/dirs/..' })
+    expect(response!.status).toBe(403)
+    expect(await response!.json()).toEqual({ error: 'Forbidden' })
+  })
+
   it('returns 404 when readBinary throws (missing file)', async () => {
     const adapter = stubAdapter({
       async readBinary() { throw new Error('ENOENT') },
