@@ -1,4 +1,4 @@
-import { createFetchAdapter } from "@introspection/demo-shared/fetch-adapter";
+import { createHttpReadAdapter } from "@introspection/serve/client";
 import { createTraceReader, listRuns, listTraces } from "@introspection/read";
 import type { PayloadRef, TraceReader, TraceEvent } from "@introspection/types";
 import { createResource, createSignal, For, Show } from "solid-js";
@@ -46,7 +46,7 @@ function formatEvent(event: TraceEvent): string {
   }
 }
 
-const adapter = createFetchAdapter("/__introspect");
+const adapter = createHttpReadAdapter("/__introspect");
 
 export default function App() {
   const [result] = createResource(async () => {
