@@ -1,5 +1,7 @@
 # `plugin-cookies` — Design
 
+> **Status:** landed (2026-05-08) · plan: `docs/superpowers/plans/2026-05-08-plugin-cookies.md`
+
 Captures cookie activity into the introspection trace: page-side writes via `document.cookie` and the `CookieStore` API, plus full cookie snapshots at install and on bus triggers.
 
 Sibling to `plugin-web-storage` and `plugin-indexeddb`. Follows the same playbook: page-side prototype patching, single CDP binding for events, server-side CDP for snapshots, `origins: ['*']` default with overrideable filter.

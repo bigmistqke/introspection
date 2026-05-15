@@ -1,5 +1,7 @@
 # Redux JSON Patch Introspection Implementation Plan
 
+> **Status:** landed (2026-04-15) · spec: `docs/superpowers/specs/2026-04-15-redux-reconstruct-design.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace full state snapshots in redux.dispatch events with compact JSON Patch diffs in metadata, and add a redux.snapshot event type for full state captures on plugin init.

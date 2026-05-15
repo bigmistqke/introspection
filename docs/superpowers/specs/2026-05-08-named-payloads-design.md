@@ -1,5 +1,7 @@
 # Named payloads: inline-or-asset, named entries, uniform reads
 
+> **Status:** landed (2026-05-08) · plan: `docs/superpowers/plans/2026-05-08-named-payloads-schema-migration.md`
+
 ## Status
 
 Design. Supersedes `docs/superpowers/plans/2026-05-08-event-payload-size-threshold.md` (the original "deferred" plan), which framed the threshold as a single-plugin question. The actual scope is broader: 6+ plugins already write assets, several emit multi-asset events, and positional `assets[]` arrays have lost their semantic names.

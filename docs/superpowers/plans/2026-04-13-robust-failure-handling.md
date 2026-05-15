@@ -1,5 +1,7 @@
 # Robust Failure Handling Implementation Plan
 
+> **Status:** landed (2026-04-13) · spec: `docs/superpowers/specs/2026-04-13-robust-failure-handling-design.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace silent error swallowing with a single, consistent failure policy — typed `IntrospectError` classes, three documented catch boundaries that emit on an internal `introspect:warning` channel, a subscribable `createDebug`, and an opt-in `@introspection/plugin-introspection` that surfaces both in the trace.

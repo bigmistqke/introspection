@@ -1,5 +1,7 @@
 # Reporter System Implementation Plan
 
+> **Status:** landed (2026-05-13) · spec: `docs/superpowers/specs/2026-05-08-reporter-system-design.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the live-only Reporter API per `docs/superpowers/specs/2026-05-08-reporter-system-design.md`, plus a reference `summaryReporter` in a new `@introspection/reporters` package.

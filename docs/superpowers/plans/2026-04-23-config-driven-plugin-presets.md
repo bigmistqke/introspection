@@ -1,5 +1,7 @@
 # Config-driven plugin presets for `@introspection/playwright`
 
+> **Status:** landed (2026-04-23) · standalone plan (no separate spec)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let consumers of `@introspection/playwright` (fixture + `attach()`) declare plugin sets in an `introspect.config.{ts,js,mjs,mts}` file and select one per run via an environment variable, with zero plugins as the default.

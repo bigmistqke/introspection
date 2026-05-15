@@ -1,5 +1,7 @@
 # Generic inline-vs-asset payload threshold
 
+> **Status:** superseded by `docs/superpowers/specs/2026-05-08-named-payloads-design.md` (the broader scope absorbed this single-plugin framing)
+
 Follow-up idea — not blocking any specific plugin. Worth picking up once we have 2+ plugins facing the "is this payload too big to inline?" question.
 
 ## Problem

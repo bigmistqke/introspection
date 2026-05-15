@@ -1,7 +1,6 @@
 # Design: `@introspection/plugin-focus-element`
 
-**Date:** 2026-05-08
-**Status:** approved, ready for implementation plan
+> **Status:** landed (2026-05-08) · plan: `docs/superpowers/plans/2026-05-08-plugin-focus-element.md`
 
 ## Goal
 

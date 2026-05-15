@@ -1,8 +1,6 @@
 # Origins option for script injection (parked)
 
-**Status:** parked — capture the idea, design later.
-
-**Date:** 2026-05-08
+> **Status:** in-flight (parked — capture the idea, design later · 2026-05-08)
 
 ## Problem
 

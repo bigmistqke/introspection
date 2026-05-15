@@ -1,5 +1,7 @@
 # Memory Adapters Design
 
+> **Status:** landed (2026-04-15) · no separate plan (small enough to ship from spec)
+
 ## Goal
 
 Add in-memory storage adapters for testing and flexible storage backends.

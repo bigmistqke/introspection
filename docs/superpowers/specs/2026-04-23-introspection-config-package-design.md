@@ -1,7 +1,7 @@
 # `@introspection/config` — design spec
 
-**Status:** draft
-**Date:** 2026-04-23
+> **Status:** landed (2026-04-23) · plan: `docs/superpowers/plans/2026-04-23-introspection-config-package.md`
+
 **Scope:** extract config loading + plugin preset resolution into a new package; keep `attach()` a pure primitive; wire the CLI to consume the package.
 
 ## Motivation

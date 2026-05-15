@@ -1,5 +1,7 @@
 # Snapshot bus trigger refactor
 
+> **Status:** in-flight (queued — `plugin-web-storage` and `plugin-indexeddb` shipped 2026-05-08, this is unblocked but not yet started)
+
 Follow-up work to pick up **after** `plugin-web-storage` and `plugin-indexeddb` ship.
 
 ## Motivation

@@ -1,5 +1,7 @@
 # Reporter System — Design
 
+> **Status:** landed (2026-05-08) · plan: `docs/superpowers/plans/2026-05-13-reporter-system.md`
+
 A consumer-side counterpart to plugins. **Plugins capture; reporters consume.** Reporters subscribe to the trace's live event stream during a run and produce derived artifacts: summary files, JUnit XML, downstream tooling input, custom dashboards.
 
 The NDJSON event stream remains the canonical, debuggable source of truth. Reporters are additive — they never replace it, they only derive views from it.

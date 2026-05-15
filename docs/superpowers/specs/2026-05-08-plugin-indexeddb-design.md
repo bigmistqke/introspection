@@ -1,5 +1,7 @@
 # `plugin-indexeddb` — Design
 
+> **Status:** landed (2026-05-08) · plan: `docs/superpowers/plans/2026-05-08-plugin-indexeddb.md`
+
 Captures IndexedDB activity (database lifecycle, schema changes, transactions, writes always; reads opt-in; schema snapshots, plus optional data snapshots) into the introspection trace.
 
 Sibling to `plugin-web-storage`. Follows the same playbook: page-side prototype patching, single CDP binding for events, server-side CDP snapshot at install + bus triggers, top-of-realm install via `addInitScript` and `Runtime.evaluate`. Diverges where IndexedDB's surface area genuinely demands it (async ops, async transactions, much wider API).

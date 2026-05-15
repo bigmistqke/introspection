@@ -1,5 +1,7 @@
 # `@introspection/config` package implementation plan
 
+> **Status:** landed (2026-04-23) · spec: `docs/superpowers/specs/2026-04-23-introspection-config-package-design.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Extract config loading + plugin preset resolution into a new `@introspection/config` package, revert `attach()` to a pure primitive, and migrate both `@introspection/playwright` and `@introspection/cli` to consume it.

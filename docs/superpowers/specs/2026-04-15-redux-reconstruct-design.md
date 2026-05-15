@@ -1,5 +1,7 @@
 # Redux State Reconstruction Design
 
+> **Status:** landed (2026-04-15) · plan: `docs/superpowers/plans/2026-04-15-redux-json-patch-introspection.md`
+
 ## Goal
 
 Provide utilities to reconstruct Redux state from captured events for debugging/visualization.

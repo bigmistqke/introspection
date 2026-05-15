@@ -147,6 +147,8 @@ this is not enforced; the pairing is what Reporters consume.
   introspection's own constructs; the words are **Event**, **emit**,
   **TraceWriter**, **Reporter**.
 
-- **"fixture"** — Playwright term (`introspectFixture`). Used only when
-  speaking of the Playwright integration; not a general introspection
-  concept.
+- **"fixture"** — Playwright concept; not an introspection construct.
+  `@introspection/playwright`'s pre-built `test` extends Playwright's
+  `test` with an internal `introspect` auto-fixture — adopters import
+  the `test`, not the fixture. There is no public `introspectFixture`
+  export.

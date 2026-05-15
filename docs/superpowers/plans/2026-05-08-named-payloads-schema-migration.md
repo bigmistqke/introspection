@@ -1,5 +1,7 @@
 # Named payloads — schema migration (Plan A)
 
+> **Status:** landed (2026-05-08) · spec: `docs/superpowers/specs/2026-05-08-named-payloads-design.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rename `assets: AssetRef[]` to `payloads: Record<string, PayloadRef>` across the introspection codebase, drop `AssetRef` as a separate named type, and add a uniform `resolvePayload` to the read API. Behavior is unchanged — every payload still goes through `writeAsset` — but events have named payloads and reads are uniform across inline/asset variants. Plan B (in a follow-up doc) wires the threshold mechanism on top.

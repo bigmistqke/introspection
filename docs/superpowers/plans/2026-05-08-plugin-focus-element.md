@@ -1,5 +1,7 @@
 # `@introspection/plugin-focus-element` Implementation Plan
 
+> **Status:** landed (2026-05-08) · spec: `docs/superpowers/specs/2026-05-08-plugin-focus-element-design.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship a plugin that emits `focus.changed` events for every focus transition during a Playwright trace — covering shadow DOM, same-origin iframes, programmatic vs unknown causes (with stack trace for programmatic calls), and a per-plugin `origins` filter.

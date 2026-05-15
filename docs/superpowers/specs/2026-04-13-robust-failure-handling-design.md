@@ -1,7 +1,6 @@
 # Robust failure handling
 
-**Date:** 2026-04-13
-**Status:** Design approved; ready for implementation plan.
+> **Status:** landed (2026-04-13) · plan: `docs/superpowers/plans/2026-04-13-robust-failure-handling.md`
 
 ## Context & goal
 

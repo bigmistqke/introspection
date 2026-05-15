@@ -1,5 +1,7 @@
 # `plugin-web-storage` — Design
 
+> **Status:** landed (2026-05-08) · plan: `docs/superpowers/plans/2026-05-08-plugin-web-storage.md`
+
 Captures `localStorage` and `sessionStorage` activity (writes always, reads opt-in, plus snapshots) into the introspection trace.
 
 Sibling plugin `plugin-indexeddb` is planned separately and is **not** covered here.

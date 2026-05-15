@@ -1,5 +1,7 @@
 # @introspection/serve Design
 
+> **Status:** landed (2025-04-15) · plan: `docs/superpowers/plans/2025-04-15-introspection-serve-implementation.md`
+
 ## Overview
 
 A deployable server package for serving introspection traces. Provides a handler factory + standalone server for serving trace data read-only, with optional SSE streaming.

@@ -1,8 +1,6 @@
 # Plugin-owned event formatters (parked)
 
-**Status:** parked — spec captured, design later.
-
-**Date:** 2026-05-08
+> **Status:** in-flight (parked — spec captured, design later · 2026-05-08)
 
 ## Problem
 

@@ -1,5 +1,7 @@
 # @introspection/serve Implementation Plan
 
+> **Status:** landed (2025-04-15) · spec: `docs/superpowers/specs/2025-04-15-introspection-serve-design.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Create `@introspection/serve` package for serving introspection traces with handler factory + standalone server.

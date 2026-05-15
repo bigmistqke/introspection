@@ -1,5 +1,7 @@
 # Plugin shapes — prior art (docs-only)
 
+> **Status:** landed (2026-04-13) · taxonomy integrated into `CONTRIBUTING.md` → "Plugin shapes: prior art"
+
 Document the three different packaging shapes we've used so far for framework/library plugins, so future plugin authors can recognise the pattern that fits their target library — without presenting our current list as a closed taxonomy.
 
 ## Background

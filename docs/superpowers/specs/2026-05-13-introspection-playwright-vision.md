@@ -1,5 +1,7 @@
 # Introspection as the Main Tracing Framework for Playwright — Vision
 
+> **Status:** vision (ongoing reference)
+
 A holistic design that positions introspection as the primary tracing primitive for a typical Playwright project. Replaces Playwright's built-in `trace.zip`, captures app-level state via plugins, and exposes its event stream to userspace viewers, the CLI, and LLMs.
 
 This is a vision document, not a single implementable spec. It defines the target shape and decomposes the work into independent sub-specs (Section 7). Each sub-spec gets its own writing-plans cycle.
