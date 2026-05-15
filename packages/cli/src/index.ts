@@ -13,6 +13,7 @@ import { listSkills, detectPlatform, getInstallRoot, installSkills } from './com
 import { createTraceReader, listRuns, listTraces } from '@introspection/read'
 import { serve } from '@introspection/serve/node'
 import { parseBase, createAdapterFromBase } from './base.js'
+import { loadIntrospectConfig } from '@introspection/config'
 
 const BUNDLED_SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url))
 const program = new Command()
@@ -20,21 +21,33 @@ const program = new Command()
 program.name('introspect').description('Query Playwright test introspection traces').version('0.1.0')
   .option('--base <pathOrUrl>', 'Trace source: a filesystem path or http(s):// URL (default: ./.introspect)')
 
-function resolveBaseValue(): string | undefined {
-  return program.opts().base as string | undefined
+let cachedBase: string | undefined
+let baseResolved = false
+async function resolveBaseValue(): Promise<string | undefined> {
+  const flag = program.opts().base as string | undefined
+  if (flag) return flag
+  if (baseResolved) return cachedBase
+  try {
+    const config = await loadIntrospectConfig({ cwd: process.cwd() })
+    cachedBase = config?.base
+  } catch {
+    cachedBase = undefined
+  }
+  baseResolved = true
+  return cachedBase
 }
 
-function describeBase(): string {
-  return resolveBaseValue() ?? './.introspect'
+async function describeBase(): Promise<string> {
+  return (await resolveBaseValue()) ?? './.introspect'
 }
 
-function getAdapter() {
-  return createAdapterFromBase(resolveBaseValue())
+async function getAdapter() {
+  return createAdapterFromBase(await resolveBaseValue())
 }
 
 /** For commands that write to disk (debug) or serve a directory. URL form errors. */
-function getBasePath(): string {
-  const parsed = parseBase(resolveBaseValue())
+async function getBasePath(): Promise<string> {
+  const parsed = parseBase(await resolveBaseValue())
   if (parsed.kind === 'url') {
     throw new Error('This command requires a local --base path; URL form is read-only')
   }
@@ -42,7 +55,7 @@ function getBasePath(): string {
 }
 
 async function loadTrace(opts: { run?: string; traceId?: string; verbose?: boolean }) {
-  return createTraceReader(getAdapter(), { runId: opts.run, traceId: opts.traceId, verbose: opts.verbose })
+  return createTraceReader(await getAdapter(), { runId: opts.run, traceId: opts.traceId, verbose: opts.verbose })
 }
 
 program
@@ -54,7 +67,7 @@ program
   .option('--verbose', 'Enable verbose debug logging')
   .action(async (url, opts) => {
     try {
-      const dir = getBasePath()
+      const dir = await getBasePath()
       await runDebug({ url, serve: opts.serve, config: opts.config, playwright: opts.playwright, verbose: opts.verbose, dir })
     } catch (error) {
       console.error(String((error as Error).message ?? error))
@@ -93,9 +106,9 @@ program.command('network')
 program.command('runs')
   .description('List recorded runs')
   .action(async () => {
-    const adapter = getAdapter()
+    const adapter = await getAdapter()
     const runs = await listRuns(adapter)
-    if (runs.length === 0) { console.error(`No runs found at '${describeBase()}'`); process.exit(1) }
+    if (runs.length === 0) { console.error(`No runs found at '${await describeBase()}'`); process.exit(1) }
     console.log(formatRunsTable(runs))
   })
 
@@ -103,15 +116,15 @@ program.command('list')
   .description('List traces in a run')
   .option('--run <id>', 'Run id (default: latest run)')
   .action(async (opts: { run?: string }) => {
-    const adapter = getAdapter()
+    const adapter = await getAdapter()
     const runs = await listRuns(adapter)
-    if (runs.length === 0) { console.error(`No runs found at '${describeBase()}'`); process.exit(1) }
+    if (runs.length === 0) { console.error(`No runs found at '${await describeBase()}'`); process.exit(1) }
     if (opts.run && !runs.some(r => r.id === opts.run)) {
-      console.error(`Run '${opts.run}' not found at '${describeBase()}'`); process.exit(1)
+      console.error(`Run '${opts.run}' not found at '${await describeBase()}'`); process.exit(1)
     }
     const runId = opts.run ?? runs[0].id
     const traces = await listTraces(adapter, runId)
-    if (traces.length === 0) { console.error(`No traces in run '${runId}' at '${describeBase()}'`); process.exit(1) }
+    if (traces.length === 0) { console.error(`No traces in run '${runId}' at '${await describeBase()}'`); process.exit(1) }
     console.log(formatTracesTable(traces))
   })
 
@@ -247,7 +260,7 @@ serveCmd
   .option('--host <address>', 'Host to bind to', '0.0.0.0')
   .action(async (opts: { port: string; prefix: string; host: string }) => {
     try {
-      const dir = getBasePath()
+      const dir = await getBasePath()
       serve({
         directory: dir,
         port: parseInt(opts.port, 10),

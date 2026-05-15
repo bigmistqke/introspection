@@ -94,3 +94,28 @@ describe('introspect --base URL form rejection on write commands', () => {
     expect(threw).toBe(true)
   })
 })
+
+describe('config.base fallback', () => {
+  it('uses config.base when --base is not supplied', async () => {
+    const cfgDir = await mkdtemp(join(tmpdir(), 'introspect-cfg-'))
+    // Write a config that points at our fixture dir.
+    await writeFile(
+      join(cfgDir, 'introspect.config.mjs'),
+      `export default { base: ${JSON.stringify(dir)} }`,
+    )
+    const out = execFileSync('node', [cliEntry, 'runs'], { encoding: 'utf-8', cwd: cfgDir })
+    expect(out).toContain('run-new')
+    await rm(cfgDir, { recursive: true, force: true })
+  })
+
+  it('--base wins over config.base', async () => {
+    const cfgDir = await mkdtemp(join(tmpdir(), 'introspect-cfg-'))
+    await writeFile(
+      join(cfgDir, 'introspect.config.mjs'),
+      `export default { base: '/nonexistent-config-base' }`,
+    )
+    const out = execFileSync('node', [cliEntry, '--base', dir, 'runs'], { encoding: 'utf-8', cwd: cfgDir })
+    expect(out).toContain('run-new')
+    await rm(cfgDir, { recursive: true, force: true })
+  })
+})
